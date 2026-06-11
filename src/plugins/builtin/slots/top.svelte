@@ -8,10 +8,7 @@
     fallbackLocale = locale,
   }: PluginComponentProps = $props();
 
-  function localizedConfigString(
-    field: string,
-    itemLocale: SiteLocale,
-  ) {
+  function localizedConfigString(field: string, itemLocale: SiteLocale) {
     const value = config[field];
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       const source = value as Partial<Record<SiteLocale, unknown>>;

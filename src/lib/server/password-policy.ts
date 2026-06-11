@@ -31,7 +31,6 @@ export function passwordPolicyDescription(
 export function validatePassword(
   password: string,
   policy: PasswordPolicy = defaultSettings.auth.password,
-  _label = 'password',
 ) {
   if (password.length < policy.minLength) {
     throw new Error(

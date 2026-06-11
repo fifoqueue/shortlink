@@ -587,8 +587,7 @@ const ko = {
     userDisabled: '비활성화된 사용자입니다.',
     userNotFound: '사용자를 찾을 수 없습니다.',
     onlyAdminDeleteDenied: '유일한 관리자는 삭제할 수 없습니다.',
-    onlyAdminDemoteDenied:
-      '유일한 관리자는 관리자 권한을 잃을 수 없습니다.',
+    onlyAdminDemoteDenied: '유일한 관리자는 관리자 권한을 잃을 수 없습니다.',
     currentPasswordMismatch: '현재 비밀번호가 일치하지 않습니다.',
     oidcAccountAlreadyLinked:
       '이 OIDC 계정은 이미 다른 사용자에게 연결되어 있습니다.',
@@ -602,10 +601,8 @@ const ko = {
       'IP 규칙 "{value}"에 올바르지 않은 IP 주소가 포함되어 있습니다.',
     ipRuleInvalidPrefix:
       'IP 규칙 "{value}"의 prefix는 0부터 {max} 사이여야 합니다.',
-    ipRuleParseFailed:
-      'IP 규칙 "{value}"의 IP 주소를 파싱하지 못했습니다.',
-    unknownUserIdsIncluded:
-      '알 수 없는 사용자 ID가 포함되어 있습니다: {ids}',
+    ipRuleParseFailed: 'IP 규칙 "{value}"의 IP 주소를 파싱하지 못했습니다.',
+    unknownUserIdsIncluded: '알 수 없는 사용자 ID가 포함되어 있습니다: {ids}',
     emailSenderRequired: '이메일 발송 주소를 설정해야 합니다.',
     smtpHostRequired: 'SMTP Host를 설정해야 합니다.',
     httpEmailEndpointRequired: 'HTTP 이메일 API Endpoint를 설정해야 합니다.',
@@ -635,10 +632,8 @@ const ko = {
       '커스텀 CAPTCHA token field name을 입력해주세요.',
     captchaSiteKeyRequired: 'CAPTCHA Site Key를 입력해주세요.',
     captchaSecretKeyRequired: 'CAPTCHA Secret Key를 입력해주세요.',
-    rateLimitRuleDuplicate:
-      'Rate limit 규칙 ID "{id}"가 중복되었습니다.',
-    rateLimitRuleIdInvalid:
-      'Rate limit 규칙 ID "{id}"가 올바르지 않습니다.',
+    rateLimitRuleDuplicate: 'Rate limit 규칙 ID "{id}"가 중복되었습니다.',
+    rateLimitRuleIdInvalid: 'Rate limit 규칙 ID "{id}"가 올바르지 않습니다.',
     rateLimitRegexInvalid:
       'Rate limit 규칙 "{name}"의 regex path가 올바르지 않습니다.',
     apiTokenRequired: '올바른 API 토큰이 필요합니다.',
@@ -910,8 +905,7 @@ const en: typeof ko = {
       allowedSchemes: 'Allowed URL schemes, one per line',
       blockedHosts: 'Blocked domains, one per line',
       apiTitle: 'JSON API',
-      apiDescription:
-        'Open individual API features for external clients.',
+      apiDescription: 'Open individual API features for external clients.',
       apiGlobalEnabled: 'Enable all API access',
       apiAllowCreate: 'Allow API link creation',
       apiAllowList: 'Allow API link listing',
@@ -993,8 +987,7 @@ const en: typeof ko = {
       proxyHeadersFailed: 'Could not save proxy IP header settings.',
       linksSettingsSaved: 'Links and API settings saved.',
       themeSettingsSaved: 'Theme settings saved.',
-      themeResetDenied:
-        'You do not have permission to reset theme settings.',
+      themeResetDenied: 'You do not have permission to reset theme settings.',
       themeReset: 'Restored the preset defaults.',
       linkEditDenied: 'You do not have permission to edit the link.',
     },
@@ -1261,7 +1254,8 @@ const en: typeof ko = {
       'Link creation is not allowed for your account or connection.',
     captchaFailed: 'CAPTCHA verification failed.',
     enterUrl: 'Enter a URL.',
-    urlSchemeNotAllowed: 'URL scheme is not allowed. Allowed schemes: {schemes}',
+    urlSchemeNotAllowed:
+      'URL scheme is not allowed. Allowed schemes: {schemes}',
     domainBlocked: 'This domain is blocked.',
     previewImageUrlInvalid: 'Preview image URL must be an http or https URL.',
     themeColorFormat: 'Theme color must use #RRGGBB format.',
@@ -1300,19 +1294,16 @@ const en: typeof ko = {
     cidrInvalid: 'CIDR is invalid.',
     ipRuleCidrRequired:
       'IP rule "{value}" must use CIDR format. Add /32 or /128 for a single IP.',
-    ipRuleInvalidAddress:
-      'IP rule "{value}" has an invalid IP address.',
+    ipRuleInvalidAddress: 'IP rule "{value}" has an invalid IP address.',
     ipRuleInvalidPrefix:
       'IP rule "{value}" prefix must be between 0 and {max}.',
-    ipRuleParseFailed:
-      'Could not parse the IP address in rule "{value}".',
+    ipRuleParseFailed: 'Could not parse the IP address in rule "{value}".',
     unknownUserIdsIncluded: 'Unknown user IDs are included: {ids}',
     emailSenderRequired: 'Email sender address must be configured.',
     smtpHostRequired: 'SMTP host must be configured.',
     httpEmailEndpointRequired: 'HTTP email API endpoint must be configured.',
     httpEmailStatus: 'HTTP email API responded with {status}.',
-    delimitedLineFormat:
-      '{description} line {line} must use {columns} format.',
+    delimitedLineFormat: '{description} line {line} must use {columns} format.',
     delimitedEmptyValue:
       '{description} line {line} has an empty {column} value.',
     delimitedInvalidValue:
@@ -1332,8 +1323,7 @@ const en: typeof ko = {
       'Enter the custom CAPTCHA verification endpoint.',
     captchaCustomSuccessPathRequired:
       'Enter the custom CAPTCHA success JSON path.',
-    captchaTokenFieldRequired:
-      'Enter the custom CAPTCHA token field name.',
+    captchaTokenFieldRequired: 'Enter the custom CAPTCHA token field name.',
     captchaSiteKeyRequired: 'Enter the CAPTCHA site key.',
     captchaSecretKeyRequired: 'Enter the CAPTCHA secret key.',
     rateLimitRuleDuplicate: 'Rate limit rule ID "{id}" is duplicated.',
@@ -1403,7 +1393,8 @@ export function uiText(
   fallbackLocale: SiteLocale = locale,
 ): UiText {
   const dictionaries: Record<string, UiText> = { ko, en };
-  const fallback = dictionaries[fallbackLocale] ?? Object.values(dictionaries)[0];
+  const fallback =
+    dictionaries[fallbackLocale] ?? Object.values(dictionaries)[0];
   if (!fallback) throw new Error('At least one UI dictionary is required.');
   return dictionaries[locale] ?? fallback;
 }
@@ -1432,7 +1423,9 @@ function parseServerMessage(message: string) {
   if (!message.startsWith(serverMessagePrefix)) return null;
   const body = message.slice(serverMessagePrefix.length);
   const separator = body.indexOf(':');
-  const key = (separator === -1 ? body : body.slice(0, separator)) as UiMessageKey;
+  const key = (
+    separator === -1 ? body : body.slice(0, separator)
+  ) as UiMessageKey;
   if (!(key in ko.messages)) return null;
   if (separator === -1) return { key, values: {} };
   try {

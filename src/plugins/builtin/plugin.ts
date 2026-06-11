@@ -5,7 +5,11 @@ import {
   pluginChecked,
   pluginString,
 } from '../utils';
-import { defaultSiteLocale, siteLocaleKeys, type SiteLocale } from '$lib/config';
+import {
+  defaultSiteLocale,
+  siteLocaleKeys,
+  type SiteLocale,
+} from '$lib/config';
 
 function localizedMessageConfig(
   form: FormData,

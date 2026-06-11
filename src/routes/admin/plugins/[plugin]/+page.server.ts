@@ -209,10 +209,8 @@ export const actions: Actions = {
   },
 
   save: async ({ request, locals, params, url, getClientAddress }) => {
-    const text = uiText(
-      locals.locale,
-      locals.settings.i18n.defaultLocale,
-    ).admin.messages;
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
+      .messages;
     const definition = definitionFor(params.plugin);
     if (!definition) return fail(404, { message: text.pluginNotFound });
     const permissions = await permissionsFor({
@@ -256,10 +254,8 @@ export const actions: Actions = {
   },
 
   pluginAction: async ({ request, locals, params, url, getClientAddress }) => {
-    const text = uiText(
-      locals.locale,
-      locals.settings.i18n.defaultLocale,
-    ).admin.messages;
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
+      .messages;
     const definition = definitionFor(params.plugin);
     if (!definition?.handleAdminAction) {
       return fail(404, { message: text.pluginActionNotFound });

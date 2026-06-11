@@ -58,12 +58,12 @@ src/plugins/example/
 
 현재 레지스트리는 네 개다.
 
-| 파일 | 자동 로드 대상 | 용도 |
-| --- | --- | --- |
-| `src/plugins/server.ts` | `./*/plugin.ts`, `./*/server.ts` | 서버 훅, 설정 정규화, 요청 훅, 클릭 메타데이터 |
-| `src/plugins/admin-registry.ts` | `./*/plugin.ts`, `./*/Admin.svelte`, `./*/AdminSubpage.svelte` | 관리자 페이지 컴포넌트 |
-| `src/plugins/public-registry.ts` | `./*/plugin.ts`, `./*/slots/*.svelte` | 공개 슬롯 컴포넌트 |
-| `src/plugins/auth-registry.ts` | `./*/auth.ts`, `./*/plugin.ts` | 로그인/세션/계정 연결 |
+| 파일                             | 자동 로드 대상                                                 | 용도                                           |
+| -------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
+| `src/plugins/server.ts`          | `./*/plugin.ts`, `./*/server.ts`                               | 서버 훅, 설정 정규화, 요청 훅, 클릭 메타데이터 |
+| `src/plugins/admin-registry.ts`  | `./*/plugin.ts`, `./*/Admin.svelte`, `./*/AdminSubpage.svelte` | 관리자 페이지 컴포넌트                         |
+| `src/plugins/public-registry.ts` | `./*/plugin.ts`, `./*/slots/*.svelte`                          | 공개 슬롯 컴포넌트                             |
+| `src/plugins/auth-registry.ts`   | `./*/auth.ts`, `./*/plugin.ts`                                 | 로그인/세션/계정 연결                          |
 
 `server.ts`는 `plugin.ts`의 `PluginDefinition` 위에 서버 전용 훅을 병합한다. 같은 훅 이름을 양쪽에 두면 `server.ts`가 이긴다. 그래도 원칙은 단순하다. 브라우저에 들어갈 수 있는 코드는 `plugin.ts`, 서버 전용 코드는 `server.ts`다.
 
@@ -75,9 +75,9 @@ src/plugins/example/
 
 설정은 `app_settings` 테이블에 저장된다.
 
-| key | value |
-| --- | --- |
-| `site` | 사이트 전역 설정 |
+| key                  | value                         |
+| -------------------- | ----------------------------- |
+| `site`               | 사이트 전역 설정              |
 | `plugins:{pluginId}` | 해당 플러그인의 `PluginState` |
 
 플러그인 row의 형태:
@@ -168,15 +168,15 @@ export default plugin;
 
 ### `meta`
 
-| 필드 | 필수 | 설명 |
-| --- | --- | --- |
-| `id` | 예 | 폴더명과 같아야 한다. |
-| `name` | 예 | 기본 표시 이름. 실제 UI에서는 `translations[locale].meta.name`이 우선된다. |
-| `description` | 예 | 기본 설명. |
-| `version` | 예 | 관리자 플러그인 페이지 상태 표시. |
-| `category` | 예 | 표시/분류용 문자열. |
-| `required` | 아니오 | true면 비활성화할 수 없다. |
-| `order` | 아니오 | 낮을수록 먼저 표시/실행된다. 기본 취급값은 100이다. |
+| 필드          | 필수   | 설명                                                                       |
+| ------------- | ------ | -------------------------------------------------------------------------- |
+| `id`          | 예     | 폴더명과 같아야 한다.                                                      |
+| `name`        | 예     | 기본 표시 이름. 실제 UI에서는 `translations[locale].meta.name`이 우선된다. |
+| `description` | 예     | 기본 설명.                                                                 |
+| `version`     | 예     | 관리자 플러그인 페이지 상태 표시.                                          |
+| `category`    | 예     | 표시/분류용 문자열.                                                        |
+| `required`    | 아니오 | true면 비활성화할 수 없다.                                                 |
+| `order`       | 아니오 | 낮을수록 먼저 표시/실행된다. 기본 취급값은 100이다.                        |
 
 `required`는 로드된 플러그인을 비활성화하지 못하게 하는 설정이다. 폴더가 없으면 플러그인은 발견되지 않는다.
 
@@ -723,14 +723,14 @@ getClickMetadataSearchFields({ isAdmin, isOwner }) {
 
 현재 렌더링되는 slot:
 
-| slot | 렌더링 위치 |
-| --- | --- |
-| `top` | 공개 홈 페이지 최상단 |
-| `form-extra` | 공개 링크 생성 form 내부 |
-| `form-footer` | 공개 링크 생성 form 하단 |
-| `footer` | 공개 홈 페이지 footer 내부 |
-| `login-extra` | 로그인 form 내부 |
-| `signup-extra` | 회원 가입 form 내부 |
+| slot           | 렌더링 위치                |
+| -------------- | -------------------------- |
+| `top`          | 공개 홈 페이지 최상단      |
+| `form-extra`   | 공개 링크 생성 form 내부   |
+| `form-footer`  | 공개 링크 생성 form 하단   |
+| `footer`       | 공개 홈 페이지 footer 내부 |
+| `login-extra`  | 로그인 form 내부           |
+| `signup-extra` | 회원 가입 form 내부        |
 
 타입상 임의 slot 이름을 만들 수 있지만, 코어에 `PluginSlotOutlet`이 없으면 렌더링되지 않는다.
 
@@ -782,17 +782,17 @@ export default auth;
 
 인증 모듈 훅:
 
-| 훅 | 설명 |
-| --- | --- |
-| `getUser(cookies, config)` | 현재 요청의 사용자 조회 |
-| `clearSession(cookies)` | 로그아웃/계정 삭제 시 세션 제거 |
-| `getLoginMethods(config, context)` | 로그인 화면에 표시할 method |
-| `authenticatePassword(cookies, config, email, password, context)` | 비밀번호 로그인 처리 |
-| `startLogin(...)` | redirect 로그인 시작 URL 생성 |
-| `finishLogin(...)` | redirect callback 처리 후 returnTo 반환 |
-| `getAccountLinkMethods(config, context)` | 계정 연결 method. 없으면 redirect login method를 재사용 |
-| `startAccountLink(...)` | 계정 연결 시작 URL 생성 |
-| `finishAccountLink(...)` | 계정 연결 callback 처리 후 returnTo 반환 |
+| 훅                                                                | 설명                                                    |
+| ----------------------------------------------------------------- | ------------------------------------------------------- |
+| `getUser(cookies, config)`                                        | 현재 요청의 사용자 조회                                 |
+| `clearSession(cookies)`                                           | 로그아웃/계정 삭제 시 세션 제거                         |
+| `getLoginMethods(config, context)`                                | 로그인 화면에 표시할 method                             |
+| `authenticatePassword(cookies, config, email, password, context)` | 비밀번호 로그인 처리                                    |
+| `startLogin(...)`                                                 | redirect 로그인 시작 URL 생성                           |
+| `finishLogin(...)`                                                | redirect callback 처리 후 returnTo 반환                 |
+| `getAccountLinkMethods(config, context)`                          | 계정 연결 method. 없으면 redirect login method를 재사용 |
+| `startAccountLink(...)`                                           | 계정 연결 시작 URL 생성                                 |
+| `finishAccountLink(...)`                                          | 계정 연결 callback 처리 후 returnTo 반환                |
 
 `getLoginMethods()`와 `getAccountLinkMethods()`는 enabled 상태인 인증 플러그인에 대해서만 사용된다. redirect 시작 route는 method 목록에 있는 method만 허용한다.
 
@@ -920,13 +920,13 @@ function formatText(template: string, values: Record<string, string | number>) {
 
 기존 플러그인은 참고용이다. 복사보다 필요한 훅만 최소 구현하는 편이 안전하다.
 
-| 플러그인 | 참고할 부분 |
-| --- | --- |
-| `builtin` | 공개 슬롯, 언어별 관리자 편집값, 줄 단위 소셜 링크 DSL |
-| `captcha` | `verifyFormSubmission`, 공개 form 슬롯, secret masking, provider none 처리 |
-| `oidc-sso` | `auth.ts`, redirect login, account link, secret masking, 관리자 action |
-| `permission-management` | 관리자 하위 페이지, bulk action, 사용자 integration action |
-| `enhanced-tracking` | 클릭 메타데이터 수집/표시, header DSL 검증 |
-| `rate-limit` | `handleRequest`, 언어별 응답 메시지, JSON 규칙 검증 |
+| 플러그인                | 참고할 부분                                                                |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `builtin`               | 공개 슬롯, 언어별 관리자 편집값, 줄 단위 소셜 링크 DSL                     |
+| `captcha`               | `verifyFormSubmission`, 공개 form 슬롯, secret masking, provider none 처리 |
+| `oidc-sso`              | `auth.ts`, redirect login, account link, secret masking, 관리자 action     |
+| `permission-management` | 관리자 하위 페이지, bulk action, 사용자 integration action                 |
+| `enhanced-tracking`     | 클릭 메타데이터 수집/표시, header DSL 검증                                 |
+| `rate-limit`            | `handleRequest`, 언어별 응답 메시지, JSON 규칙 검증                        |
 
 문서와 코드가 다르면 코드가 기준이다. 단, 새 플러그인에서 문서에 없는 내부 API를 직접 쓰기 전에 플러그인 계약을 확장하는 쪽을 우선한다.

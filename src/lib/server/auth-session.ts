@@ -15,7 +15,8 @@ type SessionUser = AuthenticatedUser & {
 
 function secret() {
   const value = env.AUTH_SESSION_SECRET;
-  if (!value) throw new Error('AUTH_SESSION_SECRET environment variable is required.');
+  if (!value)
+    throw new Error('AUTH_SESSION_SECRET environment variable is required.');
   return value;
 }
 

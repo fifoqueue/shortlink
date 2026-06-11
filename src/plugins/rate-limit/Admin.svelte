@@ -3,7 +3,6 @@
     defaultSiteLocale,
     siteLocaleKeys,
     siteLocaleLabel,
-    type SiteLocale,
   } from '$lib/config';
   import LocaleFieldSelector from '$lib/components/LocaleFieldSelector.svelte';
   import { pluginText } from '$lib/i18n/plugin';
@@ -18,17 +17,13 @@
     fallbackLocale = locale,
     strings = {},
   }: PluginComponentProps = $props();
-  let activeLocale = $state<SiteLocale>(defaultSiteLocale);
+  let activeLocale = $derived(locale);
   const localeTabs = siteLocaleKeys.map((id) => ({
     id,
     label: siteLocaleLabel(id),
   }));
   const rateLimit = $derived(normalizeRateLimitConfig(config, fallbackLocale));
   const rulesJson = $derived(JSON.stringify(rateLimit.rules, null, 2));
-
-  $effect(() => {
-    activeLocale = locale;
-  });
 
   function t(key: PluginLocaleKey) {
     return pluginText(strings, key);

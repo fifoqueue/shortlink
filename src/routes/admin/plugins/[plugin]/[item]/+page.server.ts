@@ -74,7 +74,8 @@ async function loadIntegrations(
       if (!state?.enabled || !definition.loadUserAdminData) return null;
       return {
         pluginId: definition.meta.id,
-        pluginName: localizedPluginMeta(definition, locale, fallbackLocale).name,
+        pluginName: localizedPluginMeta(definition, locale, fallbackLocale)
+          .name,
         data: await definition.loadUserAdminData({
           userId,
           state,
@@ -185,10 +186,8 @@ export const actions: Actions = {
   },
 
   pluginAction: async ({ request, locals, params, url, getClientAddress }) => {
-    const text = uiText(
-      locals.locale,
-      locals.settings.i18n.defaultLocale,
-    ).admin.messages;
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
+      .messages;
     const definition = definitionFor(params.plugin);
     if (!definition?.handleAdminSubpageAction) {
       return fail(404, { message: text.pluginActionNotFound });
@@ -272,10 +271,8 @@ export const actions: Actions = {
     url,
     getClientAddress,
   }) => {
-    const text = uiText(
-      locals.locale,
-      locals.settings.i18n.defaultLocale,
-    ).admin.messages;
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
+      .messages;
     const permissions = await permissionsFor({
       locals,
       request,

@@ -124,16 +124,10 @@ async function updateApiLink(
     );
 
     if (result.status === 'not_found') {
-      return json(
-        { message: text.linkNotFound },
-        { status: 404 },
-      );
+      return json({ message: text.linkNotFound }, { status: 404 });
     }
     if (result.status === 'denied') {
-      return json(
-        { message: text.editOwnOnly },
-        { status: 403 },
-      );
+      return json({ message: text.editOwnOnly }, { status: 403 });
     }
 
     return json({
@@ -211,10 +205,7 @@ export const POST: RequestHandler = async ({
     return json({ message: text.linkNotFound }, { status: 404 });
   }
   if (result.status === 'denied') {
-    return json(
-      { message: text.healthOwnOnly },
-      { status: 403 },
-    );
+    return json({ message: text.healthOwnOnly }, { status: 403 });
   }
 
   return json({

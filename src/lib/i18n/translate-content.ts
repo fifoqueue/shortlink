@@ -1,4 +1,7 @@
-import type { PluginLocaleKey, PluginLocaleStrings } from '$lib/plugin-contracts';
+import type {
+  PluginLocaleKey,
+  PluginLocaleStrings,
+} from '$lib/plugin-contracts';
 
 const translatedAttributeKeys = [
   ['data-i18n-placeholder', 'placeholder'],

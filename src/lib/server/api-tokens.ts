@@ -155,10 +155,7 @@ export async function requireApiPrincipal(
   const principal = await authenticateApiToken(request);
   if (!principal) {
     return {
-      error: json(
-        { message: text.apiTokenRequired },
-        { status: 401 },
-      ),
+      error: json({ message: text.apiTokenRequired }, { status: 401 }),
     };
   }
 
@@ -171,10 +168,7 @@ export async function requireApiPrincipal(
 
   if (permissions ? !permissions.api.enabled : !settings.api.enabled) {
     return {
-      error: json(
-        { message: text.apiAccessDisabled },
-        { status: 403 },
-      ),
+      error: json({ message: text.apiAccessDisabled }, { status: 403 }),
     };
   }
 
@@ -183,10 +177,7 @@ export async function requireApiPrincipal(
     : apiCapabilityEnabled(settings, capability);
   if (!capabilityAllowed) {
     return {
-      error: json(
-        { message: text.apiCapabilityDisabled },
-        { status: 403 },
-      ),
+      error: json({ message: text.apiCapabilityDisabled }, { status: 403 }),
     };
   }
 

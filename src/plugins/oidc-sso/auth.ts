@@ -113,21 +113,13 @@ function oauthErrorDetail(
 function formatOAuthError(cause: unknown, context?: PluginLocaleContext) {
   if (cause instanceof oidc.AuthorizationResponseError) {
     return t(context, 'auth.authorizationResponseError', {
-      detail: oauthErrorDetail(
-        cause.error,
-        cause.error_description,
-        context,
-      ),
+      detail: oauthErrorDetail(cause.error, cause.error_description, context),
     });
   }
   if (cause instanceof oidc.ResponseBodyError) {
     return t(context, 'auth.serverError', {
       status: cause.status,
-      detail: oauthErrorDetail(
-        cause.error,
-        cause.error_description,
-        context,
-      ),
+      detail: oauthErrorDetail(cause.error, cause.error_description, context),
     });
   }
   if (cause instanceof oidc.WWWAuthenticateChallengeError) {
@@ -393,10 +385,7 @@ export function passwordLoginEnabled(config: PluginConfig) {
   return normalizeOidcConfig(config).passwordLoginEnabled;
 }
 
-function getLoginMethods(
-  config: PluginConfig,
-  context?: PluginLocaleContext,
-) {
+function getLoginMethods(config: PluginConfig, context?: PluginLocaleContext) {
   const normalized = normalizeOidcConfig(config);
   return [
     ...(normalized.passwordLoginEnabled

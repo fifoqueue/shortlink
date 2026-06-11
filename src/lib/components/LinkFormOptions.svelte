@@ -781,17 +781,34 @@
   input:is([type='date'], [type='time']) {
     -webkit-appearance: none;
     appearance: none;
+    box-sizing: border-box;
     display: block;
     height: 44px;
     min-height: 44px;
-    line-height: normal;
+    line-height: 1.2;
     padding-top: 0;
     padding-bottom: 0;
   }
 
   input:is([type='date'], [type='time'])::-webkit-date-and-time-value {
-    min-height: 1.2em;
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    padding: 0;
+    line-height: 1.2;
     text-align: left;
+  }
+
+  input:is([type='date'], [type='time'])::-webkit-datetime-edit {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    padding: 0;
+  }
+
+  input:is([type='date'], [type='time'])::-webkit-datetime-edit-fields-wrapper {
+    display: flex;
+    align-items: center;
   }
 
   input:is([type='date'], [type='time'])::-webkit-calendar-picker-indicator {
@@ -843,6 +860,16 @@
 
     .option-tabs button {
       width: 100%;
+    }
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    @media (hover: none) and (pointer: coarse) {
+      input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+      textarea {
+        font-size: 16px;
+        font-size: max(16px, 1em);
+      }
     }
   }
 </style>

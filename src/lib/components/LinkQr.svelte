@@ -151,10 +151,7 @@
 </script>
 
 <div class="qr-tool">
-  <div
-    class="qr-box"
-    aria-label={`/${code} ${text.common.qrCode}`}
-  >
+  <div class="qr-box" aria-label={`/${code} ${text.common.qrCode}`}>
     {#if svgDataUrl}
       <img src={svgDataUrl} alt="" />
     {/if}

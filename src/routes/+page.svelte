@@ -293,6 +293,7 @@
             <a
               class="account-cta"
               href={resolve('/logout')}
+              data-sveltekit-reload
               onclick={() => (menuOpen = false)}>{text.common.logout}</a
             >
           {:else if data.auth.enabled || !data.canCreate}

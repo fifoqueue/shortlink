@@ -43,8 +43,7 @@ const plugin: PluginDefinition = {
         'admin.issuerUrl': 'Issuer URL',
         'admin.clientId': 'Client ID',
         'admin.clientSecret': 'Client Secret',
-        'admin.clientSecretChangeOnly':
-          'Secret 방식에서 변경할 때만 입력',
+        'admin.clientSecretChangeOnly': 'Secret 방식에서 변경할 때만 입력',
         'admin.authMethod': '인증 방식',
         'admin.authMethodClientSecretBasic': 'client_secret_basic',
         'admin.authMethodClientSecretPost': 'client_secret_post',
@@ -89,8 +88,7 @@ const plugin: PluginDefinition = {
           'OIDC UserInfo 요청을 처리하지 못했습니다: {message}',
         'auth.subjectMissing': 'SSO 사용자 식별자를 확인할 수 없습니다.',
         'auth.emailDomainNotAllowed': '허용되지 않은 이메일 도메인입니다.',
-        'auth.notLoginRequest':
-          '로그인 요청이 아닙니다. 다시 시도해주세요.',
+        'auth.notLoginRequest': '로그인 요청이 아닙니다. 다시 시도해주세요.',
         'auth.userDisabled': '비활성화된 사용자입니다.',
         'auth.notAccountLinkRequest':
           '계정 연결 요청이 아닙니다. 다시 시도해주세요.',
@@ -118,8 +116,7 @@ const plugin: PluginDefinition = {
           '지원하지 않는 OIDC 플러그인 작업입니다: {action}',
         'server.connectionNotFound': 'OIDC 연결을 찾을 수 없습니다.',
         'server.connectionUnlinked': 'OIDC 연결을 해제했습니다.',
-        'server.unsupportedUserAction':
-          '지원하지 않는 OIDC 사용자 작업입니다.',
+        'server.unsupportedUserAction': '지원하지 않는 OIDC 사용자 작업입니다.',
         'server.unsupportedAccountAction':
           '지원하지 않는 OIDC 계정 작업입니다.',
       },
@@ -154,8 +151,7 @@ const plugin: PluginDefinition = {
         'admin.issuerUrl': 'Issuer URL',
         'admin.clientId': 'Client ID',
         'admin.clientSecret': 'Client Secret',
-        'admin.clientSecretChangeOnly':
-          'Enter only when changing secret auth',
+        'admin.clientSecretChangeOnly': 'Enter only when changing secret auth',
         'admin.authMethod': 'Authentication method',
         'admin.authMethodClientSecretBasic': 'client_secret_basic',
         'admin.authMethodClientSecretPost': 'client_secret_post',

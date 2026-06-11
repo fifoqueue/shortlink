@@ -1,5 +1,9 @@
 import { isHttpHeaderName } from '../utils';
-import { defaultSiteLocale, siteLocaleKeys, type SiteLocale } from '$lib/config';
+import {
+  defaultSiteLocale,
+  siteLocaleKeys,
+  type SiteLocale,
+} from '$lib/config';
 import { serverMessage } from '$lib/i18n/ui-text';
 
 export type RateLimitPathMode = 'exact' | 'prefix' | 'glob' | 'regex';
@@ -236,7 +240,8 @@ export function normalizeRateLimitConfig(
 
   return {
     responseMessage:
-      responseMessages[fallbackLocale] ?? firstLocalizedString(responseMessages),
+      responseMessages[fallbackLocale] ??
+      firstLocalizedString(responseMessages),
     responseMessages,
     rules: rawRules.slice(0, 100).map((raw, index) => {
       const rule = isRecord(raw) ? raw : {};

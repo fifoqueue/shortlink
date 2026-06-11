@@ -110,12 +110,10 @@ function providerFromForm(
   };
 }
 
-function requireProvider(
-  provider: OidcProvider,
-  strings: PluginLocaleStrings,
-) {
+function requireProvider(provider: OidcProvider, strings: PluginLocaleStrings) {
   if (!provider.id) throw new Error(t(strings, 'server.providerIdRequired'));
-  if (!provider.name) throw new Error(t(strings, 'server.providerNameRequired'));
+  if (!provider.name)
+    throw new Error(t(strings, 'server.providerNameRequired'));
   validateOptionalHexColor(
     provider.loginButtonColor,
     'server.loginButtonColorLabel',
@@ -127,14 +125,20 @@ function requireProvider(
     strings,
   );
   validateOptionalIconUrl(provider.loginIconUrl, strings);
-  if (!provider.issuerUrl) throw new Error(t(strings, 'server.issuerUrlRequired'));
-  if (!provider.clientId) throw new Error(t(strings, 'server.clientIdRequired'));
+  if (!provider.issuerUrl)
+    throw new Error(t(strings, 'server.issuerUrlRequired'));
+  if (!provider.clientId)
+    throw new Error(t(strings, 'server.clientIdRequired'));
   if (provider.clientAuthMethod !== 'none' && !provider.clientSecret) {
     throw new Error(t(strings, 'auth.clientSecretRequired'));
   }
 }
 
-function savePolicy(form: FormData, config: PluginConfig, context: PluginLocaleContext) {
+function savePolicy(
+  form: FormData,
+  config: PluginConfig,
+  context: PluginLocaleContext,
+) {
   const oidc = normalizeOidcConfig(config);
   const passwordLoginEnabled = parseBoolean(form, 'passwordLoginEnabled');
   if (!passwordLoginEnabled && oidc.providers.length === 0) {
@@ -212,7 +216,14 @@ const serverPlugin = {
     };
   },
 
-  async handleAdminAction({ action, form, state, locale, fallbackLocale, strings }) {
+  async handleAdminAction({
+    action,
+    form,
+    state,
+    locale,
+    fallbackLocale,
+    strings,
+  }) {
     const context = { locale, fallbackLocale, strings };
     if (action === 'savePolicy') return savePolicy(form, state.config, context);
     if (action === 'saveProvider') {

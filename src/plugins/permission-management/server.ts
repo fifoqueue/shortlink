@@ -221,7 +221,9 @@ const serverPlugin = {
       }
       const deleted = await deletePermissionGroups(ids);
       return {
-        message: formatText(strings, 'server.groupsDeleted', { count: deleted }),
+        message: formatText(strings, 'server.groupsDeleted', {
+          count: deleted,
+        }),
       };
     }
 
@@ -310,7 +312,14 @@ const serverPlugin = {
     throw new Error(t(strings, 'server.invalidAdminItem'));
   },
 
-  async handleAdminSubpageAction({ item, action, form, user, isAdmin, strings }) {
+  async handleAdminSubpageAction({
+    item,
+    action,
+    form,
+    user,
+    isAdmin,
+    strings,
+  }) {
     const userId = numericItem('user-', item);
     if (userId !== null) {
       if (action === 'saveUser') {

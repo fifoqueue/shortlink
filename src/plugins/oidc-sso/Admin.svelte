@@ -75,13 +75,13 @@
           <input type="hidden" name="pluginAction" value="saveProvider" />
           <input type="hidden" name="originalId" value={provider.id} />
           <div class="grid form-grid balanced">
-            <label>{t('admin.id')} <input name="id" value={provider.id} required /></label>
             <label
-              >{t('admin.displayName')} <input
-                name="name"
-                value={provider.name}
-                required
-              /></label
+              >{t('admin.id')}
+              <input name="id" value={provider.id} required /></label
+            >
+            <label
+              >{t('admin.displayName')}
+              <input name="name" value={provider.name} required /></label
             >
             <label>
               {t('admin.loginButtonColor')}
@@ -91,9 +91,7 @@
                 placeholder={t('admin.loginButtonColorPlaceholder')}
                 pattern={'#[0-9a-fA-F]{6}'}
               />
-              <small
-                >{t('admin.defaultButtonColorHint')}</small
-              >
+              <small>{t('admin.defaultButtonColorHint')}</small>
             </label>
             <label>
               {t('admin.loginButtonTextColor')}
@@ -103,9 +101,7 @@
                 placeholder={t('admin.loginButtonTextColorPlaceholder')}
                 pattern={'#[0-9a-fA-F]{6}'}
               />
-              <small
-                >{t('admin.autoButtonTextColorHint')}</small
-              >
+              <small>{t('admin.autoButtonTextColorHint')}</small>
             </label>
             <label class="wide">
               {t('admin.loginIconUrl')}
@@ -125,7 +121,8 @@
               />
             </label>
             <label
-              >{t('admin.clientId')} <input
+              >{t('admin.clientId')}
+              <input
                 name="clientId"
                 value={provider.clientId}
                 required
@@ -150,11 +147,11 @@
                 >
                 <option value="none">{t('admin.authMethodNone')}</option>
               </select>
-              <small
-                >{t('admin.noneRemovesSecretHint')}</small
-              >
+              <small>{t('admin.noneRemovesSecretHint')}</small>
             </label>
-            <label>{t('admin.scopes')} <input name="scopes" value={provider.scopes} /></label
+            <label
+              >{t('admin.scopes')}
+              <input name="scopes" value={provider.scopes} /></label
             >
             <label class="wide">
               {t('admin.allowedEmailDomains')}
@@ -186,10 +183,9 @@
             name="pluginActionSubmit"
             value="deleteProvider"
             disabled={!oidc.passwordLoginEnabled && oidc.providers.length === 1}
-            title={formatText(
-              t('admin.deleteProviderTitle'),
-              { name: provider.name },
-            )}
+            title={formatText(t('admin.deleteProviderTitle'), {
+              name: provider.name,
+            })}
             message={t('admin.deleteProviderMessage')}
             details={[provider.id]}
             confirmLabel={t('admin.deleteProviderConfirm')}
@@ -204,14 +200,16 @@
         <input type="hidden" name="pluginAction" value="saveProvider" />
         <div class="grid form-grid balanced">
           <label
-            >{t('admin.id')} <input
+            >{t('admin.id')}
+            <input
               name="id"
               placeholder={t('admin.providerIdPlaceholder')}
               required
             /></label
           >
           <label
-            >{t('admin.displayName')} <input
+            >{t('admin.displayName')}
+            <input
               name="name"
               placeholder={t('admin.providerNamePlaceholder')}
               required
@@ -224,9 +222,7 @@
               placeholder={t('admin.loginButtonColorPlaceholder')}
               pattern={'#[0-9a-fA-F]{6}'}
             />
-            <small
-              >{t('admin.defaultButtonColorHint')}</small
-            >
+            <small>{t('admin.defaultButtonColorHint')}</small>
           </label>
           <label>
             {t('admin.loginButtonTextColor')}
@@ -235,9 +231,7 @@
               placeholder={t('admin.loginButtonTextColorPlaceholder')}
               pattern={'#[0-9a-fA-F]{6}'}
             />
-            <small
-              >{t('admin.autoButtonTextColorHint')}</small
-            >
+            <small>{t('admin.autoButtonTextColorHint')}</small>
           </label>
           <label class="wide">
             {t('admin.loginIconUrl')}
@@ -247,9 +241,11 @@
             />
           </label>
           <label class="wide"
-            >{t('admin.issuerUrl')} <input type="url" name="issuerUrl" required /></label
+            >{t('admin.issuerUrl')}
+            <input type="url" name="issuerUrl" required /></label
           >
-          <label>{t('admin.clientId')} <input name="clientId" required /></label>
+          <label>{t('admin.clientId')} <input name="clientId" required /></label
+          >
           <label>
             {t('admin.clientSecret')}
             <input
@@ -269,12 +265,11 @@
               >
               <option value="none">{t('admin.authMethodNone')}</option>
             </select>
-            <small
-              >{t('admin.nonePublicClientHint')}</small
-            >
+            <small>{t('admin.nonePublicClientHint')}</small>
           </label>
           <label
-            >{t('admin.scopes')} <input name="scopes" value={defaultOidcScopes} /></label
+            >{t('admin.scopes')}
+            <input name="scopes" value={defaultOidcScopes} /></label
           >
           <label class="wide">
             {t('admin.allowedEmailDomains')}

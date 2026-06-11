@@ -1154,7 +1154,8 @@ async function fetchHealth(url: string) {
     return {
       status: 'broken' as const,
       statusCode: null,
-      error: error instanceof Error ? error.message.slice(0, 500) : 'Request failed',
+      error:
+        error instanceof Error ? error.message.slice(0, 500) : 'Request failed',
       latencyMs: Date.now() - startedAt,
     };
   }

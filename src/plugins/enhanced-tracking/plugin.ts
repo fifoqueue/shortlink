@@ -34,18 +34,15 @@ const plugin: PluginDefinition = {
         'admin.cityHeader': 'City 헤더',
         'admin.asnNumberHeader': 'ASN Number 헤더',
         'admin.asnOrganizationHeader': 'ASN Organization 헤더',
-        'admin.queryMaxmindDirectly':
-          'MaxMind GeoIP2 데이터베이스 직접 조회',
+        'admin.queryMaxmindDirectly': 'MaxMind GeoIP2 데이터베이스 직접 조회',
         'admin.cityDatabasePath': 'City 데이터베이스 경로',
-        'admin.cityDatabasePathPlaceholder':
-          '/var/lib/GeoIP/GeoIP2-City.mmdb',
+        'admin.cityDatabasePathPlaceholder': '/var/lib/GeoIP/GeoIP2-City.mmdb',
         'admin.countryDatabasePath': 'Country 데이터베이스 경로',
         'admin.countryDatabaseHint': 'City DB가 없을 때 사용',
         'admin.countryDatabasePathPlaceholder':
           '/var/lib/GeoIP/GeoIP2-Country.mmdb',
         'admin.asnDatabasePath': 'ASN 데이터베이스 경로',
-        'admin.asnDatabasePathPlaceholder':
-          '/var/lib/GeoIP/GeoLite2-ASN.mmdb',
+        'admin.asnDatabasePathPlaceholder': '/var/lib/GeoIP/GeoLite2-ASN.mmdb',
         'admin.collectReverseProxyHeaders': '리버스 프록시 헤더 수집',
         'admin.trackingHeaders': '추적 헤더',
         'admin.trackingHeadersHint':
@@ -73,18 +70,15 @@ const plugin: PluginDefinition = {
         'admin.cityHeader': 'City header',
         'admin.asnNumberHeader': 'ASN Number header',
         'admin.asnOrganizationHeader': 'ASN Organization header',
-        'admin.queryMaxmindDirectly':
-          'Query MaxMind GeoIP2 databases directly',
+        'admin.queryMaxmindDirectly': 'Query MaxMind GeoIP2 databases directly',
         'admin.cityDatabasePath': 'City database path',
-        'admin.cityDatabasePathPlaceholder':
-          '/var/lib/GeoIP/GeoIP2-City.mmdb',
+        'admin.cityDatabasePathPlaceholder': '/var/lib/GeoIP/GeoIP2-City.mmdb',
         'admin.countryDatabasePath': 'Country database path',
         'admin.countryDatabaseHint': 'Used when no City DB is available',
         'admin.countryDatabasePathPlaceholder':
           '/var/lib/GeoIP/GeoIP2-Country.mmdb',
         'admin.asnDatabasePath': 'ASN database path',
-        'admin.asnDatabasePathPlaceholder':
-          '/var/lib/GeoIP/GeoLite2-ASN.mmdb',
+        'admin.asnDatabasePathPlaceholder': '/var/lib/GeoIP/GeoLite2-ASN.mmdb',
         'admin.collectReverseProxyHeaders': 'Collect reverse proxy headers',
         'admin.trackingHeaders': 'Tracking headers',
         'admin.trackingHeadersHint':

@@ -6,12 +6,11 @@ import {
   revokeApiToken,
 } from '$lib/server/api-tokens';
 import { requirePageUser } from '$lib/server/auth-guards';
-import { getSettings, stringValue } from '$lib/server/settings';
+import { stringValue } from '$lib/server/settings';
 import { uiText } from '$lib/i18n/ui-text';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const user = requirePageUser(locals, '/account/api-tokens');
-  const settings = await getSettings();
   const displaySettings = locals.localizedSettings;
   return {
     locale: locals.locale,

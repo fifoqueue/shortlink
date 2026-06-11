@@ -210,8 +210,7 @@ const plugin: PluginDefinition = {
         'server.groupCreated': '권한 그룹을 추가했습니다.',
         'server.selectGroupsToDelete': '삭제할 권한 그룹을 선택해주세요.',
         'server.groupsDeleted': '{count}개 권한 그룹을 삭제했습니다.',
-        'server.unsupportedPluginAction':
-          '지원하지 않는 플러그인 작업입니다.',
+        'server.unsupportedPluginAction': '지원하지 않는 플러그인 작업입니다.',
         'server.userNotFound': '사용자를 찾을 수 없습니다.',
         'server.groupNotFound': '권한 그룹을 찾을 수 없습니다.',
         'server.invalidAdminItem': '관리 항목이 올바르지 않습니다.',
@@ -225,8 +224,7 @@ const plugin: PluginDefinition = {
         'server.groupCidrAdded': '그룹에 CIDR 규칙을 추가했습니다.',
         'server.groupCidrRemoved': '그룹에서 CIDR 규칙을 제거했습니다.',
         'server.selectCidrsToRemove': '제거할 CIDR 규칙을 선택해주세요.',
-        'server.cidrsRemoved':
-          '{count}개 CIDR 규칙을 그룹에서 제거했습니다.',
+        'server.cidrsRemoved': '{count}개 CIDR 규칙을 그룹에서 제거했습니다.',
         'server.groupDeleted': '권한 그룹을 삭제했습니다.',
         'server.apiTokenNotFound': 'API 토큰을 찾을 수 없습니다.',
         'server.apiTokenRevoked': 'API 토큰을 폐기했습니다.',
@@ -412,8 +410,7 @@ const plugin: PluginDefinition = {
         'admin.groupMemberPage': 'Group member page',
         'admin.add': 'Add',
         'admin.emptyAddableUsers': 'No users can be added.',
-        'admin.searchUsersByNameEmailId':
-          'Search users by name, email, or ID.',
+        'admin.searchUsersByNameEmailId': 'Search users by name, email, or ID.',
         'admin.addableUsersPage': 'Users to add page',
         'admin.deleteGroup': 'Delete group',
         'admin.deleteGroupTitle': 'Delete this permission group?',
@@ -432,8 +429,7 @@ const plugin: PluginDefinition = {
           'You do not have permission to manage users.',
         'server.userCreated': 'User added.',
         'server.groupCreated': 'Permission group added.',
-        'server.selectGroupsToDelete':
-          'Select permission groups to delete.',
+        'server.selectGroupsToDelete': 'Select permission groups to delete.',
         'server.groupsDeleted': 'Deleted {count} permission groups.',
         'server.unsupportedPluginAction': 'Unsupported plugin action.',
         'server.userNotFound': 'User not found.',

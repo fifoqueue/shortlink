@@ -17,14 +17,11 @@
     locale = defaultSiteLocale,
     strings = {},
   }: PluginComponentProps = $props();
-  let activeLocale = $state<SiteLocale>(defaultSiteLocale);
+  let activeLocale = $derived(locale);
   const localeTabs = siteLocaleKeys.map((id) => ({
     id,
     label: siteLocaleLabel(id),
   }));
-  $effect(() => {
-    activeLocale = locale;
-  });
 
   function t(key: PluginLocaleKey) {
     return pluginText(strings, key);

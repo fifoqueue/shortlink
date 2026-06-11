@@ -269,7 +269,8 @@ export function defaultLocalizedContentFor(
   locale: SiteLocale,
 ): LocalizedSiteContent {
   const content =
-    defaultLocalizedContent[locale] ?? defaultLocalizedContent[defaultSiteLocale];
+    defaultLocalizedContent[locale] ??
+    defaultLocalizedContent[defaultSiteLocale];
   if (!content) {
     throw new Error('At least one default locale must be configured.');
   }

@@ -3,7 +3,6 @@
   import { page } from '$app/state';
   import { resolve } from '$app/paths';
   import {
-    defaultSiteLocale,
     siteLocaleKeys,
     siteLocaleLabel,
     type SiteLocale,
@@ -18,16 +17,12 @@
     compact?: boolean;
   } = $props();
 
-  let selectedLocale = $state<SiteLocale>(defaultSiteLocale);
+  let selectedLocale = $derived(locale);
   let pending = $state(false);
   const text = $derived(uiText(selectedLocale));
   const returnTo = $derived(
     `${page.url.pathname}${page.url.search}${page.url.hash}`,
   );
-
-  $effect(() => {
-    selectedLocale = locale;
-  });
 
   function submit(event: Event & { currentTarget: HTMLSelectElement }) {
     event.currentTarget.form?.requestSubmit();
@@ -76,7 +71,7 @@
       disabled={pending}
       onchange={submit}
     >
-      {#each siteLocaleKeys as option}
+      {#each siteLocaleKeys as option (option)}
         <option value={option}>{siteLocaleLabel(option)}</option>
       {/each}
     </select>
@@ -120,14 +115,39 @@
     white-space: nowrap;
   }
   select {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    min-width: 0;
+    height: 38px;
     min-height: 38px;
     border: 1px solid var(--locale-border);
     border-radius: 999px;
-    padding: 0 34px 0 13px;
-    background: var(--locale-bg);
+    padding: 0 36px 0 13px;
+    background-color: var(--locale-bg);
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      calc(100% - 18px) 50%,
+      calc(100% - 13px) 50%;
+    background-repeat: no-repeat;
+    background-size:
+      5px 5px,
+      5px 5px;
     color: var(--locale-text);
     font: inherit;
     font-size: 0.78rem;
     font-weight: 850;
+    line-height: 1.2;
+    text-align: left;
+    text-align-last: left;
+  }
+  @supports (-webkit-touch-callout: none) {
+    @media (hover: none) and (pointer: coarse) {
+      select {
+        font-size: 16px;
+      }
+    }
   }
 </style>

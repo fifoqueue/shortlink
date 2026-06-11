@@ -23,9 +23,7 @@ function passwordLoginEnabled(
     settings.plugins,
     locale,
     settings.i18n.defaultLocale,
-  ).some(
-    (method) => method.type === 'password',
-  );
+  ).some((method) => method.type === 'password');
 }
 
 export const load: PageServerLoad = async ({ locals }) => {

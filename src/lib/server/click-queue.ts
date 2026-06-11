@@ -142,7 +142,10 @@ function scheduleDrain(delayMs = 0) {
     drainTimer = undefined;
     draining = processDueQueue()
       .catch((error: unknown) => {
-        console.error('An error occurred while processing the click queue.', error);
+        console.error(
+          'An error occurred while processing the click queue.',
+          error,
+        );
         scheduleDrain(retryDelayMs(1));
       })
       .finally(() => {
@@ -228,7 +231,10 @@ registerServerShutdownTask(async () => {
       await processDueQueue(deadline);
     }
   } catch (error) {
-    console.error('Could not finish processing the click queue before shutdown.', error);
+    console.error(
+      'Could not finish processing the click queue before shutdown.',
+      error,
+    );
   }
 });
 

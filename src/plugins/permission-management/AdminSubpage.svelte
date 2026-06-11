@@ -145,7 +145,7 @@
         cidrs: CidrSearch;
         members: UserSearch;
         addableUsers: UserSearch;
-  };
+      };
 
   type Tab = 'links' | 'admin' | 'api';
   type LinkPermissionKey =
@@ -246,7 +246,10 @@
     ['healthAll', 'admin.checkOtherLinkHealth'],
     ['expiresAtBypass', 'admin.bypassExpiration'],
     ['passwordBypass', 'admin.bypassPasswords'],
-  ] as const satisfies readonly (readonly [LinkPermissionKey, PluginLocaleKey])[];
+  ] as const satisfies readonly (readonly [
+    LinkPermissionKey,
+    PluginLocaleKey,
+  ])[];
   const editableFields = [
     ['url', 'admin.destinationUrl'],
     ['previewTitle', 'admin.previewTitle'],
@@ -266,7 +269,10 @@
     ['desktopUrl', 'admin.desktopDestination'],
     ['abUrl', 'admin.abDestination'],
     ['abPercent', 'admin.abPercentage'],
-  ] as const satisfies readonly (readonly [LinkEditFieldKey, PluginLocaleKey])[];
+  ] as const satisfies readonly (readonly [
+    LinkEditFieldKey,
+    PluginLocaleKey,
+  ])[];
   const adminSections = [
     ['general', 'admin.siteSection'],
     ['links', 'admin.linksAndApiSection'],
@@ -658,7 +664,8 @@
         <button
           type="button"
           class:active={activeTab === 'admin'}
-          onclick={() => (activeTab = 'admin')}>{t('admin.administrator')}</button
+          onclick={() => (activeTab = 'admin')}
+          >{t('admin.administrator')}</button
         >
         <button
           type="button"
@@ -1320,22 +1327,52 @@
   input:is([type='date'], [type='time']) {
     -webkit-appearance: none;
     appearance: none;
+    box-sizing: border-box;
     display: block;
     height: var(--form-control-height);
     min-height: var(--form-control-height);
-    line-height: normal;
+    line-height: 1.2;
     padding-top: 0;
     padding-bottom: 0;
   }
   input:is([type='date'], [type='time'])::-webkit-date-and-time-value {
-    min-height: 1.2em;
+    display: flex;
+    min-height: calc(var(--form-control-height) - 2px);
+    align-items: center;
+    padding: 0;
+    line-height: 1.2;
     text-align: left;
+  }
+  input:is([type='date'], [type='time'])::-webkit-datetime-edit {
+    display: flex;
+    min-height: calc(var(--form-control-height) - 2px);
+    align-items: center;
+    padding: 0;
+  }
+  input:is([type='date'], [type='time'])::-webkit-datetime-edit-fields-wrapper {
+    display: flex;
+    align-items: center;
   }
   input:is([type='date'], [type='time'])::-webkit-calendar-picker-indicator {
     margin-inline-start: auto;
   }
   select {
+    -webkit-appearance: none;
+    appearance: none;
     height: var(--form-control-height);
+    padding-inline-end: max(34px, 2.25em);
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      calc(100% - 18px) 50%,
+      calc(100% - 13px) 50%;
+    background-repeat: no-repeat;
+    background-size:
+      5px 5px,
+      5px 5px;
+    text-align: left;
+    text-align-last: left;
   }
   textarea {
     resize: vertical;

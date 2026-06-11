@@ -461,9 +461,7 @@ function parseCidr(value: string): NormalizedCidr {
   const normalized = value.trim().toLowerCase();
   const match = /^(.+)\/(\d{1,3})$/.exec(normalized);
   if (!match) {
-    throw new Error(
-      serverMessage('ipRuleCidrRequired', { value }),
-    );
+    throw new Error(serverMessage('ipRuleCidrRequired', { value }));
   }
 
   const addressText = match[1];

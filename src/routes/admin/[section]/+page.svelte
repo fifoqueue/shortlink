@@ -157,14 +157,16 @@
     ['abUrl', 'abDestination'],
     ['abPercent', 'abPercentage'],
   ] as const;
-  const localePanels = $derived(siteLocaleKeys.map((id) => ({
-    id,
-    label: siteLocaleLabel(id),
-    note:
-      id === data.settings.i18n.defaultLocale
-        ? text.admin.settings.defaultLocaleNote
-        : id,
-  })));
+  const localePanels = $derived(
+    siteLocaleKeys.map((id) => ({
+      id,
+      label: siteLocaleLabel(id),
+      note:
+        id === data.settings.i18n.defaultLocale
+          ? text.admin.settings.defaultLocaleNote
+          : id,
+    })),
+  );
   let brandContentLocale = $state<SiteLocale>(siteLocaleKeys[0]);
   let searchContentLocale = $state<SiteLocale>(siteLocaleKeys[0]);
   let legalContentLocale = $state<SiteLocale>(siteLocaleKeys[0]);
@@ -454,8 +456,12 @@
           <label class="wide">
             {text.admin.settings.linkCreationAccess}
             <select name="visibility" value={data.settings.access.visibility}>
-              <option value="private">{text.admin.settings.privateVisibility}</option>
-              <option value="public">{text.admin.settings.publicVisibility}</option>
+              <option value="private"
+                >{text.admin.settings.privateVisibility}</option
+              >
+              <option value="public"
+                >{text.admin.settings.publicVisibility}</option
+              >
             </select>
           </label>
         </div>
@@ -470,7 +476,10 @@
         <div class="fields form-grid balanced">
           <label>
             {text.admin.settings.defaultLanguage}
-            <select name="defaultLocale" value={data.settings.i18n.defaultLocale}>
+            <select
+              name="defaultLocale"
+              value={data.settings.i18n.defaultLocale}
+            >
               {#each siteLocaleKeys as locale (locale)}
                 <option value={locale}>{siteLocaleLabel(locale)}</option>
               {/each}
@@ -478,13 +487,15 @@
             <small>{text.admin.settings.defaultLanguageHelp}</small>
           </label>
           <label
-            >{text.admin.settings.logoUrl} <input
+            >{text.admin.settings.logoUrl}
+            <input
               name="logoUrl"
               value={data.settings.general.logoUrl}
             /></label
           >
           <label
-            >{text.admin.settings.faviconUrl} <input
+            >{text.admin.settings.faviconUrl}
+            <input
               name="faviconUrl"
               value={data.settings.general.faviconUrl}
             /></label
@@ -498,36 +509,39 @@
           </div>
           {#key brandContentLocale}
             <div class="wide locale-panel">
-                <label
-                  >{text.admin.settings.siteName} <input
-                    name={`${brandContentLocale}SiteName`}
-                    value={brandContent.general.siteName}
-                  /></label
-                >
-                <label
-                  >{text.admin.settings.eyebrow} <input
-                    name={`${brandContentLocale}Eyebrow`}
-                    value={brandContent.general.eyebrow}
-                  /></label
-                >
-                <label class="wide"
-                  >{text.admin.settings.headline}
-                  <textarea name={`${brandContentLocale}Headline`} rows="2"
-                    >{brandContent.general.headline}</textarea
-                  ></label
-                >
-                <label class="wide"
-                  >{text.admin.settings.description}
-                  <textarea name={`${brandContentLocale}Description`} rows="3"
-                    >{brandContent.general.description}</textarea
-                  ></label
-                >
-                <label
-                  >{text.admin.settings.footerText} <input
-                    name={`${brandContentLocale}FooterText`}
-                    value={brandContent.general.footerText}
-                  /></label
-                >
+              <label
+                >{text.admin.settings.siteName}
+                <input
+                  name={`${brandContentLocale}SiteName`}
+                  value={brandContent.general.siteName}
+                /></label
+              >
+              <label
+                >{text.admin.settings.eyebrow}
+                <input
+                  name={`${brandContentLocale}Eyebrow`}
+                  value={brandContent.general.eyebrow}
+                /></label
+              >
+              <label class="wide"
+                >{text.admin.settings.headline}
+                <textarea name={`${brandContentLocale}Headline`} rows="2"
+                  >{brandContent.general.headline}</textarea
+                ></label
+              >
+              <label class="wide"
+                >{text.admin.settings.description}
+                <textarea name={`${brandContentLocale}Description`} rows="3"
+                  >{brandContent.general.description}</textarea
+                ></label
+              >
+              <label
+                >{text.admin.settings.footerText}
+                <input
+                  name={`${brandContentLocale}FooterText`}
+                  value={brandContent.general.footerText}
+                /></label
+              >
             </div>
           {/key}
         </div>
@@ -541,7 +555,8 @@
         </div>
         <div class="fields form-grid balanced">
           <label
-            >{text.admin.settings.ogImageUrl} <input
+            >{text.admin.settings.ogImageUrl}
+            <input
               name="ogImageUrl"
               value={data.settings.seo.ogImageUrl}
             /></label
@@ -562,18 +577,19 @@
           </div>
           {#key searchContentLocale}
             <div class="wide locale-panel">
-                <label
-                  >{text.admin.settings.seoTitle} <input
-                    name={`${searchContentLocale}SeoTitle`}
-                    value={searchContent.seo.title}
-                  /></label
-                >
-                <label class="wide"
-                  >{text.admin.settings.seoDescription}
-                  <textarea name={`${searchContentLocale}SeoDescription`} rows="3"
-                    >{searchContent.seo.description}</textarea
-                  ></label
-                >
+              <label
+                >{text.admin.settings.seoTitle}
+                <input
+                  name={`${searchContentLocale}SeoTitle`}
+                  value={searchContent.seo.title}
+                /></label
+              >
+              <label class="wide"
+                >{text.admin.settings.seoDescription}
+                <textarea name={`${searchContentLocale}SeoDescription`} rows="3"
+                  >{searchContent.seo.description}</textarea
+                ></label
+              >
             </div>
           {/key}
           <label class="wide"
@@ -601,32 +617,32 @@
           </div>
           {#key legalContentLocale}
             <div class="wide locale-panel legal-locale-panel">
-                <label>
-                  {text.admin.settings.termsTitle}
-                  <input
-                    name={`${legalContentLocale}TermsTitle`}
-                    value={legalContent.legal.termsTitle}
-                  />
-                </label>
-                <label>
-                  {text.admin.settings.privacyTitle}
-                  <input
-                    name={`${legalContentLocale}PrivacyTitle`}
-                    value={legalContent.legal.privacyTitle}
-                  />
-                </label>
-                <label class="wide">
-                  {text.admin.settings.termsContent}
-                  <textarea name={`${legalContentLocale}TermsContent`} rows="12"
-                    >{legalContent.legal.termsContent}</textarea
-                  >
-                </label>
-                <label class="wide">
-                  {text.admin.settings.privacyContent}
-                  <textarea name={`${legalContentLocale}PrivacyContent`} rows="12"
-                    >{legalContent.legal.privacyContent}</textarea
-                  >
-                </label>
+              <label>
+                {text.admin.settings.termsTitle}
+                <input
+                  name={`${legalContentLocale}TermsTitle`}
+                  value={legalContent.legal.termsTitle}
+                />
+              </label>
+              <label>
+                {text.admin.settings.privacyTitle}
+                <input
+                  name={`${legalContentLocale}PrivacyTitle`}
+                  value={legalContent.legal.privacyTitle}
+                />
+              </label>
+              <label class="wide">
+                {text.admin.settings.termsContent}
+                <textarea name={`${legalContentLocale}TermsContent`} rows="12"
+                  >{legalContent.legal.termsContent}</textarea
+                >
+              </label>
+              <label class="wide">
+                {text.admin.settings.privacyContent}
+                <textarea name={`${legalContentLocale}PrivacyContent`} rows="12"
+                  >{legalContent.legal.privacyContent}</textarea
+                >
+              </label>
             </div>
           {/key}
         </div>
@@ -811,8 +827,12 @@
                 <option value="authorization"
                   >{text.admin.settings.httpAuthAuthorization}</option
                 >
-                <option value="basic">{text.admin.settings.httpAuthBasic}</option>
-                <option value="headers">{text.admin.settings.httpAuthHeaders}</option>
+                <option value="basic"
+                  >{text.admin.settings.httpAuthBasic}</option
+                >
+                <option value="headers"
+                  >{text.admin.settings.httpAuthHeaders}</option
+                >
               </select>
             </label>
             {#if emailHttpAuthMode === 'authorization'}
@@ -821,7 +841,8 @@
                 <input
                   name="emailHttpAuthorizationHeader"
                   type="password"
-                  placeholder={text.admin.settings.authorizationHeaderPlaceholder}
+                  placeholder={text.admin.settings
+                    .authorizationHeaderPlaceholder}
                 /></label
               >
             {:else if emailHttpAuthMode === 'basic'}

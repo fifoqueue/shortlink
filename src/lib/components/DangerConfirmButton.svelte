@@ -43,9 +43,7 @@
   const resolvedMessage = $derived(message ?? text.common.irreversibleAction);
   const resolvedConfirmLabel = $derived(confirmLabel ?? text.common.confirm);
   const resolvedCancelLabel = $derived(cancelLabel ?? text.common.cancel);
-  const resolvedConsentLabel = $derived(
-    consentLabel ?? text.common.understood,
-  );
+  const resolvedConsentLabel = $derived(consentLabel ?? text.common.understood);
   let open = $state(false);
   let consent = $state(false);
   let triggerButton = $state<HTMLButtonElement>();

@@ -1,5 +1,9 @@
 import type { PluginDefinition } from '$lib/plugin-contracts';
-import { defaultSiteLocale, siteLocaleKeys, type SiteLocale } from '$lib/config';
+import {
+  defaultSiteLocale,
+  siteLocaleKeys,
+  type SiteLocale,
+} from '$lib/config';
 import { fieldName, pluginString } from '../utils';
 import {
   defaultRateLimitConfig,

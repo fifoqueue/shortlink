@@ -125,8 +125,7 @@ const plugin: PluginDefinition = {
         'public.recaptchaProtected': '이 양식은 reCAPTCHA로 보호됩니다.',
         'public.required': 'CAPTCHA 인증을 완료해주세요.',
         'public.failed': 'CAPTCHA 인증에 실패했습니다. 다시 시도해주세요.',
-        'public.serverUnavailable':
-          'CAPTCHA 인증 서버에 연결하지 못했습니다.',
+        'public.serverUnavailable': 'CAPTCHA 인증 서버에 연결하지 못했습니다.',
       },
     },
     en: {
@@ -141,8 +140,7 @@ const plugin: PluginDefinition = {
         'admin.protectPasswordLogin': 'Protect password login',
         'admin.protectSignup': 'Protect signup',
         'admin.protectLinkCreation': 'Protect link creation',
-        'admin.adminBypassHint':
-          'Administrators bypass all CAPTCHA checks.',
+        'admin.adminBypassHint': 'Administrators bypass all CAPTCHA checks.',
         'admin.disabledWithoutCaptchaHint':
           'Protected actions are disabled when CAPTCHA is not used.',
         'admin.completeSettingsHint':
@@ -163,12 +161,10 @@ const plugin: PluginDefinition = {
         'admin.siteKey': 'Site Key',
         'admin.publicSiteKeyPlaceholder': 'public site key',
         'admin.secretKey': 'Secret Key',
-        'admin.keepExistingHint':
-          'Leave blank to keep the current value.',
+        'admin.keepExistingHint': 'Leave blank to keep the current value.',
         'admin.changeOnlyPlaceholder': 'Enter only when changing it',
         'admin.scoreThreshold': 'Score Threshold',
-        'admin.scoreThresholdHint':
-          '0 effectively disables the score limit.',
+        'admin.scoreThresholdHint': '0 effectively disables the score limit.',
         'admin.customRendering': 'Custom rendering',
         'admin.scriptUrl': 'Script URL',
         'admin.customWidgetUrlPlaceholder':

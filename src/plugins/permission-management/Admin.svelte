@@ -224,7 +224,9 @@
       />
       <button type="submit">{t('admin.search')}</button>
       {#if data.userSearch?.query}
-        <a href={resolve('/admin/plugins/permission-management')}>{t('admin.reset')}</a>
+        <a href={resolve('/admin/plugins/permission-management')}
+          >{t('admin.reset')}</a
+        >
       {/if}
     </form>
     <form

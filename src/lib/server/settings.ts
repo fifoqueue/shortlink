@@ -171,7 +171,9 @@ function normalizeI18nSettings(settings: SiteSettings, siteValue: unknown) {
     : undefined;
   const hasStoredI18n = isRecord(storedI18n);
   const defaultLocale = hasStoredI18n
-    ? normalizeDefaultLocale((storedI18n as Record<string, unknown>).defaultLocale)
+    ? normalizeDefaultLocale(
+        (storedI18n as Record<string, unknown>).defaultLocale,
+      )
     : normalizeDefaultLocale(settings.i18n.defaultLocale);
   const locales = Object.fromEntries(
     siteLocaleKeys.map((locale) => [

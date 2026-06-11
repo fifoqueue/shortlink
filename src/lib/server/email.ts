@@ -152,13 +152,9 @@ export async function sendVerificationEmail(input: {
   const intro = emailChange
     ? formatText(textContent.emailChangeIntro, { name, siteName })
     : formatText(textContent.signupIntro, { name, siteName });
-  const text = [
-    intro,
-    '',
-    verificationUrl,
-    '',
-    textContent.oneTimeNotice,
-  ].join('\n');
+  const text = [intro, '', verificationUrl, '', textContent.oneTimeNotice].join(
+    '\n',
+  );
   const safeName = escapeHtml(name);
   const safeSiteName = escapeHtml(siteName);
   const safeVerificationUrl = escapeHtml(verificationUrl);

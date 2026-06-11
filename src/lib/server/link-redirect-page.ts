@@ -1,4 +1,8 @@
-import { defaultSiteLocale, type SiteLocale, type SiteSettings } from '$lib/config';
+import {
+  defaultSiteLocale,
+  type SiteLocale,
+  type SiteSettings,
+} from '$lib/config';
 import { uiText } from '$lib/i18n/ui-text';
 import { shortUrl } from './url';
 

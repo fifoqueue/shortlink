@@ -54,7 +54,9 @@
       {#if data.user.email}<small>{data.user.email}</small>{/if}
     </div>
     <div class="actions">
-      <a class="primary" href={resolve('/logout')}>{text.common.logout}</a>
+      <a class="primary" href={resolve('/logout')} data-sveltekit-reload
+        >{text.common.logout}</a
+      >
       <a href={resolve('/')}>{text.admin.publicPage}</a>
     </div>
   </section>

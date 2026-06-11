@@ -96,7 +96,9 @@
         {t('admin.captchaType')}
         <select name={fieldName('captcha', 'provider')} bind:value={provider}>
           {#each captchaProviderOptions as option (option.id)}
-            <option value={option.id}>{t(captchaProviderTextKeys[option.id])}</option>
+            <option value={option.id}
+              >{t(captchaProviderTextKeys[option.id])}</option
+            >
           {/each}
         </select>
       </label>

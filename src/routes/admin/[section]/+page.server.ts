@@ -804,8 +804,7 @@ export const actions: Actions = {
           deleteLinksMessage(result, {
             includePolicyDetails: false,
             text: text.messages,
-          }) ||
-          text.messages.linkNotFound,
+          }) || text.messages.linkNotFound,
       });
     }
     return {
@@ -890,9 +889,7 @@ export const actions: Actions = {
       return fail(400, {
         action: 'updateLink',
         message:
-          error instanceof Error
-            ? error.message
-            : text.messages.editFailed,
+          error instanceof Error ? error.message : text.messages.editFailed,
       });
     }
   },

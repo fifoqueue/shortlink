@@ -69,7 +69,11 @@
   style={adminThemeStyle(theme)}
 >
   <aside>
-    <a class="brand" href={resolve('/admin')} onclick={() => (menuOpen = false)}>
+    <a
+      class="brand"
+      href={resolve('/admin')}
+      onclick={() => (menuOpen = false)}
+    >
       <div class="mark">
         {#if logoUrl}
           <img src={logoUrl} alt="" />
@@ -415,12 +419,16 @@
     .aside-footer {
       display: none;
       grid-column: 1 / -1;
+      justify-items: center;
       gap: 6px;
       margin-top: 8px;
       border: 1px solid var(--admin-border);
       border-radius: calc(var(--admin-radius) * 0.65);
       padding: 10px;
       background: var(--admin-panel);
+    }
+    .aside-footer :global(.locale-select) {
+      justify-self: center;
     }
     nav.open + .aside-footer {
       display: grid;
