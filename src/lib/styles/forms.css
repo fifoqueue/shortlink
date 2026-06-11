@@ -1,0 +1,123 @@
+.site-theme,
+.admin-theme {
+  --form-grid-gap: 14px;
+  --form-field-gap: 8px;
+  --form-control-height: 44px;
+  --form-control-radius: 10px;
+  --form-help-min-height: 1.25rem;
+  --form-help-line-height: 1.45;
+}
+
+.site-theme {
+  --form-control-height: 48px;
+  --form-control-radius: 11px;
+}
+
+:where(.site-theme, .admin-theme)
+  :where(
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not(
+        [type='color']
+      ),
+    select
+  ) {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--form-control-height);
+  line-height: 1.2;
+}
+
+:where(.site-theme, .admin-theme) :where(textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: calc(var(--form-control-height) * 2);
+}
+
+:where(.site-theme, .admin-theme)
+  :where(input[type='date'], input[type='time'], input[type='datetime-local']) {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  height: var(--form-control-height);
+  min-height: var(--form-control-height);
+  line-height: normal;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+:where(.site-theme, .admin-theme)
+  :where(
+    input[type='date'],
+    input[type='time'],
+    input[type='datetime-local']
+  )::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  text-align: left;
+}
+
+:where(.site-theme, .admin-theme)
+  :where(
+    input[type='date'],
+    input[type='time'],
+    input[type='datetime-local']
+  )::-webkit-calendar-picker-indicator {
+  margin-inline-start: auto;
+}
+
+:where(.site-theme, .admin-theme) :where(.form-grid) {
+  display: grid;
+  gap: var(--form-grid-gap);
+  align-items: start;
+}
+
+:where(.site-theme, .admin-theme) :where(.form-grid > label, .form-field) {
+  display: grid;
+  gap: var(--form-field-gap);
+  align-content: start;
+}
+
+:where(.site-theme, .admin-theme)
+  :where(
+    .form-grid.balanced > label:has(> input:not([type='hidden'])),
+    .form-grid.balanced > label:has(> select)
+  ) {
+  grid-template-rows:
+    auto var(--form-control-height)
+    minmax(var(--form-help-min-height), auto);
+}
+
+:where(.site-theme, .admin-theme)
+  :where(.form-grid.balanced > label:has(> textarea)) {
+  grid-template-rows:
+    auto minmax(calc(var(--form-control-height) * 2), auto)
+    minmax(var(--form-help-min-height), auto);
+}
+
+:where(.site-theme, .admin-theme)
+  :where(
+    .form-grid.balanced
+      > label
+      > :is(input:not([type='hidden']), select, textarea)
+  ) {
+  order: 2;
+}
+
+:where(.site-theme, .admin-theme)
+  :where(
+    .form-grid.balanced
+      > label:not(:has(> :is(span, small, .field-help))):has(
+        > :is(input:not([type='hidden']), select, textarea)
+      )
+  )::after {
+  display: block;
+  order: 3;
+  min-height: var(--form-help-min-height);
+  content: '';
+}
+
+:where(.site-theme, .admin-theme)
+  :where(.form-grid.balanced > label > :is(span, small, .field-help)) {
+  display: block;
+  order: 3;
+  min-height: var(--form-help-min-height);
+  line-height: var(--form-help-line-height);
+}

@@ -1,0 +1,150 @@
+import { fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import { createUserSessionFromModel } from '$lib/server/auth-session';
+import { getClientIp } from '$lib/server/client-ip';
+import { passwordPolicyDescription } from '$lib/server/password-policy';
+import {
+  registerUser,
+  registrationAvailability,
+} from '$lib/server/registration';
+import { getSettings, stringValue } from '$lib/server/settings';
+import {
+  getPublicPluginStates,
+  verifyFormSubmissionPlugins,
+} from '../../plugins/server';
+import { getAuthLoginMethods } from '../../plugins/auth-registry';
+import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+
+function passwordLoginEnabled(
+  settings: Awaited<ReturnType<typeof getSettings>>,
+  locale: App.Locals['locale'] = settings.i18n.defaultLocale,
+) {
+  return getAuthLoginMethods(
+    settings.plugins,
+    locale,
+    settings.i18n.defaultLocale,
+  ).some(
+    (method) => method.type === 'password',
+  );
+}
+
+export const load: PageServerLoad = async ({ locals }) => {
+  if (locals.user) redirect(303, '/account');
+  const settings = await getSettings();
+  const displaySettings = locals.localizedSettings;
+  const availability = await registrationAvailability(settings, {
+    passwordLoginEnabled: passwordLoginEnabled(settings, locals.locale),
+  });
+  return {
+    locale: locals.locale,
+    defaultLocale: settings.i18n.defaultLocale,
+    siteName: displaySettings.general.siteName,
+    theme: displaySettings.theme,
+    plugins: getPublicPluginStates(settings.plugins),
+    setupRequired: availability.setupRequired,
+    passwordPolicy: passwordPolicyDescription(
+      settings.auth.password,
+      locals.locale,
+    ),
+    emailVerificationEnabled:
+      settings.auth.emailVerification.enabled && !availability.setupRequired,
+    registrationAllowed: availability.allowed,
+    registrationUnavailableReason: availability.reason,
+  };
+};
+
+export const actions: Actions = {
+  register: async ({ request, cookies, url, locals, getClientAddress }) => {
+    const settings = await getSettings();
+    const text = uiText(locals.locale, settings.i18n.defaultLocale);
+    const passwordEnabled = passwordLoginEnabled(settings, locals.locale);
+    const availability = await registrationAvailability(settings, {
+      passwordLoginEnabled: passwordEnabled,
+    });
+    if (!availability.allowed) {
+      return fail(403, {
+        registrationBlocked: true,
+        message: localizeServerMessage(
+          locals.locale,
+          availability.reason,
+          settings.i18n.defaultLocale,
+        ),
+      });
+    }
+
+    const form = await request.formData();
+    let redirectTo = '';
+    const values = {
+      email: stringValue(form, 'email'),
+      name: stringValue(form, 'name'),
+    };
+    const captcha = await verifyFormSubmissionPlugins({
+      action: 'signup',
+      form,
+      request,
+      url,
+      states: settings.plugins,
+      user: locals.user,
+      isAdmin: locals.isAdmin,
+      ip: getClientIp(
+        request,
+        getClientAddress,
+        settings.network.trustProxyHeaders,
+        settings.network.proxyIpHeaders,
+      ),
+      locale: locals.locale,
+      fallbackLocale: settings.i18n.defaultLocale,
+    });
+    if (!captcha.allowed) {
+      return fail(400, {
+        values,
+        message: captcha.message
+          ? localizeServerMessage(
+              locals.locale,
+              captcha.message,
+              settings.i18n.defaultLocale,
+            )
+          : text.messages.captchaFailed,
+      });
+    }
+
+    try {
+      const result = await registerUser({
+        settings,
+        origin: url.origin,
+        ...values,
+        password: stringValue(form, 'password'),
+        passwordLoginEnabled: passwordEnabled,
+      });
+
+      if (result.verificationRequired) {
+        return {
+          ok: true,
+          verificationRequired: true,
+          message: text.messages.signupVerificationSent,
+        };
+      }
+
+      createUserSessionFromModel(
+        cookies,
+        result.user,
+        'password',
+        String(result.user.id),
+      );
+      redirectTo = result.firstUser ? '/admin/core' : '/account';
+    } catch (cause) {
+      return fail(400, {
+        values,
+        message:
+          cause instanceof Error
+            ? localizeServerMessage(
+                locals.locale,
+                cause.message,
+                settings.i18n.defaultLocale,
+              )
+            : text.messages.signupFailed,
+      });
+    }
+    redirect(303, redirectTo);
+  },
+};

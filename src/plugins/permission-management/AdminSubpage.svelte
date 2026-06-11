@@ -1,0 +1,1594 @@
+<script lang="ts">
+  import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { pluginText } from '$lib/i18n/plugin';
+  import { translateContent } from '$lib/i18n/translate-content';
+  import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
+  import Pagination from '$lib/components/Pagination.svelte';
+  import ToggleField from '$lib/components/ToggleField.svelte';
+  import {
+    defaultSiteLocale,
+    linkedLinkEditFieldPairs,
+    linkedLinkOptionKeyPairs,
+    type LinkEditFieldKey,
+    type LinkOptionKey,
+  } from '$lib/config';
+  import { keepFormValues } from '$lib/forms';
+  import type {
+    PluginComponentProps,
+    PluginLocaleKey,
+  } from '$lib/plugin-contracts';
+  import {
+    allAllowedSelected,
+    reconcileSelection,
+    selectAll,
+    selectedAllowedCount,
+    toggleSelection,
+  } from '$lib/selection';
+  import { SvelteURLSearchParams } from 'svelte/reactivity';
+
+  type User = {
+    id: number;
+    email: string;
+    name: string;
+    isAdmin: boolean;
+    enabled: boolean;
+    createdAt: string;
+  };
+
+  type GroupUser = {
+    id: number;
+    item: string;
+    email: string;
+    name: string;
+    isAdmin: boolean;
+    enabled: boolean;
+    expiresAt?: string | null;
+  };
+
+  type CidrRule = {
+    cidr: string;
+    expiresAt: string | null;
+  };
+
+  type RuleValue = boolean | null;
+  type Group = {
+    id: number;
+    name: string;
+    description: string;
+    priority: number;
+    enabled: boolean;
+    userIds: number[];
+    ipRules: string[];
+    userMemberships: Array<{ userId: number; expiresAt: string | null }>;
+    cidrRules: CidrRule[];
+    rules: {
+      links: {
+        create: RuleValue;
+        options: Record<string, RuleValue>;
+        codeMinLength: number | null;
+        codeMaxLength: number | null;
+        generatedCodeLength: number | null;
+        deleteOwn: RuleValue;
+        deleteMaxClicks: number | null;
+        viewAll: RuleValue;
+        editAll: RuleValue;
+        deleteAll: RuleValue;
+        statsAll: RuleValue;
+        healthAll: RuleValue;
+        expiresAtBypass: RuleValue;
+        passwordBypass: RuleValue;
+        editableFields: Record<string, RuleValue>;
+      };
+      admin: {
+        access: RuleValue;
+        sections: string[];
+        manageSections: string[];
+        plugins: string[];
+        manageUsers: RuleValue;
+        managePermissions: RuleValue;
+      };
+      api: Record<string, RuleValue>;
+    };
+  };
+
+  type UserSearch = {
+    query: string;
+    page: number;
+    total: number;
+    totalPages: number;
+    users: GroupUser[];
+  };
+
+  type CidrSearch = {
+    query: string;
+    page: number;
+    total: number;
+    totalPages: number;
+    cidrs: CidrRule[];
+  };
+
+  type OidcConnection = {
+    id: number;
+    provider: string;
+    providerName: string;
+    subject: string;
+    email: string | null;
+    createdAt: string;
+  };
+
+  type OidcData = {
+    connections: OidcConnection[];
+  };
+
+  type AdminData =
+    | {
+        kind: 'user';
+        passwordMinLength: number;
+        passwordPolicy: string;
+        user: User;
+      }
+    | {
+        kind: 'group';
+        group: Group;
+        cidrs: CidrSearch;
+        members: UserSearch;
+        addableUsers: UserSearch;
+  };
+
+  type Tab = 'links' | 'admin' | 'api';
+  type LinkPermissionKey =
+    | 'create'
+    | 'deleteOwn'
+    | 'viewAll'
+    | 'editAll'
+    | 'deleteAll'
+    | 'statsAll'
+    | 'healthAll'
+    | 'expiresAtBypass'
+    | 'passwordBypass';
+
+  let {
+    adminData,
+    integrations,
+    item,
+    locale = defaultSiteLocale,
+    strings = {},
+  }: PluginComponentProps = $props();
+  const data = $derived((adminData ?? {}) as Partial<AdminData>);
+  const user = $derived(data.kind === 'user' ? data.user : undefined);
+  const userSettings = $derived(data.kind === 'user' ? data : undefined);
+  const group = $derived(data.kind === 'group' ? data.group : undefined);
+  const cidrs = $derived(data.kind === 'group' ? data.cidrs : undefined);
+  const members = $derived(data.kind === 'group' ? data.members : undefined);
+  const addableUsers = $derived(
+    data.kind === 'group' ? data.addableUsers : undefined,
+  );
+  const oidc = $derived(
+    integrations?.find((integration) => integration.pluginId === 'oidc-sso')
+      ?.data as OidcData | undefined,
+  );
+  const selectableCidrKeys = $derived(
+    (cidrs?.cidrs ?? []).map((rule) => rule.cidr),
+  );
+  const selectableMemberIds = $derived(
+    (members?.users ?? []).map((member) => String(member.id)),
+  );
+
+  let selectedCidrKeys = $state<string[]>([]);
+  let selectedMemberIds = $state<string[]>([]);
+
+  let activeTab = $state<Tab>('links');
+
+  const selectedCidrCount = $derived(
+    selectedAllowedCount(selectedCidrKeys, selectableCidrKeys),
+  );
+  const selectedMemberCount = $derived(
+    selectedAllowedCount(selectedMemberIds, selectableMemberIds),
+  );
+  const allCidrsSelected = $derived(
+    allAllowedSelected(selectedCidrKeys, selectableCidrKeys),
+  );
+  const allMembersSelected = $derived(
+    allAllowedSelected(selectedMemberIds, selectableMemberIds),
+  );
+
+  $effect(() => {
+    const next = reconcileSelection(selectedCidrKeys, selectableCidrKeys);
+    if (next.length !== selectedCidrKeys.length) selectedCidrKeys = next;
+  });
+
+  $effect(() => {
+    const next = reconcileSelection(selectedMemberIds, selectableMemberIds);
+    if (next.length !== selectedMemberIds.length) selectedMemberIds = next;
+  });
+
+  const linkOptions = [
+    ['customCode', 'admin.customCode'],
+    ['previewTitle', 'admin.previewTitle'],
+    ['previewDescription', 'admin.previewDescription'],
+    ['previewImageUrl', 'admin.previewImageUrl'],
+    ['themeColor', 'admin.themeColor'],
+    ['utmSource', 'admin.utmSource'],
+    ['utmMedium', 'admin.utmMedium'],
+    ['utmCampaign', 'admin.utmCampaign'],
+    ['utmTerm', 'admin.utmTerm'],
+    ['utmContent', 'admin.utmContent'],
+    ['expiresAt', 'admin.expirationDate'],
+    ['maxClicks', 'admin.maxClicks'],
+    ['password', 'admin.password'],
+    ['tags', 'admin.tags'],
+    ['mobileUrl', 'admin.mobileDestination'],
+    ['desktopUrl', 'admin.desktopDestination'],
+    ['abUrl', 'admin.abDestination'],
+    ['abPercent', 'admin.abPercentage'],
+  ] as const satisfies readonly (readonly [LinkOptionKey, PluginLocaleKey])[];
+  const linkPermissions = [
+    ['create', 'admin.createLinks'],
+    ['deleteOwn', 'admin.deleteOwnLinks'],
+    ['viewAll', 'admin.viewOtherLinks'],
+    ['editAll', 'admin.editOtherLinks'],
+    ['deleteAll', 'admin.deleteOtherLinks'],
+    ['statsAll', 'admin.viewOtherStats'],
+    ['healthAll', 'admin.checkOtherLinkHealth'],
+    ['expiresAtBypass', 'admin.bypassExpiration'],
+    ['passwordBypass', 'admin.bypassPasswords'],
+  ] as const satisfies readonly (readonly [LinkPermissionKey, PluginLocaleKey])[];
+  const editableFields = [
+    ['url', 'admin.destinationUrl'],
+    ['previewTitle', 'admin.previewTitle'],
+    ['previewDescription', 'admin.previewDescription'],
+    ['previewImageUrl', 'admin.previewImageUrl'],
+    ['themeColor', 'admin.themeColor'],
+    ['utmSource', 'admin.utmSource'],
+    ['utmMedium', 'admin.utmMedium'],
+    ['utmCampaign', 'admin.utmCampaign'],
+    ['utmTerm', 'admin.utmTerm'],
+    ['utmContent', 'admin.utmContent'],
+    ['expiresAt', 'admin.expirationDate'],
+    ['maxClicks', 'admin.maxClicks'],
+    ['password', 'admin.password'],
+    ['tags', 'admin.tags'],
+    ['mobileUrl', 'admin.mobileDestination'],
+    ['desktopUrl', 'admin.desktopDestination'],
+    ['abUrl', 'admin.abDestination'],
+    ['abPercent', 'admin.abPercentage'],
+  ] as const satisfies readonly (readonly [LinkEditFieldKey, PluginLocaleKey])[];
+  const adminSections = [
+    ['general', 'admin.siteSection'],
+    ['links', 'admin.linksAndApiSection'],
+    ['theme', 'admin.themeSection'],
+    ['plugins', 'admin.pluginsSection'],
+    ['data', 'admin.linkManagementSection'],
+  ] as const satisfies readonly (readonly [string, PluginLocaleKey])[];
+  const apiPermissions = [
+    ['enabled', 'admin.apiAccess'],
+    ['create', 'admin.createLinksApi'],
+    ['list', 'admin.listApi'],
+    ['stats', 'admin.statsApi'],
+    ['delete', 'admin.deleteApi'],
+    ['update', 'admin.updateApi'],
+  ] as const satisfies readonly (readonly [string, PluginLocaleKey])[];
+
+  function t(key: PluginLocaleKey) {
+    return pluginText(strings, key);
+  }
+
+  function formatText(
+    key: PluginLocaleKey,
+    values: Record<string, string | number>,
+  ) {
+    return Object.entries(values).reduce(
+      (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+      t(key),
+    );
+  }
+
+  function ruleValue(value: RuleValue) {
+    if (value === true) return 'allow';
+    if (value === false) return 'deny';
+    return 'inherit';
+  }
+
+  function linkedOptionKeys(key: LinkOptionKey) {
+    for (const [left, right] of linkedLinkOptionKeyPairs) {
+      if (left === key || right === key) return [left, right] as const;
+    }
+    return [key] as const;
+  }
+
+  function linkedEditFieldKeys(key: LinkEditFieldKey) {
+    for (const [left, right] of linkedLinkEditFieldPairs) {
+      if (left === key || right === key) return [left, right] as const;
+    }
+    return [key] as const;
+  }
+
+  function formSelect(form: HTMLFormElement, name: string) {
+    return Array.from(form.elements).find(
+      (element): element is HTMLSelectElement =>
+        element instanceof HTMLSelectElement && element.name === name,
+    );
+  }
+
+  function syncLinkedLinkOptionSelect(
+    event: Event & { currentTarget: HTMLSelectElement },
+    key: LinkOptionKey,
+  ) {
+    const form = event.currentTarget.form;
+    if (!form) return;
+    for (const linkedKey of linkedOptionKeys(key)) {
+      const select = formSelect(form, `linkOption.${linkedKey}`);
+      if (select) select.value = event.currentTarget.value;
+    }
+  }
+
+  function syncLinkedLinkEditFieldSelect(
+    event: Event & { currentTarget: HTMLSelectElement },
+    key: LinkEditFieldKey,
+  ) {
+    const form = event.currentTarget.form;
+    if (!form) return;
+    for (const linkedKey of linkedEditFieldKeys(key)) {
+      const select = formSelect(form, `linkEditField.${linkedKey}`);
+      if (select) select.value = event.currentTarget.value;
+    }
+  }
+
+  function groupRoute() {
+    return item
+      ? resolve('/admin/plugins/[plugin]/[item]', {
+          plugin: 'permission-management',
+          item,
+        })
+      : resolve('/admin/plugins/[plugin]', {
+          plugin: 'permission-management',
+        });
+  }
+
+  function searchParamsFromForm(form: HTMLFormElement) {
+    const params = new SvelteURLSearchParams();
+    for (const [key, value] of new FormData(form)) {
+      const text = String(value).trim();
+      if (text) params.set(key, text);
+    }
+    return params;
+  }
+
+  function submitGroupSearch(event: SubmitEvent) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!(form instanceof HTMLFormElement)) return;
+
+    const params = searchParamsFromForm(form);
+    const search = params.toString();
+    // eslint-disable-next-line svelte/no-navigation-without-resolve
+    void goto(`${groupRoute()}${search ? `?${search}` : ''}`, {
+      keepFocus: true,
+      noScroll: true,
+    });
+  }
+
+  function groupPageHref(page: number, pageName: string) {
+    const params = new SvelteURLSearchParams();
+    if (cidrs?.query) params.set('cidrQ', cidrs.query);
+    if (cidrs?.page && cidrs.page > 1) {
+      params.set('cidrPage', String(cidrs.page));
+    }
+    if (members?.query) params.set('memberQ', members.query);
+    if (members?.page && members.page > 1) {
+      params.set('memberPage', String(members.page));
+    }
+    if (addableUsers?.query) {
+      params.set('addUserQ', addableUsers.query);
+    }
+    if (addableUsers?.page && addableUsers.page > 1) {
+      params.set('addUserPage', String(addableUsers.page));
+    }
+    if (page > 1) params.set(pageName, String(page));
+    else params.delete(pageName);
+    const search = params.toString();
+    return `${groupRoute()}${search ? `?${search}` : ''}`;
+  }
+
+  function toggleCidr(cidr: string, checked: boolean) {
+    selectedCidrKeys = toggleSelection(selectedCidrKeys, cidr, checked);
+  }
+
+  function toggleAllCidrs(checked: boolean) {
+    selectedCidrKeys = selectAll(selectableCidrKeys, checked);
+  }
+
+  function toggleMember(id: number, checked: boolean) {
+    selectedMemberIds = toggleSelection(selectedMemberIds, String(id), checked);
+  }
+
+  function toggleAllMembers(checked: boolean) {
+    selectedMemberIds = selectAll(selectableMemberIds, checked);
+  }
+
+  function expiresAtLabel(expiresAt?: string | null) {
+    if (!expiresAt) return t('admin.noExpiration');
+    const date = new Date(expiresAt);
+    if (Number.isNaN(date.getTime())) return t('admin.expirationDateError');
+    const label = date.toLocaleString();
+    return formatText(
+      date.getTime() <= Date.now() ? 'admin.expiredAt' : 'admin.expiresAt',
+      { value: label },
+    );
+  }
+</script>
+
+<div class="plugin-i18n-root" use:translateContent={strings}>
+  {#if user}
+    <div class="stack">
+      <section>
+        <h2>{t('admin.userInformation')}</h2>
+        <form
+          method="POST"
+          action="?/pluginAction"
+          use:enhance={keepFormValues}
+        >
+          <input type="hidden" name="pluginAction" value="saveUser" />
+          <div class="grid form-grid balanced">
+            <label>
+              {t('admin.email')}
+              <input name="email" type="email" value={user.email} required />
+            </label>
+            <label>
+              {t('admin.name')}
+              <input name="name" value={user.name} required />
+            </label>
+          </div>
+          <label>
+            {t('admin.newPassword')}
+            <input
+              name="password"
+              type="password"
+              minlength={userSettings?.passwordMinLength ?? 10}
+              placeholder={userSettings?.passwordPolicy ??
+                t('admin.changeOnlyPlaceholder')}
+            />
+          </label>
+          <div class="toggles">
+            <ToggleField
+              name="isAdmin"
+              label={t('admin.administrator')}
+              checked={user.isAdmin}
+            />
+            <ToggleField
+              name="enabled"
+              label={t('admin.enabled')}
+              checked={user.enabled}
+            />
+          </div>
+          <button type="submit">{t('admin.save')}</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>{t('admin.oidcConnections')}</h2>
+        {#if oidc?.connections?.length}
+          <div class="connections">
+            {#each oidc.connections as connection (connection.id)}
+              <article>
+                <div>
+                  <strong>{connection.providerName}</strong>
+                  <span>
+                    {connection.email ?? connection.subject} · {connection.subject}
+                  </span>
+                </div>
+                <form
+                  method="POST"
+                  action="?/integrationAction"
+                  use:enhance={keepFormValues}
+                >
+                  <input
+                    type="hidden"
+                    name="integrationPlugin"
+                    value="oidc-sso"
+                  />
+                  <input
+                    type="hidden"
+                    name="integrationAction"
+                    value="unlink"
+                  />
+                  <input
+                    type="hidden"
+                    name="identityId"
+                    value={connection.id}
+                  />
+                  <input
+                    type="hidden"
+                    name="provider"
+                    value={connection.provider}
+                  />
+                  <DangerConfirmButton
+                    label={t('admin.forceUnlink')}
+                    {locale}
+                    title={t('admin.forceUnlinkTitle')}
+                    message={t('admin.forceUnlinkMessage')}
+                    details={[
+                      `${connection.providerName}: ${connection.email ?? connection.subject}`,
+                    ]}
+                    confirmLabel={t('admin.forceUnlink')}
+                  />
+                </form>
+              </article>
+            {/each}
+          </div>
+        {:else}
+          <p class="muted">{t('admin.emptyOidcConnections')}</p>
+        {/if}
+      </section>
+
+      <section>
+        <h2>{t('admin.dangerZone')}</h2>
+        <form
+          method="POST"
+          action="?/pluginAction"
+          use:enhance={keepFormValues}
+        >
+          <input type="hidden" name="pluginAction" value="deleteUser" />
+          <DangerConfirmButton
+            label={t('admin.deleteUser')}
+            {locale}
+            title={t('admin.deleteUserTitle')}
+            message={t('admin.deleteUserMessage')}
+            details={[`${user.name} (${user.email})`]}
+            confirmLabel={t('admin.deleteUser')}
+            requireConsent
+            consentLabel={t('admin.deleteUserConsent')}
+          />
+        </form>
+      </section>
+    </div>
+  {:else if group}
+    <form
+      class="stack"
+      method="POST"
+      action="?/pluginAction"
+      use:enhance={keepFormValues}
+    >
+      <input type="hidden" name="pluginAction" value="saveGroup" />
+
+      <section>
+        <h2>{t('admin.permissionGroups')}</h2>
+        <div class="grid form-grid balanced">
+          <label>
+            {t('admin.groupName')}
+            <input name="name" value={group.name} required />
+          </label>
+          <label>
+            {t('admin.priority')}
+            <input
+              name="priority"
+              type="number"
+              min="0"
+              max="10000"
+              value={group.priority}
+            />
+          </label>
+          <label class="wide">
+            {t('admin.description')}
+            <textarea name="description" rows="3">{group.description}</textarea>
+          </label>
+          <div class="wide">
+            <ToggleField
+              name="enabled"
+              label={t('admin.enableGroup')}
+              checked={group.enabled}
+            />
+          </div>
+        </div>
+      </section>
+
+      <div
+        class="tabs"
+        role="tablist"
+        aria-label={t('admin.permissionGroupSettings')}
+      >
+        <button
+          type="button"
+          class:active={activeTab === 'links'}
+          onclick={() => (activeTab = 'links')}>{t('admin.links')}</button
+        >
+        <button
+          type="button"
+          class:active={activeTab === 'admin'}
+          onclick={() => (activeTab = 'admin')}>{t('admin.administrator')}</button
+        >
+        <button
+          type="button"
+          class:active={activeTab === 'api'}
+          onclick={() => (activeTab = 'api')}>{t('admin.api')}</button
+        >
+      </div>
+
+      <div class="tab-panel" hidden={activeTab !== 'links'}>
+        <section>
+          <h2>{t('admin.linkPermissions')}</h2>
+          <div class="grid form-grid balanced dense-grid">
+            {#each linkPermissions as permission (permission[0])}
+              <label>
+                {t(permission[1])}
+                <select
+                  name={`links.${permission[0]}`}
+                  value={ruleValue(group.rules.links[permission[0]])}
+                >
+                  <option value="inherit">{t('admin.inheritDefault')}</option>
+                  <option value="allow">{t('admin.allow')}</option>
+                  <option value="deny">{t('admin.deny')}</option>
+                </select>
+              </label>
+            {/each}
+          </div>
+        </section>
+
+        <section>
+          <h2>{t('admin.linkCreationOptions')}</h2>
+          <div class="grid form-grid balanced dense-grid">
+            {#each linkOptions as option (option[0])}
+              <label>
+                {t(option[1])}
+                <select
+                  name={`linkOption.${option[0]}`}
+                  value={ruleValue(group.rules.links.options[option[0]])}
+                  onchange={(event) =>
+                    syncLinkedLinkOptionSelect(event, option[0])}
+                >
+                  <option value="inherit">{t('admin.inheritDefault')}</option>
+                  <option value="allow">{t('admin.allow')}</option>
+                  <option value="deny">{t('admin.deny')}</option>
+                </select>
+              </label>
+            {/each}
+          </div>
+        </section>
+
+        <section>
+          <h2>{t('admin.linkEditingOptions')}</h2>
+          <div class="grid form-grid balanced dense-grid">
+            {#each editableFields as field (field[0])}
+              <label>
+                {t(field[1])}
+                <select
+                  name={`linkEditField.${field[0]}`}
+                  value={ruleValue(group.rules.links.editableFields[field[0]])}
+                  onchange={(event) =>
+                    syncLinkedLinkEditFieldSelect(event, field[0])}
+                >
+                  <option value="inherit">{t('admin.inheritDefault')}</option>
+                  <option value="allow">{t('admin.allow')}</option>
+                  <option value="deny">{t('admin.deny')}</option>
+                </select>
+              </label>
+            {/each}
+          </div>
+        </section>
+
+        <section>
+          <h2>{t('admin.codeAndDeletionConditions')}</h2>
+          <div class="grid form-grid balanced dense-grid override-grid">
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.minimumLength')}</span>
+                <ToggleField
+                  name="overrideCodeMinLength"
+                  checked={group.rules.links.codeMinLength !== null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overrideCodeMinLength')}
+                />
+              </div>
+              <input
+                name="codeMinLength"
+                type="number"
+                min="1"
+                max="64"
+                value={group.rules.links.codeMinLength ?? 3}
+              />
+            </div>
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.maximumLength')}</span>
+                <ToggleField
+                  name="overrideCodeMaxLength"
+                  checked={group.rules.links.codeMaxLength !== null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overrideCodeMaxLength')}
+                />
+              </div>
+              <input
+                name="codeMaxLength"
+                type="number"
+                min="1"
+                max="64"
+                value={group.rules.links.codeMaxLength ?? 32}
+              />
+            </div>
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.generatedCodeLength')}</span>
+                <ToggleField
+                  name="overrideGeneratedCodeLength"
+                  checked={group.rules.links.generatedCodeLength !== null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overrideGeneratedCodeLength')}
+                />
+              </div>
+              <input
+                name="generatedCodeLength"
+                type="number"
+                min="1"
+                max="64"
+                value={group.rules.links.generatedCodeLength ?? 7}
+              />
+            </div>
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.maxClicksForDeletion')}</span>
+                <ToggleField
+                  name="overrideDeleteMaxClicks"
+                  checked={group.rules.links.deleteMaxClicks !== null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overrideDeleteMaxClicks')}
+                />
+              </div>
+              <input
+                name="deleteMaxClicks"
+                type="number"
+                min="0"
+                max="1000000"
+                value={group.rules.links.deleteMaxClicks ?? 0}
+              />
+              <small>{t('admin.zeroMeansUnlimited')}</small>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="tab-panel" hidden={activeTab !== 'admin'}>
+        <section>
+          <h2>{t('admin.adminAccess')}</h2>
+          <div class="grid form-grid balanced dense-grid">
+            <label>
+              {t('admin.adminPageAccess')}
+              <select
+                name="admin.access"
+                value={ruleValue(group.rules.admin.access)}
+              >
+                <option value="inherit">{t('admin.inheritDefault')}</option>
+                <option value="allow">{t('admin.allow')}</option>
+                <option value="deny">{t('admin.deny')}</option>
+              </select>
+            </label>
+            <label>
+              {t('admin.userManagement')}
+              <select
+                name="admin.manageUsers"
+                value={ruleValue(group.rules.admin.manageUsers)}
+              >
+                <option value="inherit">{t('admin.inheritDefault')}</option>
+                <option value="allow">{t('admin.allow')}</option>
+                <option value="deny">{t('admin.deny')}</option>
+              </select>
+            </label>
+            <label>
+              {t('admin.permissionGroupManagement')}
+              <select
+                name="admin.managePermissions"
+                value={ruleValue(group.rules.admin.managePermissions)}
+              >
+                <option value="inherit">{t('admin.inheritDefault')}</option>
+                <option value="allow">{t('admin.allow')}</option>
+                <option value="deny">{t('admin.deny')}</option>
+              </select>
+            </label>
+            <label class="wide">
+              {t('admin.accessiblePluginIds')}
+              <small>{t('admin.accessiblePluginIdsHelp')}</small>
+              <textarea name="adminPlugins" rows="4"
+                >{group.rules.admin.plugins.join('\n')}</textarea
+              >
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>{t('admin.accessibleAdminTabs')}</h2>
+          <div class="checks">
+            {#each adminSections as section (section[0])}
+              <ToggleField
+                name="adminSections"
+                value={section[0]}
+                checked={group.rules.admin.sections.includes(section[0])}
+                label={t(section[1])}
+              />
+            {/each}
+          </div>
+        </section>
+
+        <section>
+          <h2>{t('admin.manageableAdminTabs')}</h2>
+          <div class="checks">
+            {#each adminSections as section (section[0])}
+              <ToggleField
+                name="adminManageSections"
+                value={section[0]}
+                checked={group.rules.admin.manageSections.includes(section[0])}
+                label={t(section[1])}
+              />
+            {/each}
+          </div>
+        </section>
+      </div>
+
+      <section hidden={activeTab !== 'api'}>
+        <h2>{t('admin.apiPermissions')}</h2>
+        <div class="grid form-grid balanced dense-grid">
+          {#each apiPermissions as permission (permission[0])}
+            <label>
+              {t(permission[1])}
+              <select
+                name={`api.${permission[0]}`}
+                value={ruleValue(group.rules.api[permission[0]])}
+              >
+                <option value="inherit">{t('admin.inheritDefault')}</option>
+                <option value="allow">{t('admin.allow')}</option>
+                <option value="deny">{t('admin.deny')}</option>
+              </select>
+            </label>
+          {/each}
+        </div>
+      </section>
+
+      <div class="savebar">
+        <button type="submit">{t('admin.savePermissionGroup')}</button>
+      </div>
+    </form>
+
+    <section class="member-management">
+      <h2>{t('admin.cidrManagement')}</h2>
+      <form
+        class="search-users cidr-search"
+        method="GET"
+        onsubmit={submitGroupSearch}
+      >
+        {#if members?.query}
+          <input type="hidden" name="memberQ" value={members.query} />
+        {/if}
+        {#if addableUsers?.query}
+          <input type="hidden" name="addUserQ" value={addableUsers.query} />
+        {/if}
+        <input
+          name="cidrQ"
+          placeholder={t('admin.searchCidr')}
+          value={cidrs?.query ?? ''}
+        />
+        <button type="submit">{t('admin.searchCidr')}</button>
+      </form>
+      <form
+        class="add-cidr-form"
+        method="POST"
+        action="?/pluginAction"
+        use:enhance={keepFormValues}
+      >
+        <input type="hidden" name="pluginAction" value="addGroupCidr" />
+        <label>
+          CIDR
+          <input name="cidr" placeholder="203.0.113.0/24" required />
+        </label>
+        <div class="expires-grid">
+          <label>
+            {t('admin.expirationDate')}
+            <input name="expiresAtDate" type="date" />
+          </label>
+          <label>
+            {t('admin.expirationTime')}
+            <input name="expiresAtTime" type="time" step="60" />
+          </label>
+        </div>
+        <button type="submit">{t('admin.addCidr')}</button>
+      </form>
+      {#if cidrs?.cidrs?.length}
+        <form
+          id="group-cidr-bulk-remove-form"
+          class="hidden-form"
+          method="POST"
+          action="?/pluginAction"
+          use:enhance
+        >
+          <input type="hidden" name="pluginAction" value="removeGroupCidrs" />
+        </form>
+      {/if}
+      <div class="list-heading">
+        <h3>{t('admin.registeredCidrs')} <em>{cidrs?.total ?? 0}</em></h3>
+        {#if cidrs?.cidrs?.length}
+          <div class="bulk-actions">
+            <ToggleField
+              form="group-cidr-bulk-remove-form"
+              checked={allCidrsSelected}
+              disabled={selectableCidrKeys.length === 0}
+              label={formatText('admin.selectedCount', {
+                count: selectedCidrCount,
+              })}
+              onchange={(event) => toggleAllCidrs(event.currentTarget.checked)}
+            />
+            <DangerConfirmButton
+              formId="group-cidr-bulk-remove-form"
+              label={t('admin.deleteSelected')}
+              {locale}
+              title={t('admin.deleteSelectedCidrsTitle')}
+              message={formatText('admin.deleteSelectedCidrsMessage', {
+                count: selectedCidrCount,
+              })}
+              confirmLabel={t('admin.deleteSelectedCidrsConfirm')}
+              disabled={selectedCidrCount === 0}
+            />
+          </div>
+        {/if}
+      </div>
+      <div class="cidr-list list-grid">
+        {#each cidrs?.cidrs ?? [] as rule (rule.cidr)}
+          <article class="cidr-row">
+            <ToggleField
+              form="group-cidr-bulk-remove-form"
+              name="cidrs"
+              value={rule.cidr}
+              ariaLabel={formatText('admin.selectCidr', { cidr: rule.cidr })}
+              checked={selectedCidrKeys.includes(rule.cidr)}
+              onchange={(event) =>
+                toggleCidr(rule.cidr, event.currentTarget.checked)}
+            />
+            <span>
+              <strong>{rule.cidr}</strong>
+              <em>{expiresAtLabel(rule.expiresAt)}</em>
+            </span>
+            <form
+              class="inline-form"
+              method="POST"
+              action="?/pluginAction"
+              use:enhance={keepFormValues}
+            >
+              <input
+                type="hidden"
+                name="pluginAction"
+                value="removeGroupCidr"
+              />
+              <input type="hidden" name="cidr" value={rule.cidr} />
+              <button type="submit">{t('admin.remove')}</button>
+            </form>
+          </article>
+        {/each}
+        {#if !cidrs?.cidrs?.length}
+          <p class="empty">
+            {cidrs?.query
+              ? t('admin.emptyCidrSearch')
+              : t('admin.emptyRegisteredCidrs')}
+          </p>
+        {/if}
+      </div>
+      <Pagination
+        page={cidrs?.page ?? 1}
+        totalPages={cidrs?.totalPages ?? 1}
+        getHref={(page) => groupPageHref(page, 'cidrPage')}
+        label={t('admin.cidrManagementPage')}
+        {locale}
+      />
+    </section>
+
+    <section class="member-management">
+      <h2>{t('admin.groupUsers')}</h2>
+      <div class="member-searches">
+        <form class="search-users" method="GET" onsubmit={submitGroupSearch}>
+          {#if cidrs?.query}
+            <input type="hidden" name="cidrQ" value={cidrs.query} />
+          {/if}
+          {#if addableUsers?.query}
+            <input type="hidden" name="addUserQ" value={addableUsers.query} />
+          {/if}
+          <input
+            name="memberQ"
+            placeholder={t('admin.searchCurrentMembers')}
+            value={members?.query ?? ''}
+          />
+          <button type="submit">{t('admin.searchMembers')}</button>
+        </form>
+        <form class="search-users" method="GET" onsubmit={submitGroupSearch}>
+          {#if cidrs?.query}
+            <input type="hidden" name="cidrQ" value={cidrs.query} />
+          {/if}
+          {#if members?.query}
+            <input type="hidden" name="memberQ" value={members.query} />
+          {/if}
+          <input
+            name="addUserQ"
+            placeholder={t('admin.searchUsersToAdd')}
+            value={addableUsers?.query ?? ''}
+          />
+          <button type="submit">{t('admin.searchUsers')}</button>
+        </form>
+      </div>
+
+      <div class="member-columns">
+        <div>
+          {#if members?.users?.length}
+            <form
+              id="group-member-bulk-remove-form"
+              class="hidden-form"
+              method="POST"
+              action="?/pluginAction"
+              use:enhance
+            >
+              <input
+                type="hidden"
+                name="pluginAction"
+                value="removeGroupUsers"
+              />
+            </form>
+          {/if}
+          <div class="list-heading member-list-heading">
+            <h3>{t('admin.currentMembers')} <em>{members?.total ?? 0}</em></h3>
+            {#if members?.users?.length}
+              <div class="bulk-actions">
+                <ToggleField
+                  form="group-member-bulk-remove-form"
+                  checked={allMembersSelected}
+                  disabled={selectableMemberIds.length === 0}
+                  label={formatText('admin.selectedUsersCount', {
+                    count: selectedMemberCount,
+                  })}
+                  onchange={(event) =>
+                    toggleAllMembers(event.currentTarget.checked)}
+                />
+                <DangerConfirmButton
+                  formId="group-member-bulk-remove-form"
+                  label={t('admin.deleteSelected')}
+                  {locale}
+                  title={t('admin.deleteSelectedUsersTitle')}
+                  message={formatText('admin.deleteSelectedUsersMessage', {
+                    count: selectedMemberCount,
+                  })}
+                  confirmLabel={t('admin.deleteSelectedUsersConfirm')}
+                  disabled={selectedMemberCount === 0}
+                />
+              </div>
+            {/if}
+          </div>
+          <div class="user-list">
+            {#each members?.users ?? [] as member (member.id)}
+              <article class="user-row member-row">
+                <ToggleField
+                  form="group-member-bulk-remove-form"
+                  name="userIds"
+                  value={member.id}
+                  ariaLabel={formatText('admin.selectUser', {
+                    name: member.name,
+                  })}
+                  checked={selectedMemberIds.includes(String(member.id))}
+                  onchange={(event) =>
+                    toggleMember(member.id, event.currentTarget.checked)}
+                />
+                <a
+                  href={resolve(
+                    `/admin/plugins/permission-management/${member.item}`,
+                  )}
+                >
+                  <strong>{member.name}</strong>
+                  <span
+                    >{member.email}{member.isAdmin
+                      ? t('admin.adminSuffix')
+                      : ''}</span
+                  >
+                  <em class="assignment-meta"
+                    >{expiresAtLabel(member.expiresAt)}</em
+                  >
+                </a>
+                <form
+                  class="inline-form"
+                  method="POST"
+                  action="?/pluginAction"
+                  use:enhance={keepFormValues}
+                >
+                  <input
+                    type="hidden"
+                    name="pluginAction"
+                    value="removeGroupUser"
+                  />
+                  <input type="hidden" name="userId" value={member.id} />
+                  <button type="submit">{t('admin.remove')}</button>
+                </form>
+              </article>
+            {/each}
+            {#if !members?.users?.length}
+              <p class="empty">{t('admin.emptyGroupMembers')}</p>
+            {/if}
+          </div>
+          <Pagination
+            page={members?.page ?? 1}
+            totalPages={members?.totalPages ?? 1}
+            getHref={(page) => groupPageHref(page, 'memberPage')}
+            label={t('admin.groupMemberPage')}
+            {locale}
+          />
+        </div>
+
+        <div>
+          <h3>{t('admin.addUser')}</h3>
+          <div class="user-list">
+            {#if addableUsers?.query}
+              {#each addableUsers.users as candidate (candidate.id)}
+                <form
+                  class="user-row add-user-row"
+                  method="POST"
+                  action="?/pluginAction"
+                  use:enhance={keepFormValues}
+                >
+                  <input
+                    type="hidden"
+                    name="pluginAction"
+                    value="addGroupUser"
+                  />
+                  <input type="hidden" name="userId" value={candidate.id} />
+                  <a
+                    href={resolve(
+                      `/admin/plugins/permission-management/${candidate.item}`,
+                    )}
+                  >
+                    <strong>{candidate.name}</strong>
+                    <span
+                      >{candidate.email}{candidate.isAdmin
+                        ? t('admin.adminSuffix')
+                        : ''}</span
+                    >
+                  </a>
+                  <div class="expires-grid">
+                    <label>
+                      {t('admin.expirationDate')}
+                      <input name="expiresAtDate" type="date" />
+                    </label>
+                    <label>
+                      {t('admin.expirationTime')}
+                      <input name="expiresAtTime" type="time" step="60" />
+                    </label>
+                  </div>
+                  <button type="submit">{t('admin.add')}</button>
+                </form>
+              {/each}
+              {#if !addableUsers.users.length}
+                <p class="empty">{t('admin.emptyAddableUsers')}</p>
+              {/if}
+            {:else}
+              <p class="empty">{t('admin.searchUsersByNameEmailId')}</p>
+            {/if}
+          </div>
+          <Pagination
+            page={addableUsers?.page ?? 1}
+            totalPages={addableUsers?.totalPages ?? 1}
+            getHref={(page) => groupPageHref(page, 'addUserPage')}
+            label={t('admin.addableUsersPage')}
+            {locale}
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="danger">
+      <h2>{t('admin.dangerZone')}</h2>
+      <form method="POST" action="?/pluginAction" use:enhance={keepFormValues}>
+        <input type="hidden" name="pluginAction" value="deleteGroup" />
+        <DangerConfirmButton
+          label={t('admin.deleteGroup')}
+          {locale}
+          title={t('admin.deleteGroupTitle')}
+          message={t('admin.deleteGroupMessage')}
+          details={[group.name]}
+          confirmLabel={t('admin.deleteGroup')}
+        />
+      </form>
+    </section>
+  {:else}
+    <p>{t('admin.itemNotFound')}</p>
+  {/if}
+</div>
+
+<style>
+  .plugin-i18n-root {
+    display: contents;
+  }
+  .stack,
+  section,
+  form {
+    display: grid;
+    gap: 16px;
+  }
+  section {
+    border-top: 1px solid var(--admin-border);
+    padding-top: 18px;
+  }
+  section[hidden],
+  .tab-panel[hidden] {
+    display: none;
+  }
+  .stack > section:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+  }
+  h2,
+  p {
+    margin: 0;
+  }
+  h2 {
+    font-size: 1.05rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-columns, 2), minmax(0, 1fr));
+    gap: 14px;
+  }
+  .dense-grid {
+    --grid-columns: 4;
+  }
+  label {
+    display: grid;
+    gap: 7px;
+    color: var(--admin-text);
+    font-size: 0.82rem;
+    font-weight: 750;
+  }
+  label small,
+  .muted,
+  .connections article span {
+    color: var(--admin-muted);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  input:not([type='checkbox']),
+  textarea,
+  select {
+    width: 100%;
+    min-height: var(--form-control-height);
+    border: 1px solid var(--admin-border);
+    border-radius: var(--form-control-radius);
+    padding: 10px 12px;
+    background: var(--admin-surface);
+    color: var(--admin-text);
+    font: inherit;
+  }
+  input:is([type='date'], [type='time']) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    height: var(--form-control-height);
+    min-height: var(--form-control-height);
+    line-height: normal;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  input:is([type='date'], [type='time'])::-webkit-date-and-time-value {
+    min-height: 1.2em;
+    text-align: left;
+  }
+  input:is([type='date'], [type='time'])::-webkit-calendar-picker-indicator {
+    margin-inline-start: auto;
+  }
+  select {
+    height: var(--form-control-height);
+  }
+  textarea {
+    resize: vertical;
+  }
+  button {
+    width: fit-content;
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 15px;
+    background: var(--admin-primary);
+    color: var(--admin-primary-contrast);
+    font: inherit;
+    font-weight: 850;
+    cursor: pointer;
+  }
+  .wide {
+    grid-column: 1 / -1;
+  }
+  .toggles,
+  .checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    --toggle-min-height: 42px;
+  }
+  .override-grid {
+    align-items: start;
+  }
+  .override-control {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .override-heading {
+    display: flex;
+    min-height: 28px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--admin-text);
+    font-size: 0.82rem;
+    font-weight: 750;
+  }
+  .override-heading > span {
+    min-width: 0;
+  }
+  .override-heading :global(.toggle) {
+    flex: none;
+    --toggle-font-size: 0.72rem;
+    --toggle-label: var(--admin-muted);
+    --toggle-min-height: 28px;
+  }
+  .override-control small {
+    color: var(--admin-muted);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  .hidden-form {
+    display: none;
+  }
+  .list-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .list-heading h3 {
+    margin: 0;
+  }
+  .member-list-heading {
+    margin-bottom: 12px;
+  }
+  .bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    --toggle-border: var(--admin-border);
+    --toggle-surface: var(--admin-surface);
+    --toggle-primary: var(--admin-primary);
+    --toggle-label: var(--admin-text);
+    --toggle-font-size: 0.82rem;
+    --toggle-min-height: 38px;
+  }
+  .list-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--list-grid-columns, 1), minmax(0, 1fr));
+    gap: var(--list-grid-gap, 8px);
+  }
+  .cidr-list {
+    --list-grid-columns: 3;
+    --list-grid-gap: 8px;
+  }
+  .cidr-list > .empty {
+    grid-column: 1 / -1;
+  }
+  .add-cidr-form {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, auto) auto;
+    align-items: end;
+  }
+  .expires-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .expires-grid label {
+    min-width: 0;
+    font-size: 0.76rem;
+  }
+  .cidr-row {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.45);
+    padding: 12px;
+    background: var(--admin-surface);
+  }
+  .cidr-row > span {
+    min-width: 0;
+  }
+  .cidr-row strong,
+  .cidr-row em,
+  .assignment-meta {
+    display: block;
+  }
+  .cidr-row em,
+  .assignment-meta {
+    color: var(--admin-muted);
+    font-size: 0.76rem;
+    font-style: normal;
+    line-height: 1.5;
+  }
+  .connections {
+    display: grid;
+  }
+  .connections article {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 1px solid var(--admin-border);
+    padding: 12px 0;
+  }
+  .connections article:first-child {
+    border-top: 0;
+  }
+  .connections article strong,
+  .connections article span {
+    display: block;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-top: 1px solid var(--admin-border);
+    padding-top: 16px;
+  }
+  .tabs button {
+    border: 1px solid var(--admin-border);
+    background: var(--admin-surface);
+    color: var(--admin-muted);
+  }
+  .tabs button.active {
+    border-color: var(--admin-primary);
+    background: var(--admin-primary);
+    color: var(--admin-primary-contrast);
+  }
+  .savebar {
+    position: sticky;
+    bottom: 18px;
+    display: flex;
+    justify-content: flex-end;
+    border: 1px solid var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.65);
+    padding: 12px;
+    background: color-mix(in srgb, var(--admin-surface) 90%, transparent);
+    box-shadow: 0 15px 40px var(--admin-shadow);
+    backdrop-filter: blur(12px);
+  }
+  .danger {
+    margin-top: 18px;
+  }
+  .member-management {
+    margin-top: 18px;
+  }
+  .member-searches,
+  .member-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .search-users {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+  h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+  }
+  h3 em {
+    color: var(--admin-muted);
+    font-size: 0.78rem;
+    font-style: normal;
+  }
+  .user-list {
+    display: grid;
+    border: 1px solid var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.55);
+    overflow: hidden;
+    background: var(--admin-surface);
+  }
+  .user-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--admin-border);
+    padding: 12px;
+  }
+  .user-row:first-child {
+    border-top: 0;
+  }
+  .member-row {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+  .add-user-row {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, auto) auto;
+  }
+  .inline-form {
+    display: contents;
+  }
+  .user-row a {
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+  }
+  .user-row a:hover strong {
+    text-decoration: underline;
+  }
+  .user-row strong,
+  .user-row span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-row span,
+  .empty {
+    color: var(--admin-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .empty {
+    margin: 0;
+    padding: 16px;
+  }
+  section,
+  .toggles {
+    --toggle-border: var(--admin-border);
+    --toggle-surface: var(--admin-surface);
+    --toggle-primary: var(--admin-primary);
+  }
+  @media (max-width: 1100px) {
+    .dense-grid {
+      --grid-columns: 3;
+    }
+    .cidr-list {
+      --list-grid-columns: 2;
+    }
+  }
+  @media (max-width: 860px) {
+    .dense-grid {
+      --grid-columns: 2;
+    }
+  }
+  @media (max-width: 720px) {
+    .grid {
+      --grid-columns: 1;
+    }
+    .wide {
+      grid-column: auto;
+    }
+    .connections article {
+      align-items: start;
+      flex-direction: column;
+    }
+    .member-searches,
+    .member-columns,
+    .search-users,
+    .add-cidr-form,
+    .cidr-row,
+    .user-row {
+      grid-template-columns: 1fr;
+    }
+    .cidr-list {
+      --list-grid-columns: 1;
+    }
+    .bulk-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .list-heading {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .expires-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

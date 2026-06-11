@@ -1,0 +1,115 @@
+.site-theme {
+  --page-danger: #c84432;
+  --page-danger-contrast: #fffaf8;
+  --page-danger-text: #9b3829;
+  --notice-error-bg: color-mix(in srgb, #c84432 12%, var(--page-surface));
+  --notice-error-text: #9b3829;
+  --notice-success-bg: color-mix(
+    in srgb,
+    var(--page-primary) 8%,
+    var(--page-surface)
+  );
+  --notice-success-text: var(--page-primary);
+}
+
+.site-theme[data-theme-mode='dark'] {
+  --page-bg: color-mix(
+    in srgb,
+    var(--theme-bg) 10%,
+    color-mix(in srgb, var(--theme-primary) 14%, #050806)
+  ) !important;
+  --page-surface: color-mix(
+    in srgb,
+    var(--theme-surface) 10%,
+    color-mix(in srgb, var(--theme-primary) 16%, #111612)
+  ) !important;
+  --page-text: color-mix(in srgb, var(--theme-text) 12%, #f5f8f6) !important;
+  --page-muted: color-mix(in srgb, var(--theme-muted) 22%, #d7e0da) !important;
+  --page-primary: color-mix(
+    in srgb,
+    var(--theme-primary) 68%,
+    #ffffff
+  ) !important;
+  --page-primary-contrast: color-mix(
+    in srgb,
+    var(--theme-primary) 10%,
+    #050806
+  ) !important;
+  --page-border: color-mix(
+    in srgb,
+    var(--theme-border) 22%,
+    color-mix(in srgb, var(--theme-primary) 20%, #26302a)
+  ) !important;
+  --surface: var(--page-surface) !important;
+  --text: var(--page-text) !important;
+  --muted: var(--page-muted) !important;
+  --primary: var(--page-primary) !important;
+  --primary-contrast: var(--page-primary-contrast) !important;
+  --border: var(--page-border) !important;
+  --notice-error-bg: color-mix(in srgb, #c84432 20%, var(--page-surface));
+  --notice-error-text: #ffb0a4;
+  --page-danger: color-mix(in srgb, #c84432 72%, #ffffff);
+  --page-danger-contrast: #120605;
+  --page-danger-text: #ffb0a4;
+  --notice-success-bg: color-mix(
+    in srgb,
+    var(--theme-primary) 20%,
+    var(--page-surface)
+  );
+  --notice-success-text: var(--page-primary);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .site-theme[data-theme-mode='system'] {
+    --page-bg: color-mix(
+      in srgb,
+      var(--theme-bg) 10%,
+      color-mix(in srgb, var(--theme-primary) 14%, #050806)
+    ) !important;
+    --page-surface: color-mix(
+      in srgb,
+      var(--theme-surface) 10%,
+      color-mix(in srgb, var(--theme-primary) 16%, #111612)
+    ) !important;
+    --page-text: color-mix(in srgb, var(--theme-text) 12%, #f5f8f6) !important;
+    --page-muted: color-mix(
+      in srgb,
+      var(--theme-muted) 22%,
+      #d7e0da
+    ) !important;
+    --page-primary: color-mix(
+      in srgb,
+      var(--theme-primary) 68%,
+      #ffffff
+    ) !important;
+    --page-primary-contrast: color-mix(
+      in srgb,
+      var(--theme-primary) 10%,
+      #050806
+    ) !important;
+    --page-border: color-mix(
+      in srgb,
+      var(--theme-border) 22%,
+      color-mix(in srgb, var(--theme-primary) 20%, #26302a)
+    ) !important;
+    --surface: var(--page-surface) !important;
+    --text: var(--page-text) !important;
+    --muted: var(--page-muted) !important;
+    --primary: var(--page-primary) !important;
+    --primary-contrast: var(--page-primary-contrast) !important;
+    --border: var(--page-border) !important;
+    --notice-error-bg: color-mix(in srgb, #c84432 20%, var(--page-surface));
+    --notice-error-text: #ffb0a4;
+    --page-danger: color-mix(in srgb, #c84432 72%, #ffffff);
+    --page-danger-contrast: #120605;
+    --page-danger-text: #ffb0a4;
+    --notice-success-bg: color-mix(
+      in srgb,
+      var(--theme-primary) 20%,
+      var(--page-surface)
+    );
+    --notice-success-text: var(--page-primary);
+    color-scheme: dark;
+  }
+}
