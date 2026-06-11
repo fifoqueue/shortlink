@@ -46,6 +46,7 @@
     };
     tags: string[];
     short_url: string;
+    owned?: boolean;
     clicks: number;
     created_at: string;
     smart: {
@@ -79,6 +80,7 @@
         deleteOwn: boolean;
         deleteAll: boolean;
         deleteMaxClicks: number;
+        editOwn: boolean;
         viewAll: boolean;
         editAll: boolean;
         editableFields: LinkEditFieldKey[];
@@ -108,6 +110,7 @@
   const linkPermissionDefaults = [
     ['allowLinkCreate', 'allowLinkCreate'],
     ['allowUserDelete', 'allowUserDelete'],
+    ['editOwnLinks', 'editOwnLinks'],
     ['viewAllLinks', 'viewAllLinks'],
     ['editAllLinks', 'editAllLinks'],
     ['deleteAllLinks', 'deleteAllLinks'],
@@ -184,6 +187,7 @@
   ) {
     if (name === 'allowLinkCreate') return data.settings.links.allowCreate;
     if (name === 'allowUserDelete') return data.settings.links.allowUserDelete;
+    if (name === 'editOwnLinks') return data.settings.links.editOwn;
     if (name === 'viewAllLinks') return data.settings.links.viewAll;
     if (name === 'editAllLinks') return data.settings.links.editAll;
     if (name === 'deleteAllLinks') return data.settings.links.deleteAll;
@@ -379,20 +383,22 @@
         ),
   );
 
-  function canDeleteAdminLink(link: { clicks: number }) {
+  function canDeleteAdminLink(link: { clicks: number; owned?: boolean }) {
     if (data.permissions.links.deleteAll) return true;
-    if (data.permissions.links.viewAll) return false;
     return (
       data.permissions.links.deleteOwn &&
+      (!data.permissions.links.viewAll || link.owned === true) &&
       (data.permissions.links.deleteMaxClicks <= 0 ||
         link.clicks <= data.permissions.links.deleteMaxClicks)
     );
   }
 
-  function canEditAdminLink() {
+  function canEditAdminLink(link: { owned?: boolean }) {
     return (
       data.permissions.links.editableFields.length > 0 &&
-      (data.permissions.links.editAll || !data.permissions.links.viewAll)
+      (data.permissions.links.editAll ||
+        (data.permissions.links.editOwn &&
+          (!data.permissions.links.viewAll || link.owned === true)))
     );
   }
 

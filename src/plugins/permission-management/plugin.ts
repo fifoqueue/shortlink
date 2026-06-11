@@ -66,6 +66,18 @@ const plugin: PluginDefinition = {
         'admin.forceUnlinkMessage':
           '이 사용자는 다시 연결하기 전까지 해당 OIDC 계정으로 로그인할 수 없습니다.',
         'admin.emptyOidcConnections': '연결된 OIDC 계정이 없습니다.',
+        'admin.apiTokens': 'API 토큰',
+        'admin.apiTokensDescription':
+          '이 사용자에게 발급된 API 토큰을 확인하고 즉시 폐기합니다.',
+        'admin.createdAt': '생성일',
+        'admin.lastUsedAt': '마지막 사용',
+        'admin.neverUsed': '사용 기록 없음',
+        'admin.revokeApiToken': '토큰 폐기',
+        'admin.revokeApiTokenTitle': 'API 토큰을 폐기할까요?',
+        'admin.revokeApiTokenMessage':
+          '이 토큰은 즉시 사용할 수 없게 됩니다. 이 작업은 되돌릴 수 없습니다.',
+        'admin.revokeApiTokenConfirm': 'API 토큰 폐기',
+        'admin.emptyApiTokens': '발급된 API 토큰이 없습니다.',
         'admin.dangerZone': '위험 작업',
         'admin.deleteUser': '사용자 삭제',
         'admin.deleteUserTitle': '사용자를 삭제할까요?',
@@ -81,6 +93,7 @@ const plugin: PluginDefinition = {
         'admin.linkPermissions': '링크 권한',
         'admin.createLinks': '링크 생성',
         'admin.deleteOwnLinks': '본인 링크 삭제',
+        'admin.editOwnLinks': '본인 링크 수정',
         'admin.viewOtherLinks': '다른 사용자 링크 보기',
         'admin.editOtherLinks': '다른 사용자 링크 수정',
         'admin.deleteOtherLinks': '다른 사용자 링크 삭제',
@@ -215,6 +228,8 @@ const plugin: PluginDefinition = {
         'server.cidrsRemoved':
           '{count}개 CIDR 규칙을 그룹에서 제거했습니다.',
         'server.groupDeleted': '권한 그룹을 삭제했습니다.',
+        'server.apiTokenNotFound': 'API 토큰을 찾을 수 없습니다.',
+        'server.apiTokenRevoked': 'API 토큰을 폐기했습니다.',
         'server.unsupportedPermissionAction':
           '지원하지 않는 권한 관리 작업입니다.',
       },
@@ -273,6 +288,18 @@ const plugin: PluginDefinition = {
         'admin.forceUnlinkMessage':
           'This user cannot log in with that OIDC account until it is linked again.',
         'admin.emptyOidcConnections': 'No OIDC accounts are linked.',
+        'admin.apiTokens': 'API tokens',
+        'admin.apiTokensDescription':
+          'Review and immediately revoke API tokens issued to this user.',
+        'admin.createdAt': 'Created',
+        'admin.lastUsedAt': 'Last used',
+        'admin.neverUsed': 'Never used',
+        'admin.revokeApiToken': 'Revoke token',
+        'admin.revokeApiTokenTitle': 'Revoke API token?',
+        'admin.revokeApiTokenMessage':
+          'This token will stop working immediately. This cannot be undone.',
+        'admin.revokeApiTokenConfirm': 'Revoke API token',
+        'admin.emptyApiTokens': 'No API tokens have been issued.',
         'admin.dangerZone': 'Danger zone',
         'admin.deleteUser': 'Delete user',
         'admin.deleteUserTitle': 'Delete this user?',
@@ -288,6 +315,7 @@ const plugin: PluginDefinition = {
         'admin.linkPermissions': 'Link permissions',
         'admin.createLinks': 'Create links',
         'admin.deleteOwnLinks': 'Delete own links',
+        'admin.editOwnLinks': 'Edit own links',
         'admin.viewOtherLinks': 'View other users links',
         'admin.editOtherLinks': 'Edit other users links',
         'admin.deleteOtherLinks': 'Delete other users links',
@@ -423,6 +451,8 @@ const plugin: PluginDefinition = {
         'server.selectCidrsToRemove': 'Select CIDR rules to remove.',
         'server.cidrsRemoved': 'Removed {count} CIDR rules from the group.',
         'server.groupDeleted': 'Permission group deleted.',
+        'server.apiTokenNotFound': 'API token not found.',
+        'server.apiTokenRevoked': 'API token revoked.',
         'server.unsupportedPermissionAction':
           'Unsupported permission management action.',
       },

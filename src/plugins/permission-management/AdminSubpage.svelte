@@ -72,6 +72,7 @@
         generatedCodeLength: number | null;
         deleteOwn: RuleValue;
         deleteMaxClicks: number | null;
+        editOwn: RuleValue;
         viewAll: RuleValue;
         editAll: RuleValue;
         deleteAll: RuleValue;
@@ -122,12 +123,21 @@
     connections: OidcConnection[];
   };
 
+  type ApiToken = {
+    id: number;
+    name: string;
+    prefix: string;
+    created_at: string;
+    last_used_at: string | null;
+  };
+
   type AdminData =
     | {
         kind: 'user';
         passwordMinLength: number;
         passwordPolicy: string;
         user: User;
+        apiTokens: ApiToken[];
       }
     | {
         kind: 'group';
@@ -141,6 +151,7 @@
   type LinkPermissionKey =
     | 'create'
     | 'deleteOwn'
+    | 'editOwn'
     | 'viewAll'
     | 'editAll'
     | 'deleteAll'
@@ -227,6 +238,7 @@
   const linkPermissions = [
     ['create', 'admin.createLinks'],
     ['deleteOwn', 'admin.deleteOwnLinks'],
+    ['editOwn', 'admin.editOwnLinks'],
     ['viewAll', 'admin.viewOtherLinks'],
     ['editAll', 'admin.editOtherLinks'],
     ['deleteAll', 'admin.deleteOtherLinks'],
@@ -418,6 +430,12 @@
       { value: label },
     );
   }
+
+  function dateTimeLabel(value: string | null) {
+    if (!value) return t('admin.neverUsed');
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale);
+  }
 </script>
 
 <div class="plugin-i18n-root" use:translateContent={strings}>
@@ -520,6 +538,49 @@
           </div>
         {:else}
           <p class="muted">{t('admin.emptyOidcConnections')}</p>
+        {/if}
+      </section>
+
+      <section>
+        <h2>{t('admin.apiTokens')}</h2>
+        <p class="muted">{t('admin.apiTokensDescription')}</p>
+        {#if userSettings?.apiTokens?.length}
+          <div class="connections">
+            {#each userSettings.apiTokens as token (token.id)}
+              <article>
+                <div>
+                  <strong>{token.name}</strong>
+                  <span>
+                    {token.prefix}... · {t('admin.createdAt')}
+                    {dateTimeLabel(token.created_at)} · {t('admin.lastUsedAt')}
+                    {dateTimeLabel(token.last_used_at)}
+                  </span>
+                </div>
+                <form
+                  method="POST"
+                  action="?/pluginAction"
+                  use:enhance={keepFormValues}
+                >
+                  <input
+                    type="hidden"
+                    name="pluginAction"
+                    value="revokeApiToken"
+                  />
+                  <input type="hidden" name="tokenId" value={token.id} />
+                  <DangerConfirmButton
+                    label={t('admin.revokeApiToken')}
+                    {locale}
+                    title={t('admin.revokeApiTokenTitle')}
+                    message={t('admin.revokeApiTokenMessage')}
+                    details={[`${token.name} (${token.prefix}...)`]}
+                    confirmLabel={t('admin.revokeApiTokenConfirm')}
+                  />
+                </form>
+              </article>
+            {/each}
+          </div>
+        {:else}
+          <p class="muted">{t('admin.emptyApiTokens')}</p>
         {/if}
       </section>
 

@@ -35,6 +35,7 @@ export interface Link {
   id: number;
   code: string;
   url: string;
+  owned?: boolean;
   preview: LinkPreview;
   tags: string[];
   created_at: string;
@@ -214,9 +215,9 @@ function healthStatus(value: unknown): LinkHealth['status'] {
     : 'unchecked';
 }
 
-function publicLink(link: ShortLinkModel): Link {
+function publicLink(link: ShortLinkModel, owner?: LinkOwner): Link {
   const preview = normalizeStoredPreview(link.preview);
-  return {
+  const output: Link = {
     id: link.id,
     code: link.code,
     url: link.url,
@@ -244,6 +245,8 @@ function publicLink(link: ShortLinkModel): Link {
       latencyMs: link.health_latency_ms ?? null,
     },
   };
+  if (owner) output.owned = linkMatchesOwner(link, owner);
+  return output;
 }
 
 function redirectLink(link: ShortLinkModel): RedirectLink {
@@ -851,7 +854,11 @@ function normalizeCodes(codes: string[]) {
   return [...new Set(normalized)].slice(0, 250);
 }
 
-export async function listLinks(limit = 30, owner?: LinkOwner) {
+export async function listLinks(
+  limit = 30,
+  owner?: LinkOwner,
+  ownedBy?: LinkOwner,
+) {
   await ensureDatabase();
   const where = owner ? ownerWhere(owner) : undefined;
   const links = await ShortLinkModel.findAll({
@@ -859,7 +866,7 @@ export async function listLinks(limit = 30, owner?: LinkOwner) {
     order: [['id', 'DESC']],
     limit,
   });
-  return links.map(publicLink);
+  return links.map((link) => publicLink(link, ownedBy ?? owner));
 }
 
 export async function listLinksPage(
@@ -867,6 +874,7 @@ export async function listLinksPage(
   pageSize = DEFAULT_PAGE_SIZE,
   owner?: LinkOwner,
   search?: LinkSearchState,
+  ownedBy?: LinkOwner,
 ) {
   await ensureDatabase();
   const where = combineWhere(
@@ -883,7 +891,7 @@ export async function listLinksPage(
   });
 
   return {
-    items: links.map(publicLink),
+    items: links.map((link) => publicLink(link, ownedBy ?? owner)),
     page: pagination.page,
     pageSize: pagination.pageSize,
     totalItems: pagination.totalItems,

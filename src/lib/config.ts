@@ -143,6 +143,7 @@ export interface SiteSettings {
     generatedCodeLength: number;
     allowUserDelete: boolean;
     userDeleteMaxClicks: number;
+    editOwn: boolean;
     viewAll: boolean;
     editAll: boolean;
     deleteAll: boolean;
@@ -398,6 +399,7 @@ export const defaultSettings: SiteSettings = {
     generatedCodeLength: 7,
     allowUserDelete: false,
     userDeleteMaxClicks: 0,
+    editOwn: true,
     viewAll: false,
     editAll: false,
     deleteAll: false,

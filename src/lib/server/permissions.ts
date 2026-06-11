@@ -60,6 +60,7 @@ export interface PermissionRules {
     generatedCodeLength: number | null;
     deleteOwn: boolean | null;
     deleteMaxClicks: number | null;
+    editOwn: boolean | null;
     viewAll: boolean | null;
     editAll: boolean | null;
     deleteAll: boolean | null;
@@ -166,6 +167,7 @@ export interface EffectivePermissions {
     generatedCodeLength: number;
     deleteOwn: boolean;
     deleteMaxClicks: number;
+    editOwn: boolean;
     viewAll: boolean;
     editAll: boolean;
     deleteAll: boolean;
@@ -203,6 +205,7 @@ const emptyRules: PermissionRules = {
     generatedCodeLength: null,
     deleteOwn: null,
     deleteMaxClicks: null,
+    editOwn: null,
     viewAll: null,
     editAll: null,
     deleteAll: null,
@@ -534,6 +537,7 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
       generatedCodeLength: boundedNumber(links.generatedCodeLength, 1, 64),
       deleteOwn: nullableBoolean(links.deleteOwn),
       deleteMaxClicks: boundedNumber(links.deleteMaxClicks, 0, 1_000_000),
+      editOwn: nullableBoolean(links.editOwn),
       viewAll: nullableBoolean(links.viewAll),
       editAll: nullableBoolean(links.editAll),
       deleteAll: nullableBoolean(links.deleteAll),
@@ -1258,6 +1262,7 @@ function basePermissions(
       generatedCodeLength: settings.links.generatedCodeLength,
       deleteOwn: settings.links.allowUserDelete,
       deleteMaxClicks: settings.links.userDeleteMaxClicks,
+      editOwn: settings.links.editOwn,
       viewAll: settings.links.viewAll,
       editAll: settings.links.editAll,
       deleteAll: settings.links.deleteAll,
@@ -1298,6 +1303,7 @@ function adminPermissions(settings: SiteSettings): EffectivePermissions {
       generatedCodeLength: settings.links.generatedCodeLength,
       deleteOwn: true,
       deleteMaxClicks: 0,
+      editOwn: true,
       viewAll: true,
       editAll: true,
       deleteAll: true,
@@ -1354,6 +1360,9 @@ function applyGroupRules(
   }
   if (rules.links.deleteMaxClicks !== null) {
     permissions.links.deleteMaxClicks = rules.links.deleteMaxClicks;
+  }
+  if (rules.links.editOwn !== null) {
+    permissions.links.editOwn = rules.links.editOwn;
   }
   if (rules.links.viewAll !== null)
     permissions.links.viewAll = rules.links.viewAll;
@@ -1596,6 +1605,7 @@ export function permissionGroupInputFromForm(
   for (const key of [
     'create',
     'deleteOwn',
+    'editOwn',
     'viewAll',
     'editAll',
     'deleteAll',

@@ -37,6 +37,7 @@
     };
     tags: string[];
     short_url: string;
+    owned?: boolean;
     created_at: string;
     clicks: number;
     smart: {

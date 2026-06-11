@@ -412,16 +412,21 @@ export const load: PageServerLoad = async ({
   requireSectionAccess(permissions, section);
 
   const search = parseLinkSearch(url);
-  const owner = permissions.links.viewAll
-    ? undefined
-    : getLinkOwner({
-        cookies,
-        userId: locals.user?.id,
-        ip: clientIp,
-      });
+  const currentOwner = getLinkOwner({
+    cookies,
+    userId: locals.user?.id,
+    ip: clientIp,
+  });
+  const owner = permissions.links.viewAll ? undefined : currentOwner;
   const [settings, linkPage] = await Promise.all([
     getSettings(),
-    listLinksPage(pageParam(url), DEFAULT_PAGE_SIZE, owner, search),
+    listLinksPage(
+      pageParam(url),
+      DEFAULT_PAGE_SIZE,
+      owner,
+      search,
+      currentOwner,
+    ),
   ]);
 
   return {
@@ -607,6 +612,7 @@ export const actions: Actions = {
         0,
         1_000_000,
       ),
+      editOwn: parseBoolean(form, 'editOwnLinks'),
       viewAll: parseBoolean(form, 'viewAllLinks'),
       editAll: parseBoolean(form, 'editAllLinks'),
       deleteAll: parseBoolean(form, 'deleteAllLinks'),
@@ -827,6 +833,15 @@ export const actions: Actions = {
       return fail(400, {
         action: 'updateLink',
         message: text.messages.editNeedsSelection,
+      });
+    }
+    if (
+      permissions.links.editableFields.length === 0 ||
+      (!permissions.links.editAll && !permissions.links.editOwn)
+    ) {
+      return fail(403, {
+        action: 'updateLink',
+        message: text.admin.messages.linkEditDenied,
       });
     }
 

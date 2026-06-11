@@ -113,17 +113,24 @@ export const load: PageServerLoad = async ({
   const linksAccessDenied =
     !permissions.links.viewAll &&
     !canAccessOwnLinks(settings, permissions, locals.user);
+  const currentOwner = getLinkOwner({
+    cookies,
+    userId: locals.user?.id,
+    ip: clientIp,
+  });
   const owner = permissions.links.viewAll
     ? undefined
     : !linksAccessDenied
-      ? getLinkOwner({
-          cookies,
-          userId: locals.user?.id,
-          ip: clientIp,
-        })
+      ? currentOwner
       : undefined;
   const linkPage = !linksAccessDenied
-    ? await listLinksPage(pageParam(url), DEFAULT_PAGE_SIZE, owner, search)
+    ? await listLinksPage(
+        pageParam(url),
+        DEFAULT_PAGE_SIZE,
+        owner,
+        search,
+        currentOwner,
+      )
     : {
         items: [],
         page: 1,
@@ -325,12 +332,23 @@ export const actions: Actions = {
     if (
       !locals.isAdmin &&
       !permissions.links.editAll &&
-      !canAccessOwnLinks(settings, permissions, locals.user)
+      (!permissions.links.editOwn ||
+        !canAccessOwnLinks(settings, permissions, locals.user))
     ) {
       return fail(403, {
         ok: false,
         action: 'updateLink',
         message: text.messages.editDeniedEnvironment,
+      });
+    }
+    if (
+      permissions.links.editableFields.length === 0 ||
+      (!permissions.links.editAll && !permissions.links.editOwn)
+    ) {
+      return fail(403, {
+        ok: false,
+        action: 'updateLink',
+        message: text.messages.editOwnOnly,
       });
     }
 

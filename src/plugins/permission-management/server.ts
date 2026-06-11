@@ -6,6 +6,10 @@ import {
   searchUsers,
   updateUser,
 } from '$lib/server/users';
+import {
+  listApiTokens,
+  revokeApiToken as revokeUserApiToken,
+} from '$lib/server/api-tokens';
 import { getSettings, parseBoolean, stringValue } from '$lib/server/settings';
 import { passwordPolicyDescription } from '$lib/server/password-policy';
 import { pluginText } from '$lib/i18n/plugin';
@@ -229,7 +233,10 @@ const serverPlugin = {
     if (userId !== null) {
       const user = await getUserById(userId);
       if (!user) throw new Error(t(strings, 'server.userNotFound'));
-      const settings = await getSettings();
+      const [settings, apiTokens] = await Promise.all([
+        getSettings(),
+        listApiTokens(userId),
+      ]);
       return {
         kind: 'user' as const,
         passwordMinLength: settings.auth.password.minLength,
@@ -245,6 +252,7 @@ const serverPlugin = {
           enabled: user.enabled === true,
           createdAt: user.created_at.toISOString(),
         },
+        apiTokens,
       };
     }
 
@@ -328,6 +336,15 @@ const serverPlugin = {
           message: t(strings, 'server.userDeleted'),
           redirectTo: '/admin/plugins/permission-management',
         };
+      }
+      if (action === 'revokeApiToken') {
+        await assertCanManageUser(user, isAdmin, strings, userId);
+        const removed = await revokeUserApiToken(
+          userId,
+          Number(form.get('tokenId')),
+        );
+        if (!removed) throw new Error(t(strings, 'server.apiTokenNotFound'));
+        return { message: t(strings, 'server.apiTokenRevoked') };
       }
     }
 

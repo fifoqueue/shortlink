@@ -97,6 +97,12 @@ async function updateApiLink(
   const { permissions } = api;
   const text = uiText(settings.i18n.defaultLocale).messages;
   if (!code) error(404, text.linkNotFound);
+  if (
+    permissions.links.editableFields.length === 0 ||
+    (!permissions.links.editAll && !permissions.links.editOwn)
+  ) {
+    return json({ message: text.editOwnOnly }, { status: 403 });
+  }
 
   try {
     const body = recordValue(await request.json().catch(() => ({})));

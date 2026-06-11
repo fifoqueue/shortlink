@@ -32,6 +32,7 @@
     };
     tags: string[];
     short_url: string;
+    owned?: boolean;
     created_at: string;
     clicks: number;
     last_clicked_at: string | null;
@@ -64,6 +65,7 @@
         deleteOwn: boolean;
         deleteAll: boolean;
         deleteMaxClicks: number;
+        editOwn: boolean;
         viewAll: boolean;
         editAll: boolean;
         editableFields: LinkEditFieldKey[];
@@ -160,20 +162,22 @@
     );
   }
 
-  function canDeleteLink(link: { clicks: number }) {
+  function canDeleteLink(link: { clicks: number; owned?: boolean }) {
     const maxClicks = data.permissions.links.deleteMaxClicks;
     return (
       data.permissions.links.deleteAll ||
-      (!data.permissions.links.viewAll &&
-        data.permissions.links.deleteOwn &&
+      (data.permissions.links.deleteOwn &&
+        (!data.permissions.links.viewAll || link.owned === true) &&
         (maxClicks <= 0 || link.clicks <= maxClicks))
     );
   }
 
-  function deleteDisabledReason(link: { clicks: number }) {
+  function deleteDisabledReason(link: { clicks: number; owned?: boolean }) {
     if (data.permissions.links.deleteAll) return '';
-    if (data.permissions.links.viewAll) return text.home.deleteViewAllOnly;
     if (!data.permissions.links.deleteOwn) return text.home.deleteDisabled;
+    if (data.permissions.links.viewAll && link.owned !== true) {
+      return text.home.deleteViewAllOnly;
+    }
     if (
       data.permissions.links.deleteMaxClicks > 0 &&
       link.clicks > data.permissions.links.deleteMaxClicks
@@ -198,10 +202,12 @@
     return text.home.deletePolicyDisabled;
   }
 
-  function canEditLink() {
+  function canEditLink(link: { owned?: boolean }) {
     return (
       data.permissions.links.editableFields.length > 0 &&
-      (data.permissions.links.editAll || !data.permissions.links.viewAll)
+      (data.permissions.links.editAll ||
+        (data.permissions.links.editOwn &&
+          (!data.permissions.links.viewAll || link.owned === true)))
     );
   }
 </script>

@@ -36,10 +36,9 @@ export const GET: RequestHandler = async ({
   if (api.error) return api.error;
   const { permissions } = api;
 
-  const owner = permissions.links.viewAll
-    ? undefined
-    : { userId: api.principal.id };
-  const links = (await listLinks(30, owner)).map((link) => ({
+  const currentOwner = { userId: api.principal.id };
+  const owner = permissions.links.viewAll ? undefined : currentOwner;
+  const links = (await listLinks(30, owner, currentOwner)).map((link) => ({
     ...link,
     short_url: shortUrl(url.origin, link.code),
   }));
