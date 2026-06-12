@@ -34,7 +34,6 @@ const appRouteSegments = new Set([
   'api',
   'assets',
   'auth',
-  'custom.css',
   'favicon.ico',
   'favicon.svg',
   'language',

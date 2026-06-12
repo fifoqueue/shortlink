@@ -199,6 +199,7 @@ export const load: PageServerLoad = async ({
         )
       : [],
     theme: settings.theme,
+    customHead: settings.seo.customHead,
     siteName: settings.general.siteName,
     logoUrl: settings.general.logoUrl,
   };

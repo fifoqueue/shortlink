@@ -227,7 +227,7 @@
   <link rel="icon" href={data.settings.general.faviconUrl} />
 </svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.settings.seo.customHead} />
 
 <div
   class="site site-theme"

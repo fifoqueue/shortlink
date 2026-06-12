@@ -76,6 +76,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     tokens: await listApiTokens(user.id),
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
+    customHead: displaySettings.seo.customHead,
     pendingEmail: storedUser?.pending_email ?? null,
     permissionGroups,
     passwordMinLength: settings.auth.password.minLength,

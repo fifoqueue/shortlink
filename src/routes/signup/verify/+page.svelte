@@ -15,6 +15,7 @@
       purpose: 'signup' | 'email-change';
       siteName: string;
       theme: SiteSettings['theme'];
+      customHead: string;
       registrationAllowed: boolean;
     };
   } = $props();
@@ -26,7 +27,7 @@
   <title>{text.auth.verifyTitle} · {data.siteName}</title>
 </svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.customHead} />
 
 <main
   class="site-theme"

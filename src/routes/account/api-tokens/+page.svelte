@@ -29,6 +29,7 @@
       user: AuthenticatedUser;
       siteName: string;
       theme: SiteSettings['theme'];
+      customHead: string;
       tokens: Token[];
     };
     form?: { ok?: boolean; message?: string; token?: string };
@@ -50,7 +51,7 @@
   ><title>{text.account.apiTokens} · {data.siteName}</title></svelte:head
 >
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.customHead} />
 
 <main
   class="site-theme"

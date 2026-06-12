@@ -30,6 +30,7 @@
       };
       integrations: PluginIntegrationData[];
       theme: import('$lib/config').SiteSettings['theme'];
+      customHead: string;
       siteName: string;
       logoUrl: string;
     };
@@ -66,6 +67,7 @@
   backHref={`/admin/plugins/${data.plugin.id}`}
   backLabel={data.plugin.name}
   sections={allowedAdminSections}
+  customHead={data.customHead}
 >
   {#if form?.message}
     {#key form}

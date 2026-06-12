@@ -37,6 +37,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     returnTo: safeReturnTo(url.searchParams.get('returnTo')),
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
+    customHead: displaySettings.seo.customHead,
     plugins: getPublicPluginStates(settings.plugins),
     passwordEnabled: methods.some((method) => method.type === 'password'),
     registrationAllowed: registration.allowed,

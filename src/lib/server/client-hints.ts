@@ -100,7 +100,6 @@ export function applyClientHintResponseHeaders(headers: Headers) {
 
 export function shouldApplyClientHintResponseHeaders(pathname: string) {
   if (
-    pathname === '/custom.css' ||
     pathname === '/robots.txt' ||
     pathname.startsWith('/_app/') ||
     pathname.startsWith('/admin') ||

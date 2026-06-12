@@ -150,6 +150,12 @@ const ko = {
       seoDescription: 'SEO 설명',
       robotsTxt: 'robots.txt',
       robotsTxtHelp: '비워두면 색인 허용 시 /admin/과 /api/만 차단합니다.',
+      customHeadTitle: '커스텀 head',
+      customHeadDescription:
+        '<head> 끝에 추가 HTML을 병합합니다. 기존 title, meta, link는 대체하지 않습니다.',
+      customHead: '<head> 추가 HTML',
+      customHeadHelp:
+        'meta, link, style, script 태그 등을 입력할 수 있습니다. 관리자 입력값이 그대로 출력됩니다.',
       legalDocumentsTitle: '법적 문서',
       legalDocumentsDescription:
         '사이트 footer에서 항상 열람할 수 있는 이용 약관과 개인정보 처리방침입니다.',
@@ -293,10 +299,6 @@ const ko = {
       previewDescription:
         '프리셋을 선택하면 저장 전에 결과를 확인할 수 있습니다.',
       previewButton: '링크 만들기',
-      advancedCssTitle: '고급 CSS',
-      advancedCssDescription:
-        '관리자가 직접 추가한 CSS는 공개 페이지에서 마지막으로 적용됩니다.',
-      customCss: '커스텀 CSS',
       resetPreset: '프리셋 초기화',
       saveTheme: '테마 저장',
       customCode: '커스텀 코드',
@@ -910,6 +912,12 @@ const en: typeof ko = {
       robotsTxt: 'robots.txt',
       robotsTxtHelp:
         'Leave blank to block only /admin/ and /api/ when indexing is allowed.',
+      customHeadTitle: 'Custom head',
+      customHeadDescription:
+        'Merge additional HTML at the end of <head>. Existing title, meta, and link tags are not replaced.',
+      customHead: 'Additional <head> HTML',
+      customHeadHelp:
+        'You can enter meta, link, style, script, and similar tags. Administrator input is rendered as-is.',
       legalDocumentsTitle: 'Legal Documents',
       legalDocumentsDescription:
         'Terms and privacy policy documents that are always available from the site footer.',
@@ -1052,10 +1060,6 @@ const en: typeof ko = {
       previewDescription:
         'Select a preset to preview the result before saving.',
       previewButton: 'Create link',
-      advancedCssTitle: 'Advanced CSS',
-      advancedCssDescription:
-        'Administrator-provided CSS is applied last on public pages.',
-      customCss: 'Custom CSS',
       resetPreset: 'Reset preset',
       saveTheme: 'Save theme',
       customCode: 'Custom code',

@@ -249,7 +249,6 @@
   let themeDraft = $state<ThemeTokens>({
     ...(initialTheme?.customTokens ?? builtInThemePresets.emerald),
   });
-  let customCssDraft = $state(initialTheme?.customCss ?? '');
   let emailProvider = $state<EmailProvider>(getInitialEmailProvider());
   let emailHttpAuthMode = $state<EmailHttpAuthMode>(
     getInitialEmailHttpAuthMode(),
@@ -483,7 +482,6 @@
     selectedPreset = data.settings.theme.preset;
     selectedMode = data.settings.theme.mode;
     themeDraft = { ...data.settings.theme.customTokens };
-    customCssDraft = data.settings.theme.customCss;
     emailProvider = data.settings.auth.emailVerification.provider;
     emailHttpAuthMode = data.settings.auth.emailVerification.http.authMode;
     apiGlobalEnabled = data.settings.api.enabled;
@@ -616,6 +614,7 @@
   {activeSection}
   title={activeSectionLabel}
   sections={allowedAdminSections}
+  customHead={data.settings.seo.customHead}
 >
   {#if form?.message}
     {#key form}
@@ -921,6 +920,17 @@
             <small>{text.admin.settings.robotsTxtHelp}</small>
             <textarea class="code" name="robotsTxt" rows="8"
               >{data.settings.seo.robotsTxt}</textarea
+            ></label
+          >
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.customHeadTitle}</h3>
+            <p>{text.admin.settings.customHeadDescription}</p>
+          </div>
+          <label class="wide"
+            >{text.admin.settings.customHead}
+            <small>{text.admin.settings.customHeadHelp}</small>
+            <textarea class="code" name="customHead" rows="10"
+              >{data.settings.seo.customHead}</textarea
             ></label
           >
         </div>
@@ -1644,24 +1654,6 @@
               <button type="button">{text.admin.settings.previewButton}</button>
             </div>
           </div>
-        </div>
-      </section>
-      <section class="setting-card">
-        <div class="card-copy">
-          <p class="step">02</p>
-          <h2>{text.admin.settings.advancedCssTitle}</h2>
-          <p>{text.admin.settings.advancedCssDescription}</p>
-        </div>
-        <div class="fields form-grid balanced">
-          <label class="wide"
-            >{text.admin.settings.customCss}
-            <textarea
-              class="code"
-              name="customCss"
-              rows="12"
-              bind:value={customCssDraft}
-            ></textarea></label
-          >
         </div>
       </section>
       <div class="savebar split">

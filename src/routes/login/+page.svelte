@@ -20,6 +20,7 @@
       returnTo: string;
       siteName: string;
       theme: SiteSettings['theme'];
+      customHead: string;
       plugins: SiteSettings['plugins'];
       passwordEnabled: boolean;
       registrationAllowed: boolean;
@@ -74,7 +75,7 @@
   <title>{text.auth.loginTitle} · {data.siteName}</title>
 </svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.customHead} />
 
 <main
   class="site-theme"

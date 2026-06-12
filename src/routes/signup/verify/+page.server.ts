@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     purpose: result?.purpose ?? 'signup',
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
+    customHead: displaySettings.seo.customHead,
     registrationAllowed: registration.allowed,
   };
 };

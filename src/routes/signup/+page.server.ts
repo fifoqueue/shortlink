@@ -38,6 +38,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     defaultLocale: settings.i18n.defaultLocale,
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
+    customHead: displaySettings.seo.customHead,
     plugins: getPublicPluginStates(settings.plugins),
     setupRequired: availability.setupRequired,
     passwordPolicy: passwordPolicyDescription(

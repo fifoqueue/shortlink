@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     user,
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
+    customHead: displaySettings.seo.customHead,
     tokens: await listApiTokens(user.id),
   };
 };

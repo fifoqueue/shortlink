@@ -107,7 +107,7 @@
   {/if}
 </svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.settings.seo.customHead} />
 
 <main
   class="redirect-page site-theme"

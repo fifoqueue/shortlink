@@ -210,7 +210,6 @@ const MAX_STATS_PAGE = 10_000;
 const RESERVED_CODES = new Set([
   'api',
   'admin',
-  'custom.css',
   'assets',
   'favicon.ico',
   'robots.txt',

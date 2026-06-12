@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import CustomHead from '$lib/components/CustomHead.svelte';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import { adminThemeStyle } from '$lib/theme-vars';
   import type { SiteLocale } from '$lib/config';
@@ -12,6 +13,7 @@
     data: {
       locale: SiteLocale;
       theme: import('$lib/config').SiteSettings['theme'];
+      customHead: string;
       siteName: string;
       logoUrl: string;
       user: {
@@ -28,6 +30,8 @@
   <title>{text.admin.adminRequiredPageTitle} · {data.siteName}</title>
   <meta name="robots" content="noindex,nofollow" />
 </svelte:head>
+
+<CustomHead html={data.customHead} />
 
 <main
   class="admin-theme"

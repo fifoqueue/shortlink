@@ -35,6 +35,7 @@
         admin: { sections: string[] };
       };
       theme: import('$lib/config').SiteSettings['theme'];
+      customHead: string;
       siteName: string;
       logoUrl: string;
       handlesAdminActions: boolean;
@@ -82,6 +83,7 @@
   backHref="/admin/plugins"
   backLabel={text.admin.plugins.listBack}
   sections={allowedAdminSections}
+  customHead={data.customHead}
 >
   {#if form?.message}
     {#key form}

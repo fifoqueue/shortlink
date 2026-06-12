@@ -9,6 +9,7 @@
   } from '$lib/config';
   import { uiText } from '$lib/i18n/ui-text';
   import { adminThemeStyle } from '$lib/theme-vars';
+  import CustomHead from '$lib/components/CustomHead.svelte';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import '$lib/styles/admin-theme.css';
   import '$lib/styles/forms.css';
@@ -27,6 +28,7 @@
     backHref,
     backLabel,
     locale = defaultSiteLocale,
+    customHead = '',
     children,
   }: {
     siteName: string;
@@ -44,6 +46,7 @@
     backHref?: string;
     backLabel?: string;
     locale?: SiteLocale;
+    customHead?: string;
     children: Snippet;
   } = $props();
 
@@ -62,6 +65,8 @@
     return resolve(path as '/');
   }
 </script>
+
+<CustomHead html={customHead} />
 
 <div
   class="admin-shell admin-theme"

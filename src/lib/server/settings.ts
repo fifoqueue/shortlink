@@ -112,6 +112,7 @@ function siteSettingsValue(settings: SiteSettings) {
       ogImageUrl: settings.seo.ogImageUrl,
       indexable: settings.seo.indexable,
       robotsTxt: settings.seo.robotsTxt,
+      customHead: settings.seo.customHead,
     },
     i18n: settings.i18n,
     links: settings.links,

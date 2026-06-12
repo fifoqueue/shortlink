@@ -47,6 +47,7 @@
       permissionGroups: PermissionGroup[];
       siteName: string;
       theme: SiteSettings['theme'];
+      customHead: string;
       pendingEmail: string | null;
       passwordMinLength: number;
       passwordPolicy: string;
@@ -96,7 +97,7 @@
 
 <svelte:head><title>{text.account.title} · {data.siteName}</title></svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.customHead} />
 
 <main
   class="site-theme"

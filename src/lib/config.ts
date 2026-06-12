@@ -161,6 +161,7 @@ export interface SiteSettings {
     ogImageUrl: string;
     indexable: boolean;
     robotsTxt: string;
+    customHead: string;
   };
   legal: {
     termsTitle: string;
@@ -244,7 +245,6 @@ export interface SiteSettings {
     preset: ThemePreset;
     mode: ColorMode;
     customTokens: ThemeTokens;
-    customCss: string;
   };
   plugins: Record<string, PluginState>;
 }
@@ -445,6 +445,7 @@ export const defaultSettings: SiteSettings = {
     ogImageUrl: '',
     indexable: true,
     robotsTxt: '',
+    customHead: '',
   },
   legal: {
     termsTitle: defaultSiteContent.legal.termsTitle,
@@ -550,7 +551,6 @@ export const defaultSettings: SiteSettings = {
     preset: 'emerald',
     mode: 'light',
     customTokens: { ...themePresets.emerald },
-    customCss: '',
   },
   plugins: {},
 };

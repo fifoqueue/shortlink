@@ -242,6 +242,7 @@ export const load: PageServerLoad = async ({
       '/',
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
+    customHead: displaySettings.seo.customHead,
     search,
     searchOptions: searchSpecs.map(({ value, label }) => ({ value, label })),
     canDownloadCsv: permissions.links.statsCsv,

@@ -79,6 +79,7 @@
       locale: SiteLocale;
       siteName: string;
       theme: SiteSettings['theme'];
+      customHead: string;
       returnTo: string;
       search: StatsSearchState;
       searchOptions: SearchOption[];
@@ -246,7 +247,7 @@
   >
 </svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={data.customHead} />
 
 <main
   class="site-theme"

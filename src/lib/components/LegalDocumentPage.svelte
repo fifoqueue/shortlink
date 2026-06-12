@@ -32,7 +32,7 @@
   <link rel="icon" href={settings.general.faviconUrl} />
 </svelte:head>
 
-<SiteThemeStyles />
+<SiteThemeStyles customHead={settings.seo.customHead} />
 
 <div
   class="legal-page site-theme"

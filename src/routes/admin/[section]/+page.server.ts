@@ -658,6 +658,7 @@ export const actions: Actions = {
       ogImageUrl: stringValue(form, 'ogImageUrl').slice(0, 500),
       indexable: parseBoolean(form, 'indexable'),
       robotsTxt: String(form.get('robotsTxt') ?? '').slice(0, 20000),
+      customHead: String(form.get('customHead') ?? '').slice(0, 50000),
     };
     settings.legal = defaultContent.legal;
     settings.i18n = {
@@ -874,7 +875,6 @@ export const actions: Actions = {
       preset,
       mode: parseColorMode(stringValue(form, 'mode')),
       customTokens: tokens,
-      customCss: String(form.get('customCss') ?? '').slice(0, 20000),
     };
     await updateSettings(settings);
     return {
@@ -914,7 +914,6 @@ export const actions: Actions = {
     const preset = parseThemePreset(stringValue(form, 'preset'));
     settings.theme.customTokens = { ...themePresets[preset] };
     settings.theme.preset = preset;
-    settings.theme.customCss = '';
     await updateSettings(settings);
     return {
       ok: true,
