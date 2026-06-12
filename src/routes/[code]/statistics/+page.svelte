@@ -75,6 +75,7 @@
       returnTo: string;
       search: StatsSearchState;
       searchOptions: SearchOption[];
+      canDownloadCsv: boolean;
     };
   } = $props();
 
@@ -356,7 +357,9 @@
         <a href={data.link.short_url} target="_blank" rel="noreferrer"
           >{text.stats.openShortLink}</a
         >
-        <a href={csvHref()} download>{text.stats.downloadCsv}</a>
+        {#if data.canDownloadCsv}
+          <a href={csvHref()} download>{text.stats.downloadCsv}</a>
+        {/if}
       </div>
     </div>
 

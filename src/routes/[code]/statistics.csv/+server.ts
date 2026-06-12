@@ -82,6 +82,7 @@ export const GET: RequestHandler = async ({
 
   if (!access.link) error(404, text.messages.linkNotFound);
   if (!access.allowed) error(403, text.messages.statsViewDenied);
+  if (!permissions.links.statsCsv) error(403, text.messages.statsCsvDenied);
 
   const clicks = await listClickEventsForLink(access.link, {
     isAdmin: locals.isAdmin,

@@ -211,5 +211,6 @@ export const load: PageServerLoad = async ({
     theme: displaySettings.theme,
     search,
     searchOptions: searchSpecs.map(({ value, label }) => ({ value, label })),
+    canDownloadCsv: permissions.links.statsCsv,
   };
 };
