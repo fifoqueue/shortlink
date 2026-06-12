@@ -406,31 +406,40 @@
               )}
             </div>
             {#if click.details.length > 0}
-              <dl class="event-details">
-                {#each click.details as detail, detailIndex (`${detail.label}:${detail.value}`)}
-                  <div>
-                    <dt>{detail.label}</dt>
-                    <dd>
-                      <button
-                        class="copy-detail"
-                        type="button"
-                        onclick={() =>
-                          copyStatValue(
-                            detail.value,
-                            `${index}:detail:${detailIndex}`,
-                          )}
-                      >
-                        <span>{detail.value}</span>
-                        <em
-                          >{copiedKey === `${index}:detail:${detailIndex}`
-                            ? text.common.copied
-                            : text.common.copy}</em
+              <details class="event-details">
+                <summary>
+                  <span>
+                    {formatText(text.stats.metadataCount, {
+                      count: click.details.length,
+                    })}
+                  </span>
+                </summary>
+                <dl>
+                  {#each click.details as detail, detailIndex (`${detail.label}:${detail.value}`)}
+                    <div>
+                      <dt>{detail.label}</dt>
+                      <dd>
+                        <button
+                          class="copy-detail"
+                          type="button"
+                          onclick={() =>
+                            copyStatValue(
+                              detail.value,
+                              `${index}:detail:${detailIndex}`,
+                            )}
                         >
-                      </button>
-                    </dd>
-                  </div>
-                {/each}
-              </dl>
+                          <span>{detail.value}</span>
+                          <em
+                            >{copiedKey === `${index}:detail:${detailIndex}`
+                              ? text.common.copied
+                              : text.common.copy}</em
+                          >
+                        </button>
+                      </dd>
+                    </div>
+                  {/each}
+                </dl>
+              </details>
             {/if}
             {@render copyMetadata(
               text.stats.clickFields.user_agent,
@@ -693,6 +702,7 @@
     opacity: 0.72;
   }
   .copy-meta:not(:disabled):hover,
+  .event-details summary:hover,
   .copy-detail:hover {
     border-color: color-mix(
       in srgb,
@@ -722,31 +732,75 @@
     font-weight: 850;
   }
   .event-details {
+    border: 1px solid var(--page-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--page-bg) 45%, var(--page-surface));
+  }
+  .event-details summary {
     display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-    margin: 2px 0 1px;
+    min-height: 38px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-radius: 10px;
+    padding: 0 12px;
+    color: color-mix(in srgb, var(--page-primary) 82%, var(--page-text));
+    font-size: 0.76rem;
+    font-weight: 900;
+    cursor: pointer;
+    list-style: none;
+  }
+  .event-details summary::-webkit-details-marker {
+    display: none;
+  }
+  .event-details summary::after {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 0.15s;
+    content: '';
+  }
+  .event-details[open] summary {
+    border-bottom: 1px solid var(--page-border);
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  .event-details[open] summary::after {
+    transform: rotate(225deg) translate(-2px, -1px);
+  }
+  .event-details dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    padding: 2px 10px 10px;
   }
   .event-details div {
-    display: inline-flex;
-    max-width: 100%;
-    min-height: 30px;
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(96px, 0.45fr) minmax(0, 1fr);
+    gap: 10px;
     align-items: center;
-    gap: 6px;
-    border: 1px solid var(--page-border);
-    border-radius: 999px;
-    padding: 5px 9px 5px 10px;
-    background: color-mix(in srgb, var(--page-primary) 7%, var(--page-surface));
-    box-shadow: inset 0 1px 0
-      color-mix(in srgb, var(--page-primary-contrast) 35%, transparent);
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--page-border) 64%, transparent);
+    padding: 9px 4px;
+  }
+  .event-details div:nth-last-child(-n + 2) {
+    border-bottom: 0;
   }
   .event-details dt {
-    flex: none;
-    color: color-mix(in srgb, var(--page-primary) 82%, var(--page-text));
+    min-width: 0;
+    overflow: hidden;
+    color: var(--page-muted);
     font-size: 0.68rem;
     font-weight: 900;
-    line-height: 1;
+    line-height: 1.25;
+    text-overflow: ellipsis;
     text-transform: uppercase;
+    white-space: nowrap;
   }
   .event-details dd {
     min-width: 0;
@@ -754,12 +808,14 @@
   }
   .copy-detail {
     display: inline-flex;
+    width: 100%;
     min-width: 0;
     align-items: center;
+    justify-content: space-between;
     gap: 6px;
     border: 0;
     border-radius: 8px;
-    padding: 0;
+    padding: 3px 0;
     background: transparent;
     color: var(--page-text);
     font: inherit;
@@ -770,7 +826,9 @@
   }
   .copy-detail span {
     min-width: 0;
+    overflow: hidden;
     overflow-wrap: anywhere;
+    text-align: left;
   }
   @media (max-width: 720px) {
     header,
@@ -787,6 +845,25 @@
     }
     .section-actions {
       justify-content: flex-start;
+    }
+    .event-details dl {
+      grid-template-columns: 1fr;
+    }
+    .event-details div:nth-last-child(-n + 2) {
+      border-bottom: 1px solid
+        color-mix(in srgb, var(--page-border) 64%, transparent);
+    }
+    .event-details div:last-child {
+      border-bottom: 0;
+    }
+  }
+  @media (max-width: 520px) {
+    .event-details div {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    .copy-detail {
+      align-items: flex-start;
     }
   }
 </style>
