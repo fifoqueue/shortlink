@@ -115,6 +115,7 @@ async function runDatabaseMigrations(sequelize: Sequelize) {
 
 async function syncDatabase(sequelize: Sequelize) {
   await sequelize.authenticate();
+  await runDatabaseMigrations(sequelize);
   await sequelize.sync({ alter: true });
   await runDatabaseMigrations(sequelize);
 }

@@ -18,6 +18,25 @@ export function siteLocaleLabel(locale: string) {
   return siteLocaleNames[locale] ?? locale;
 }
 
+export const redirectRuleConditionKeys = [
+  'redirectRuleDevice',
+  'redirectRuleLanguage',
+  'redirectRuleQuery',
+  'redirectRuleIp',
+  'redirectRuleGeo',
+  'redirectRulePercentage',
+] as const;
+export type RedirectRuleConditionKey =
+  (typeof redirectRuleConditionKeys)[number];
+
+const redirectRuleConditionKeySet = new Set<string>(redirectRuleConditionKeys);
+
+export function isRedirectRuleConditionKey(
+  key: string,
+): key is RedirectRuleConditionKey {
+  return redirectRuleConditionKeySet.has(key);
+}
+
 export const linkOptionKeys = [
   'customCode',
   'previewTitle',
@@ -33,15 +52,14 @@ export const linkOptionKeys = [
   'maxClicks',
   'password',
   'tags',
-  'mobileUrl',
-  'desktopUrl',
-  'abUrl',
-  'abPercent',
+  'redirectRules',
+  ...redirectRuleConditionKeys,
 ] as const;
 export type LinkOptionKey = (typeof linkOptionKeys)[number];
-export const linkedLinkOptionKeyPairs = [
-  ['abUrl', 'abPercent'],
-] as const satisfies readonly (readonly [LinkOptionKey, LinkOptionKey])[];
+export const linkedLinkOptionKeyPairs: readonly (readonly [
+  LinkOptionKey,
+  LinkOptionKey,
+])[] = [];
 export const linkEditFieldKeys = [
   'url',
   'previewTitle',
@@ -57,15 +75,14 @@ export const linkEditFieldKeys = [
   'maxClicks',
   'password',
   'tags',
-  'mobileUrl',
-  'desktopUrl',
-  'abUrl',
-  'abPercent',
+  'redirectRules',
+  ...redirectRuleConditionKeys,
 ] as const;
 export type LinkEditFieldKey = (typeof linkEditFieldKeys)[number];
-export const linkedLinkEditFieldPairs = [
-  ['abUrl', 'abPercent'],
-] as const satisfies readonly (readonly [LinkEditFieldKey, LinkEditFieldKey])[];
+export const linkedLinkEditFieldPairs: readonly (readonly [
+  LinkEditFieldKey,
+  LinkEditFieldKey,
+])[] = [];
 
 export interface ThemeTokens {
   background: string;
@@ -106,6 +123,19 @@ export interface SiteSettings {
   network: {
     trustProxyHeaders: boolean;
     proxyIpHeaders: string[];
+    geoip: {
+      enabled: boolean;
+      headersEnabled: boolean;
+      maxmindEnabled: boolean;
+      cityDatabasePath: string;
+      countryDatabasePath: string;
+      asnDatabasePath: string;
+      countryCodeHeader: string;
+      countryNameHeader: string;
+      cityNameHeader: string;
+      asnNumberHeader: string;
+      asnOrganizationHeader: string;
+    };
   };
   general: {
     siteName: string;
@@ -148,6 +178,7 @@ export interface SiteSettings {
     editAll: boolean;
     deleteAll: boolean;
     statsAll: boolean;
+    statsCsv: boolean;
     healthAll: boolean;
     editableFields: LinkEditFieldKey[];
     trackClicks: boolean;
@@ -219,6 +250,39 @@ export const defaultProxyIpHeaders = [
   'CF-Connecting-IP',
   'True-Client-IP',
 ];
+
+export const defaultGeoipSettings: SiteSettings['network']['geoip'] = {
+  enabled: false,
+  headersEnabled: false,
+  maxmindEnabled: false,
+  cityDatabasePath: '',
+  countryDatabasePath: '',
+  asnDatabasePath: '',
+  countryCodeHeader: 'X-GeoIP-Country-Code',
+  countryNameHeader: 'X-GeoIP-Country-Name',
+  cityNameHeader: 'X-GeoIP-City',
+  asnNumberHeader: 'X-GeoIP-ASN',
+  asnOrganizationHeader: 'X-GeoIP-ASN-Organization',
+};
+
+export function geoipSettingsConfigured(
+  settings: SiteSettings['network']['geoip'],
+) {
+  if (!settings.enabled) return false;
+  if (settings.headersEnabled) return true;
+  return (
+    settings.maxmindEnabled &&
+    Boolean(
+      settings.cityDatabasePath ||
+      settings.countryDatabasePath ||
+      settings.asnDatabasePath,
+    )
+  );
+}
+
+export function geoipConfigured(settings: SiteSettings) {
+  return geoipSettingsConfigured(settings.network.geoip);
+}
 
 export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
   ko: {
@@ -344,6 +408,7 @@ export const defaultSettings: SiteSettings = {
   network: {
     trustProxyHeaders: false,
     proxyIpHeaders: defaultProxyIpHeaders,
+    geoip: defaultGeoipSettings,
   },
   general: {
     siteName: defaultSiteContent.general.siteName,
@@ -390,10 +455,13 @@ export const defaultSettings: SiteSettings = {
       maxClicks: true,
       password: true,
       tags: true,
-      mobileUrl: true,
-      desktopUrl: true,
-      abUrl: true,
-      abPercent: true,
+      redirectRules: true,
+      redirectRuleDevice: true,
+      redirectRuleLanguage: true,
+      redirectRuleQuery: true,
+      redirectRuleIp: true,
+      redirectRuleGeo: true,
+      redirectRulePercentage: true,
     },
     codeMinLength: 3,
     codeMaxLength: 32,
@@ -405,6 +473,7 @@ export const defaultSettings: SiteSettings = {
     editAll: false,
     deleteAll: false,
     statsAll: false,
+    statsCsv: true,
     healthAll: false,
     editableFields: [...linkEditFieldKeys],
     trackClicks: true,

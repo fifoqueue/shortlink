@@ -1,10 +1,10 @@
 import type { PluginDefinition } from '$lib/plugin-contracts';
+import { geoipConfigured } from '$lib/config';
 import { pluginChecked, pluginString } from '../utils';
 import {
   defaultEnhancedTrackingConfig,
   normalizeEnhancedTrackingConfig,
   parseProxyHeaderMappings,
-  validateGeoipHeaderConfig,
 } from './config';
 
 const plugin: PluginDefinition = {
@@ -26,23 +26,8 @@ const plugin: PluginDefinition = {
         category: 'tracking',
       },
       strings: {
-        'admin.useProxyGeoipHeaders': '프록시 GeoIP 헤더 사용',
-        'admin.proxyGeoipHeadersHint':
-          '이 옵션이 켜져 있으면 MaxMind DB 조회가 켜져 있어도 GeoIP 헤더 값을 우선합니다.',
-        'admin.countryCodeHeader': 'Country Code 헤더',
-        'admin.countryNameHeader': 'Country Name 헤더',
-        'admin.cityHeader': 'City 헤더',
-        'admin.asnNumberHeader': 'ASN Number 헤더',
-        'admin.asnOrganizationHeader': 'ASN Organization 헤더',
-        'admin.queryMaxmindDirectly': 'MaxMind GeoIP2 데이터베이스 직접 조회',
-        'admin.cityDatabasePath': 'City 데이터베이스 경로',
-        'admin.cityDatabasePathPlaceholder': '/var/lib/GeoIP/GeoIP2-City.mmdb',
-        'admin.countryDatabasePath': 'Country 데이터베이스 경로',
-        'admin.countryDatabaseHint': 'City DB가 없을 때 사용',
-        'admin.countryDatabasePathPlaceholder':
-          '/var/lib/GeoIP/GeoIP2-Country.mmdb',
-        'admin.asnDatabasePath': 'ASN 데이터베이스 경로',
-        'admin.asnDatabasePathPlaceholder': '/var/lib/GeoIP/GeoLite2-ASN.mmdb',
+        'admin.coreGeoipRequired':
+          '국가, 도시, ASN 수집은 관리자 사이트 설정의 GeoIP2가 먼저 활성화되어야 합니다.',
         'admin.collectReverseProxyHeaders': '리버스 프록시 헤더 수집',
         'admin.trackingHeaders': '추적 헤더',
         'admin.trackingHeadersHint':
@@ -62,23 +47,8 @@ const plugin: PluginDefinition = {
         category: 'tracking',
       },
       strings: {
-        'admin.useProxyGeoipHeaders': 'Use proxy GeoIP headers',
-        'admin.proxyGeoipHeadersHint':
-          'When enabled, GeoIP header values take priority even if MaxMind DB lookup is enabled.',
-        'admin.countryCodeHeader': 'Country Code header',
-        'admin.countryNameHeader': 'Country Name header',
-        'admin.cityHeader': 'City header',
-        'admin.asnNumberHeader': 'ASN Number header',
-        'admin.asnOrganizationHeader': 'ASN Organization header',
-        'admin.queryMaxmindDirectly': 'Query MaxMind GeoIP2 databases directly',
-        'admin.cityDatabasePath': 'City database path',
-        'admin.cityDatabasePathPlaceholder': '/var/lib/GeoIP/GeoIP2-City.mmdb',
-        'admin.countryDatabasePath': 'Country database path',
-        'admin.countryDatabaseHint': 'Used when no City DB is available',
-        'admin.countryDatabasePathPlaceholder':
-          '/var/lib/GeoIP/GeoIP2-Country.mmdb',
-        'admin.asnDatabasePath': 'ASN database path',
-        'admin.asnDatabasePathPlaceholder': '/var/lib/GeoIP/GeoLite2-ASN.mmdb',
+        'admin.coreGeoipRequired':
+          'Country, city, and ASN collection requires GeoIP2 to be enabled in site settings first.',
         'admin.collectReverseProxyHeaders': 'Collect reverse proxy headers',
         'admin.trackingHeaders': 'Tracking headers',
         'admin.trackingHeadersHint':
@@ -92,83 +62,46 @@ const plugin: PluginDefinition = {
     },
   },
   defaultConfig: defaultEnhancedTrackingConfig,
-  parseConfig(form) {
-    return normalizeEnhancedTrackingConfig({
-      geoipEnabled: pluginChecked(form, 'enhanced-tracking', 'geoipEnabled'),
-      geoipHeadersEnabled: pluginChecked(
-        form,
-        'enhanced-tracking',
-        'geoipHeadersEnabled',
-      ),
-      cityDatabasePath: pluginString(
-        form,
-        'enhanced-tracking',
-        'cityDatabasePath',
-      ),
-      countryDatabasePath: pluginString(
-        form,
-        'enhanced-tracking',
-        'countryDatabasePath',
-      ),
-      asnDatabasePath: pluginString(
-        form,
-        'enhanced-tracking',
-        'asnDatabasePath',
-      ),
-      countryCodeHeader: pluginString(
-        form,
-        'enhanced-tracking',
-        'countryCodeHeader',
-      ),
-      countryNameHeader: pluginString(
-        form,
-        'enhanced-tracking',
-        'countryNameHeader',
-      ),
-      cityNameHeader: pluginString(form, 'enhanced-tracking', 'cityNameHeader'),
-      asnNumberHeader: pluginString(
-        form,
-        'enhanced-tracking',
-        'asnNumberHeader',
-      ),
-      asnOrganizationHeader: pluginString(
-        form,
-        'enhanced-tracking',
-        'asnOrganizationHeader',
-      ),
-      proxyHeadersEnabled: pluginChecked(
-        form,
-        'enhanced-tracking',
-        'proxyHeadersEnabled',
-      ),
-      proxyHeaders: pluginString(form, 'enhanced-tracking', 'proxyHeaders'),
-      collectCountry: pluginChecked(
-        form,
-        'enhanced-tracking',
-        'collectCountry',
-      ),
-      exposeCountryToUsers: pluginChecked(
-        form,
-        'enhanced-tracking',
-        'exposeCountryToUsers',
-      ),
-      collectCity: pluginChecked(form, 'enhanced-tracking', 'collectCity'),
-      exposeCityToUsers: pluginChecked(
-        form,
-        'enhanced-tracking',
-        'exposeCityToUsers',
-      ),
-      collectAsn: pluginChecked(form, 'enhanced-tracking', 'collectAsn'),
-      exposeAsnToUsers: pluginChecked(
-        form,
-        'enhanced-tracking',
-        'exposeAsnToUsers',
-      ),
-    });
+  parseConfig(form, _current, input) {
+    const geoipAvailable = input?.settings
+      ? geoipConfigured(input.settings)
+      : false;
+    return normalizeEnhancedTrackingConfig(
+      {
+        proxyHeadersEnabled: pluginChecked(
+          form,
+          'enhanced-tracking',
+          'proxyHeadersEnabled',
+        ),
+        proxyHeaders: pluginString(form, 'enhanced-tracking', 'proxyHeaders'),
+        collectCountry: pluginChecked(
+          form,
+          'enhanced-tracking',
+          'collectCountry',
+        ),
+        exposeCountryToUsers: pluginChecked(
+          form,
+          'enhanced-tracking',
+          'exposeCountryToUsers',
+        ),
+        collectCity: pluginChecked(form, 'enhanced-tracking', 'collectCity'),
+        exposeCityToUsers: pluginChecked(
+          form,
+          'enhanced-tracking',
+          'exposeCityToUsers',
+        ),
+        collectAsn: pluginChecked(form, 'enhanced-tracking', 'collectAsn'),
+        exposeAsnToUsers: pluginChecked(
+          form,
+          'enhanced-tracking',
+          'exposeAsnToUsers',
+        ),
+      },
+      { geoipAvailable },
+    );
   },
   validateConfig(config) {
     const normalized = normalizeEnhancedTrackingConfig(config);
-    validateGeoipHeaderConfig(normalized);
     if (normalized.proxyHeadersEnabled) {
       parseProxyHeaderMappings(normalized.proxyHeaders);
     }

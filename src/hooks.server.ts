@@ -7,7 +7,10 @@ import {
 import { uiText } from '$lib/i18n/ui-text';
 import { defaultSiteLocale } from '$lib/config';
 import { setClickMetadataCollector } from '$lib/server/click-queue';
-import { applyClientHintResponseHeaders } from '$lib/server/client-hints';
+import {
+  applyClientHintResponseHeaders,
+  shouldApplyClientHintResponseHeaders,
+} from '$lib/server/client-hints';
 import { getClientIp } from '$lib/server/client-ip';
 import { getSettings, setPluginStateNormalizer } from '$lib/server/settings';
 import { getPluginUser } from './plugins/auth-registry';
@@ -45,16 +48,26 @@ export const handle: Handle = async ({ event, resolve }) => {
     isAdmin: event.locals.isAdmin,
     ip,
   });
+  const shouldRequestClientHints = shouldApplyClientHintResponseHeaders(
+    event.url.pathname,
+  );
   if (pluginResponse) {
-    applyClientHintResponseHeaders(pluginResponse.headers);
+    if (shouldRequestClientHints) {
+      applyClientHintResponseHeaders(pluginResponse.headers);
+    }
     return pluginResponse;
   }
 
+  const isAdminPath =
+    event.url.pathname === '/admin' || event.url.pathname.startsWith('/admin/');
   const response = await resolve(event, {
+    preload: ({ type }) => !isAdminPath && (type === 'js' || type === 'css'),
     transformPageChunk: ({ html }) =>
       html.replace('<html lang="ko">', `<html lang="${locale}">`),
   });
-  applyClientHintResponseHeaders(response.headers);
+  if (shouldRequestClientHints) {
+    applyClientHintResponseHeaders(response.headers);
+  }
   return response;
 };
 

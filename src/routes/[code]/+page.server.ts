@@ -17,7 +17,9 @@ import {
   publicRedirectSettings,
 } from '$lib/server/link-redirect-page';
 import { getClientIp } from '$lib/server/client-ip';
+import { collectGeoipMetadata, geoipMetadataForRules } from '$lib/server/geoip';
 import { effectivePermissions } from '$lib/server/permissions';
+import { redirectRuleConditionTypes } from '$lib/server/redirect-rules';
 import { getSettings } from '$lib/server/settings';
 import { shouldRenderOpenGraphPreview } from '$lib/server/user-agent';
 import { uiText } from '$lib/i18n/ui-text';
@@ -42,18 +44,19 @@ export const load: PageServerLoad = async ({
   const publicSettings = publicRedirectSettings(displaySettings);
   const publicLink = publicRedirectLink(link);
   const blockReason = linkAccessBlockReason(link);
+  const clientIp = getClientIp(
+    request,
+    getClientAddress,
+    settings.network.trustProxyHeaders,
+    settings.network.proxyIpHeaders,
+  );
   let permissionsPromise: ReturnType<typeof effectivePermissions> | undefined;
   const permissionsForRequest = () =>
     (permissionsPromise ??= effectivePermissions({
       settings,
       user: locals.user,
       isAdmin: locals.isAdmin,
-      ip: getClientIp(
-        request,
-        getClientAddress,
-        settings.network.trustProxyHeaders,
-        settings.network.proxyIpHeaders,
-      ),
+      ip: clientIp,
     }));
 
   if (
@@ -106,7 +109,27 @@ export const load: PageServerLoad = async ({
     };
   }
 
-  redirect(settings.links.redirectStatus, destinationForRequest(link, request));
+  const conditionTypes = redirectRuleConditionTypes(link.routing.redirectRules);
+  const needsGeoip = conditionTypes.some(
+    (type) => type === 'geo-country' || type === 'geo-city',
+  );
+  const redirectRuleMetadata = needsGeoip
+    ? geoipMetadataForRules(
+        await collectGeoipMetadata({
+          request,
+          ip: clientIp,
+          settings,
+        }),
+      )
+    : {};
+
+  redirect(
+    settings.links.redirectStatus,
+    destinationForRequest(link, request, {
+      ip: clientIp,
+      metadata: redirectRuleMetadata,
+    }),
+  );
 };
 
 export const actions: Actions = {

@@ -47,10 +47,7 @@ API 링크 생성은 CAPTCHA를 요구하지 않습니다. 다만 링크 생성 
     "passwordProtected": false
   },
   "routing": {
-    "mobileUrl": "",
-    "desktopUrl": "",
-    "abUrl": "",
-    "abPercent": 0
+    "redirectRules": []
   },
   "health": {
     "status": "unchecked",
@@ -146,20 +143,18 @@ Content-Type: application/json
 
 링크 만들기/수정 폼의 옵션 탭과 같은 필드를 사용할 수 있습니다.
 
-| 필드                 | 동작                                                       |
-| -------------------- | ---------------------------------------------------------- |
-| `tags`               | 쉼표 또는 줄바꿈으로 분리해 태그로 저장                    |
-| `utmSource`          | 목적지 URL의 `utm_source` query parameter로 합쳐짐         |
-| `utmMedium`          | 목적지 URL의 `utm_medium` query parameter로 합쳐짐         |
-| `utmCampaign`        | 목적지 URL의 `utm_campaign` query parameter로 합쳐짐       |
-| `utmTerm`            | 목적지 URL의 `utm_term` query parameter로 합쳐짐           |
-| `utmContent`         | 목적지 URL의 `utm_content` query parameter로 합쳐짐        |
-| `expiresAt`          | 만료일. `datetime-local` 값 또는 날짜로 파싱 가능한 문자열 |
-| `maxClicks`          | 최대 클릭 수. `0` 또는 빈 값은 무제한                      |
-| `password`           | 링크 접근 비밀번호                                         |
-| `mobileUrl`          | 모바일 사용자 에이전트용 목적지 URL                        |
-| `desktopUrl`         | 데스크톱 사용자 에이전트용 목적지 URL                      |
-| `abUrl`, `abPercent` | A/B 목적지 URL과 적용 비율                                 |
+| 필드            | 동작                                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| `tags`          | 쉼표 또는 줄바꿈으로 분리해 태그로 저장                                                                  |
+| `utmSource`     | 목적지 URL의 `utm_source` query parameter로 합쳐짐                                                       |
+| `utmMedium`     | 목적지 URL의 `utm_medium` query parameter로 합쳐짐                                                       |
+| `utmCampaign`   | 목적지 URL의 `utm_campaign` query parameter로 합쳐짐                                                     |
+| `utmTerm`       | 목적지 URL의 `utm_term` query parameter로 합쳐짐                                                         |
+| `utmContent`    | 목적지 URL의 `utm_content` query parameter로 합쳐짐                                                      |
+| `expiresAt`     | 만료일. `datetime-local` 값 또는 날짜로 파싱 가능한 문자열                                               |
+| `maxClicks`     | 최대 클릭 수. `0` 또는 빈 값은 무제한                                                                    |
+| `password`      | 링크 접근 비밀번호                                                                                       |
+| `redirectRules` | 조건 기반 리다이렉트 규칙 JSON 배열. 자세한 조건 형식은 [규칙 기반 리다이렉트](./redirect-rules.md) 참고 |
 
 UTM 값은 링크 생성과 수정 시 URL에 합쳐집니다.
 
@@ -227,7 +222,11 @@ PUT /api/links/{code}
 Content-Type: application/json
 ```
 
-`PATCH`와 `PUT`은 같은 동작입니다. 일반 사용자 토큰은 본인이 만든 링크만 수정할 수 있습니다. 일반 사용자 토큰은 전역 API 설정 또는 적용된 권한 그룹의 API 수정 권한을 만족해야 합니다.
+일반 사용자 토큰은 본인이 만든 링크만 수정할 수 있습니다. 일반 사용자 토큰은 전역 API 설정 또는 적용된 권한 그룹의 API 수정 권한을 만족해야 합니다.
+
+`PUT`은 웹 편집 폼과 같은 전체 수정 요청입니다. `url`은 필수이고, 기존 미리보기, 태그, 만료일, 클릭 제한, 라우팅 값을 유지하려면 유지할 필드도 함께 보내야 합니다. 생략된 필드는 빈 폼 입력처럼 처리되어 해당 값을 비웁니다. UTM 필드는 값이 있을 때만 `url`에 합쳐집니다.
+
+`PATCH`는 이미 존재하는 링크만 부분 수정합니다. `{code}`에 해당하는 링크가 없으면 `404`를 반환합니다. 요청 본문에 지정하지 않은 필드는 기존값을 유지하고, 지정한 필드만 기존 링크에 merge됩니다. 값을 지우려면 해당 필드를 명시적으로 빈 문자열, `0`, 빈 배열 등으로 보내세요. 비밀번호는 `password`가 비어 있으면 기존 값을 유지하고, 제거하려면 `clearPassword`를 `true`로 보내야 합니다.
 
 요청 본문:
 
@@ -246,21 +245,14 @@ Content-Type: application/json
   "utmContent": "",
   "expiresAt": "",
   "maxClicks": "0",
-  "mobileUrl": "",
-  "desktopUrl": "",
-  "abUrl": "",
-  "abPercent": "0"
+  "redirectRules": []
 }
 ```
 
-`url`은 필수입니다. 수정 요청도 웹 편집 폼처럼 현재 입력값으로 교체됩니다. 따라서 기존 미리보기, 태그, 만료일, 클릭 제한, 라우팅 값을 유지하려면 유지할 필드도 함께 보내야 합니다. 생략된 필드는 빈 폼 입력처럼 처리되어 해당 값을 비웁니다. UTM 필드는 값이 있을 때만 `url`에 합쳐집니다.
-
-비밀번호는 `password`가 비어 있으면 기존 값을 유지합니다. 비밀번호를 제거하려면 `clearPassword`를 `true`로 보내세요.
-
-예시:
+PUT 예시:
 
 ```bash
-curl -X PATCH http://localhost:5173/api/links/hello \
+curl -X PUT http://localhost:5173/api/links/hello \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -275,10 +267,29 @@ curl -X PATCH http://localhost:5173/api/links/hello \
     "utmCampaign": "launch",
     "expiresAt": "",
     "maxClicks": "0",
-    "mobileUrl": "",
-    "desktopUrl": "",
-    "abUrl": "",
-    "abPercent": "0"
+    "redirectRules": []
+  }'
+```
+
+PATCH 예시:
+
+```bash
+curl -X PATCH http://localhost:5173/api/links/hello \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "previewTitle": "Updated",
+    "tags": "ads, update",
+    "redirectRules": [
+      {
+        "longUrl": "https://example.com/mobile",
+        "conditions": [{ "type": "device", "matchValue": "mobile" }]
+      },
+      {
+        "longUrl": "https://example.com/variant",
+        "conditions": [{ "type": "percentage", "matchValue": "25" }]
+      }
+    ]
   }'
 ```
 

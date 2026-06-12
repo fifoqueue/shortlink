@@ -63,5 +63,16 @@ export function formDataFromJson(body: Record<string, unknown>) {
   ]);
   setFirstScalar(form, 'themeColor', [body.themeColor, preview.themeColor]);
 
+  const routing = recordValue(body.routing);
+  const redirectRules = body.redirectRules ?? routing.redirectRules;
+  if (redirectRules !== undefined && !form.has('redirectRules')) {
+    form.set(
+      'redirectRules',
+      Array.isArray(redirectRules)
+        ? JSON.stringify(redirectRules)
+        : scalarValue(redirectRules),
+    );
+  }
+
   return form;
 }

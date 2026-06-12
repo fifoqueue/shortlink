@@ -171,10 +171,9 @@ export const load: PageServerLoad = async ({
       ? definition.prepareAdminConfig(storedState.config)
       : storedState.config,
   };
-  const adminData =
-    storedState.enabled && definition.loadAdminData
-      ? await definition.loadAdminData({ state: storedState, url })
-      : null;
+  const adminData = definition.loadAdminData
+    ? await definition.loadAdminData({ state: storedState, url, settings })
+    : null;
   const activation = await activationStatus(
     definition,
     storedState,
@@ -246,6 +245,7 @@ export const actions: Actions = {
               locals.locale,
               settings.i18n.defaultLocale,
             ),
+            settings,
           }),
         },
       });

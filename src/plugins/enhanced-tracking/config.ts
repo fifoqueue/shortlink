@@ -1,5 +1,4 @@
 import type { PluginConfig } from '$lib/plugin-contracts';
-import { serverMessage } from '$lib/i18n/ui-text';
 import { isHttpHeaderName, parseDelimitedLines } from '../utils';
 
 export type TrackingVisibility = 1 | 2;
@@ -11,16 +10,6 @@ export interface ProxyHeaderMapping extends Record<string, unknown> {
 }
 
 export interface EnhancedTrackingConfig extends Record<string, unknown> {
-  geoipEnabled: boolean;
-  geoipHeadersEnabled: boolean;
-  cityDatabasePath: string;
-  countryDatabasePath: string;
-  asnDatabasePath: string;
-  countryCodeHeader: string;
-  countryNameHeader: string;
-  cityNameHeader: string;
-  asnNumberHeader: string;
-  asnOrganizationHeader: string;
   proxyHeadersEnabled: boolean;
   proxyHeaders: string;
   collectCountry: boolean;
@@ -39,16 +28,6 @@ export const defaultProxyHeaders = [
 ].join('\n');
 
 export const defaultEnhancedTrackingConfig: EnhancedTrackingConfig = {
-  geoipEnabled: false,
-  geoipHeadersEnabled: false,
-  cityDatabasePath: '',
-  countryDatabasePath: '',
-  asnDatabasePath: '',
-  countryCodeHeader: 'X-GeoIP-Country-Code',
-  countryNameHeader: 'X-GeoIP-Country-Name',
-  cityNameHeader: 'X-GeoIP-City',
-  asnNumberHeader: 'X-GeoIP-ASN',
-  asnOrganizationHeader: 'X-GeoIP-ASN-Organization',
   proxyHeadersEnabled: false,
   proxyHeaders: defaultProxyHeaders,
   collectCountry: true,
@@ -71,35 +50,18 @@ function booleanConfig(config: PluginConfig, field: string, fallback = false) {
 
 export function normalizeEnhancedTrackingConfig(
   config: PluginConfig,
+  input: { geoipAvailable?: boolean } = {},
 ): EnhancedTrackingConfig {
+  const geoipAvailable = input.geoipAvailable !== false;
   return {
-    geoipEnabled: booleanConfig(config, 'geoipEnabled'),
-    geoipHeadersEnabled: booleanConfig(config, 'geoipHeadersEnabled'),
-    cityDatabasePath: stringConfig(config, 'cityDatabasePath'),
-    countryDatabasePath: stringConfig(config, 'countryDatabasePath'),
-    asnDatabasePath: stringConfig(config, 'asnDatabasePath'),
-    countryCodeHeader:
-      stringConfig(config, 'countryCodeHeader') ||
-      defaultEnhancedTrackingConfig.countryCodeHeader,
-    countryNameHeader:
-      stringConfig(config, 'countryNameHeader') ||
-      defaultEnhancedTrackingConfig.countryNameHeader,
-    cityNameHeader:
-      stringConfig(config, 'cityNameHeader') ||
-      defaultEnhancedTrackingConfig.cityNameHeader,
-    asnNumberHeader:
-      stringConfig(config, 'asnNumberHeader') ||
-      defaultEnhancedTrackingConfig.asnNumberHeader,
-    asnOrganizationHeader:
-      stringConfig(config, 'asnOrganizationHeader') ||
-      defaultEnhancedTrackingConfig.asnOrganizationHeader,
     proxyHeadersEnabled: booleanConfig(config, 'proxyHeadersEnabled'),
     proxyHeaders: stringConfig(config, 'proxyHeaders') || defaultProxyHeaders,
-    collectCountry: booleanConfig(config, 'collectCountry', true),
+    collectCountry:
+      geoipAvailable && booleanConfig(config, 'collectCountry', true),
     exposeCountryToUsers: booleanConfig(config, 'exposeCountryToUsers'),
-    collectCity: booleanConfig(config, 'collectCity', true),
+    collectCity: geoipAvailable && booleanConfig(config, 'collectCity', true),
     exposeCityToUsers: booleanConfig(config, 'exposeCityToUsers'),
-    collectAsn: booleanConfig(config, 'collectAsn', true),
+    collectAsn: geoipAvailable && booleanConfig(config, 'collectAsn', true),
     exposeAsnToUsers: booleanConfig(config, 'exposeAsnToUsers'),
   };
 }
@@ -127,20 +89,4 @@ export function parseProxyHeaderMappings(value: string) {
     ],
     { description: 'proxy headers', maxRows: 30 },
   );
-}
-
-export function validateGeoipHeaderConfig(config: EnhancedTrackingConfig) {
-  if (!config.geoipHeadersEnabled) return;
-
-  for (const [label, header] of [
-    ['countryCodeHeader', config.countryCodeHeader],
-    ['countryNameHeader', config.countryNameHeader],
-    ['cityNameHeader', config.cityNameHeader],
-    ['asnNumberHeader', config.asnNumberHeader],
-    ['asnOrganizationHeader', config.asnOrganizationHeader],
-  ] as const) {
-    if (header && !isHttpHeaderName(header)) {
-      throw new Error(serverMessage('httpHeaderNameInvalid', { label }));
-    }
-  }
 }

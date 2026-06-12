@@ -1,6 +1,6 @@
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
 import type { Component } from 'svelte';
-import type { SiteLocale } from '$lib/config';
+import type { SiteLocale, SiteSettings } from '$lib/config';
 
 export type PluginConfig = Record<string, unknown>;
 export type CorePluginSlot =
@@ -179,6 +179,7 @@ export interface PluginDefinition {
       locale?: SiteLocale;
       fallbackLocale?: SiteLocale;
       strings?: PluginLocaleStrings;
+      settings?: SiteSettings;
     },
   ) => PluginConfig;
   prepareAdminConfig?: (config: PluginConfig) => PluginConfig;
@@ -211,6 +212,7 @@ export interface PluginDefinition {
   loadAdminData?: (input: {
     state: PluginState;
     url: URL;
+    settings: SiteSettings;
   }) => unknown | Promise<unknown>;
   handleAdminAction?: (input: {
     action: string;
@@ -341,6 +343,7 @@ export interface PluginDefinition {
     request: Request;
     ip: string;
     state: PluginState;
+    settings: SiteSettings;
   }) =>
     | Record<string, unknown>
     | null

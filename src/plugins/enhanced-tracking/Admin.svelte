@@ -11,8 +11,14 @@
     normalizeEnhancedTrackingConfig,
   } from './config';
 
-  let { config, strings = {} }: PluginComponentProps = $props();
-  const normalizedConfig = $derived(normalizeEnhancedTrackingConfig(config));
+  let { config, adminData, strings = {} }: PluginComponentProps = $props();
+  const data = $derived(
+    (adminData ?? {}) as Partial<{ geoipAvailable: boolean }>,
+  );
+  const geoipAvailable = $derived(data.geoipAvailable === true);
+  const normalizedConfig = $derived(
+    normalizeEnhancedTrackingConfig(config, { geoipAvailable }),
+  );
 
   function checked(field: string) {
     return normalizedConfig[field] === true;
@@ -24,85 +30,6 @@
 </script>
 
 <div class="plugin-i18n-root">
-  <section>
-    <ToggleField
-      name={fieldName('enhanced-tracking', 'geoipHeadersEnabled')}
-      label={t('admin.useProxyGeoipHeaders')}
-      checked={checked('geoipHeadersEnabled')}
-    />
-    <p class="hint">
-      {t('admin.proxyGeoipHeadersHint')}
-    </p>
-    <div class="two form-grid balanced">
-      <label>
-        {t('admin.countryCodeHeader')}
-        <input
-          name={fieldName('enhanced-tracking', 'countryCodeHeader')}
-          value={configString(config, 'countryCodeHeader')}
-        />
-      </label>
-      <label>
-        {t('admin.countryNameHeader')}
-        <input
-          name={fieldName('enhanced-tracking', 'countryNameHeader')}
-          value={configString(config, 'countryNameHeader')}
-        />
-      </label>
-      <label>
-        {t('admin.cityHeader')}
-        <input
-          name={fieldName('enhanced-tracking', 'cityNameHeader')}
-          value={configString(config, 'cityNameHeader')}
-        />
-      </label>
-      <label>
-        {t('admin.asnNumberHeader')}
-        <input
-          name={fieldName('enhanced-tracking', 'asnNumberHeader')}
-          value={configString(config, 'asnNumberHeader')}
-        />
-      </label>
-      <label class="wide">
-        {t('admin.asnOrganizationHeader')}
-        <input
-          name={fieldName('enhanced-tracking', 'asnOrganizationHeader')}
-          value={configString(config, 'asnOrganizationHeader')}
-        />
-      </label>
-    </div>
-
-    <ToggleField
-      name={fieldName('enhanced-tracking', 'geoipEnabled')}
-      label={t('admin.queryMaxmindDirectly')}
-      checked={checked('geoipEnabled')}
-    />
-    <label>
-      {t('admin.cityDatabasePath')}
-      <input
-        name={fieldName('enhanced-tracking', 'cityDatabasePath')}
-        placeholder={t('admin.cityDatabasePathPlaceholder')}
-        value={configString(config, 'cityDatabasePath')}
-      />
-    </label>
-    <label>
-      {t('admin.countryDatabasePath')}
-      <small>{t('admin.countryDatabaseHint')}</small>
-      <input
-        name={fieldName('enhanced-tracking', 'countryDatabasePath')}
-        placeholder={t('admin.countryDatabasePathPlaceholder')}
-        value={configString(config, 'countryDatabasePath')}
-      />
-    </label>
-    <label>
-      {t('admin.asnDatabasePath')}
-      <input
-        name={fieldName('enhanced-tracking', 'asnDatabasePath')}
-        placeholder={t('admin.asnDatabasePathPlaceholder')}
-        value={configString(config, 'asnDatabasePath')}
-      />
-    </label>
-  </section>
-
   <section>
     <ToggleField
       name={fieldName('enhanced-tracking', 'proxyHeadersEnabled')}
@@ -119,6 +46,11 @@
   </section>
 
   <section>
+    {#if !geoipAvailable}
+      <p class="hint">
+        {t('admin.coreGeoipRequired')}
+      </p>
+    {/if}
     <div class="visibility-grid">
       <div>
         <strong>{t('admin.country')}</strong>
@@ -126,6 +58,7 @@
           name={fieldName('enhanced-tracking', 'collectCountry')}
           label={t('admin.collect')}
           checked={checked('collectCountry')}
+          disabled={!geoipAvailable}
         />
         <ToggleField
           name={fieldName('enhanced-tracking', 'exposeCountryToUsers')}
@@ -139,6 +72,7 @@
           name={fieldName('enhanced-tracking', 'collectCity')}
           label={t('admin.collect')}
           checked={checked('collectCity')}
+          disabled={!geoipAvailable}
         />
         <ToggleField
           name={fieldName('enhanced-tracking', 'exposeCityToUsers')}
@@ -152,6 +86,7 @@
           name={fieldName('enhanced-tracking', 'collectAsn')}
           label={t('admin.collect')}
           checked={checked('collectAsn')}
+          disabled={!geoipAvailable}
         />
         <ToggleField
           name={fieldName('enhanced-tracking', 'exposeAsnToUsers')}
@@ -200,15 +135,6 @@
     font-size: 0.82rem;
     line-height: 1.55;
   }
-  .two {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .wide {
-    grid-column: 1 / -1;
-  }
-  input,
   textarea {
     width: 100%;
     min-height: var(--form-control-height);
@@ -221,7 +147,6 @@
     line-height: 1.5;
     outline: none;
   }
-  input:focus,
   textarea:focus {
     border-color: var(--admin-primary);
     box-shadow: 0 0 0 3px
@@ -252,12 +177,8 @@
     }
   }
   @media (max-width: 640px) {
-    .two,
     .visibility-grid {
       grid-template-columns: 1fr;
-    }
-    .wide {
-      grid-column: auto;
     }
   }
 </style>

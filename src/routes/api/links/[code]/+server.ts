@@ -13,6 +13,8 @@ import {
   deleteLinksMessage,
   linkOperationsFromForm,
   linkPreviewFromForm,
+  partialLinkOperationsFromForm,
+  partialLinkPreviewFromForm,
 } from '$lib/server/link-form';
 import {
   linkSettingsForPermissions,
@@ -97,6 +99,7 @@ async function updateApiLink(
   url: URL,
   settings: SiteSettings,
   getClientAddress: () => string,
+  options: { partial?: boolean } = {},
 ) {
   const api = await requireApiPermissionContext(
     request,
@@ -124,12 +127,21 @@ async function updateApiLink(
   try {
     const body = recordValue(await request.json().catch(() => ({})));
     const form = formDataFromJson(body);
+    const partial = options.partial === true;
     const result = await updateShortLink(
       code,
       {
-        url: String(form.get('url') ?? ''),
-        preview: linkPreviewFromForm(form),
-        operations: linkOperationsFromForm(form),
+        url: partial
+          ? form.has('url')
+            ? String(form.get('url') ?? '')
+            : undefined
+          : String(form.get('url') ?? ''),
+        preview: partial
+          ? partialLinkPreviewFromForm(form)
+          : linkPreviewFromForm(form),
+        operations: partial
+          ? partialLinkOperationsFromForm(form)
+          : linkOperationsFromForm(form),
       },
       {
         isAdmin: api.principal.isAdmin,
@@ -137,6 +149,7 @@ async function updateApiLink(
         editableFields: permissions.links.editableFields,
         linkSettings: linkSettingsForPermissions(settings.links, permissions),
         owner: { userId: api.principal.id },
+        partial,
       },
     );
 
@@ -191,7 +204,9 @@ export const PATCH: RequestHandler = async ({
   locals,
   getClientAddress,
 }) =>
-  updateApiLink(params.code, request, url, locals.settings, getClientAddress);
+  updateApiLink(params.code, request, url, locals.settings, getClientAddress, {
+    partial: true,
+  });
 
 export const PUT: RequestHandler = async ({
   params,

@@ -42,10 +42,7 @@
       passwordProtected: boolean;
     };
     routing: {
-      mobileUrl: string;
-      desktopUrl: string;
-      abUrl: string;
-      abPercent: number;
+      redirectRules: unknown[];
     };
     health: {
       status: 'unchecked' | 'ok' | 'warning' | 'broken';
@@ -109,10 +106,7 @@
         utmCampaign?: string;
         utmTerm?: string;
         utmContent?: string;
-        mobileUrl?: string;
-        desktopUrl?: string;
-        abUrl?: string;
-        abPercent?: string | number | null;
+        redirectRules?: string | unknown[] | null;
       };
     };
     link?: LinkItem;

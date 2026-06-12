@@ -1,38 +1,16 @@
-import {
-  open,
-  validate,
-  type AsnResponse,
-  type CityResponse,
-  type CountryResponse,
-  type Reader,
-  type Response as MaxMindResponse,
-} from 'maxmind';
 import type {
   ClickMetadataDisplayItem,
   ClickMetadataSearchField,
   PluginDefinition,
 } from '$lib/plugin-contracts';
+import { geoipConfigured } from '$lib/config';
+import { collectGeoipMetadata } from '$lib/server/geoip';
 import {
   normalizeEnhancedTrackingConfig,
   parseProxyHeaderMappings,
   type EnhancedTrackingConfig,
   type TrackingVisibility,
 } from './config';
-
-type GeoCountry = {
-  code: string;
-  name: string;
-};
-
-type GeoCity = {
-  name: string;
-  countryCode: string;
-};
-
-type GeoAsn = {
-  number: number;
-  organization: string;
-};
 
 type ProxyHeader = {
   label: string;
@@ -41,143 +19,23 @@ type ProxyHeader = {
 };
 
 type EnhancedTrackingMetadata = {
-  country?: GeoCountry;
-  city?: GeoCity;
-  asn?: GeoAsn;
+  country?: {
+    code: string;
+    name: string;
+  };
+  city?: {
+    name: string;
+    countryCode: string;
+  };
+  asn?: {
+    number: number;
+    organization: string;
+  };
   proxyHeaders?: ProxyHeader[];
 };
 
-const readerCache = new Map<string, Promise<Reader<MaxMindResponse>>>();
-const warnedPaths = new Set<string>();
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function cleanPath(value: string) {
-  return value.trim();
-}
-
-function cleanIp(value: string) {
-  const ip = value.trim();
-  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-}
-
-async function getReader<T extends MaxMindResponse>(path: string) {
-  const filepath = cleanPath(path);
-  if (!filepath) return null;
-
-  let reader = readerCache.get(filepath);
-  if (!reader) {
-    reader = open<T>(filepath, {
-      watchForUpdates: true,
-      watchForUpdatesNonPersistent: true,
-    });
-    readerCache.set(filepath, reader);
-  }
-
-  try {
-    return (await reader) as Reader<T>;
-  } catch (error) {
-    readerCache.delete(filepath);
-    if (!warnedPaths.has(filepath)) {
-      warnedPaths.add(filepath);
-      console.warn('Failed to open GeoIP2 database.', filepath, error);
-    }
-    return null;
-  }
-}
-
-function countryFromResponse(
-  response: CityResponse | CountryResponse | null,
-): GeoCountry | undefined {
-  const country = response?.country ?? response?.registered_country;
-  if (!country?.iso_code) return undefined;
-  return {
-    code: country.iso_code,
-    name: country.names?.en ?? country.iso_code,
-  };
-}
-
-async function collectGeoip(ip: string, config: EnhancedTrackingConfig) {
-  const normalizedIp = cleanIp(ip);
-  if (!validate(normalizedIp)) return {};
-
-  const collectsCountryOrCity = config.collectCountry || config.collectCity;
-  const cityReader = collectsCountryOrCity
-    ? await getReader<CityResponse>(config.cityDatabasePath)
-    : null;
-  const countryReader = collectsCountryOrCity
-    ? cityReader ||
-      (await getReader<CountryResponse>(config.countryDatabasePath))
-    : null;
-  const asnReader = config.collectAsn
-    ? await getReader<AsnResponse>(config.asnDatabasePath)
-    : null;
-  const cityResponse = cityReader?.get(normalizedIp) ?? null;
-  const countryResponse =
-    cityResponse ?? countryReader?.get(normalizedIp) ?? null;
-  const asnResponse = asnReader?.get(normalizedIp) ?? null;
-  const metadata: EnhancedTrackingMetadata = {};
-
-  const country = countryFromResponse(countryResponse);
-  if (country && config.collectCountry) metadata.country = country;
-
-  if (cityResponse?.city?.names?.en && config.collectCity) {
-    metadata.city = {
-      name: cityResponse.city.names.en,
-      countryCode: cityResponse.country?.iso_code ?? country?.code ?? '',
-    };
-  }
-
-  if (asnResponse?.autonomous_system_number && config.collectAsn) {
-    metadata.asn = {
-      number: asnResponse.autonomous_system_number,
-      organization: asnResponse.autonomous_system_organization,
-    };
-  }
-
-  return metadata;
-}
-
-function headerValue(request: Request, header: string) {
-  return header ? request.headers.get(header)?.trim() || '' : '';
-}
-
-function collectGeoipHeaders(request: Request, config: EnhancedTrackingConfig) {
-  const countryCode = headerValue(request, config.countryCodeHeader);
-  const countryName = headerValue(request, config.countryNameHeader);
-  const cityName = headerValue(request, config.cityNameHeader);
-  const rawAsnNumber = headerValue(request, config.asnNumberHeader);
-  const asnNumber = rawAsnNumber ? Number(rawAsnNumber) : NaN;
-  const asnOrganization = headerValue(request, config.asnOrganizationHeader);
-  const metadata: EnhancedTrackingMetadata = {};
-
-  if (config.collectCountry && (countryCode || countryName)) {
-    metadata.country = {
-      code: countryCode || countryName,
-      name: countryName || countryCode,
-    };
-  }
-
-  if (config.collectCity && cityName) {
-    metadata.city = {
-      name: cityName,
-      countryCode,
-    };
-  }
-
-  if (
-    config.collectAsn &&
-    ((rawAsnNumber && Number.isFinite(asnNumber)) || asnOrganization)
-  ) {
-    metadata.asn = {
-      number: rawAsnNumber && Number.isFinite(asnNumber) ? asnNumber : 0,
-      organization: asnOrganization,
-    };
-  }
-
-  return metadata;
 }
 
 function collectProxyHeaders(request: Request, config: EnhancedTrackingConfig) {
@@ -219,33 +77,61 @@ function metadataRecord(value: unknown): EnhancedTrackingMetadata {
   return value as EnhancedTrackingMetadata;
 }
 
-function formatCountry(country: GeoCountry) {
+function formatCountry(
+  country: NonNullable<EnhancedTrackingMetadata['country']>,
+) {
   return country.name === country.code
     ? country.code
     : `${country.name} (${country.code})`;
 }
 
-function formatCity(city: GeoCity) {
+function formatCity(city: NonNullable<EnhancedTrackingMetadata['city']>) {
   return city.countryCode ? `${city.name}, ${city.countryCode}` : city.name;
 }
 
+async function collectEnhancedTrackingMetadata(
+  request: Request,
+  ip: string,
+  config: EnhancedTrackingConfig,
+  settings: Parameters<
+    NonNullable<PluginDefinition['collectClickMetadata']>
+  >[0]['settings'],
+) {
+  const metadata: EnhancedTrackingMetadata = {};
+
+  if (shouldCollectGeoip(config) && geoipConfigured(settings)) {
+    const geoip = await collectGeoipMetadata({ request, ip, settings });
+    if (config.collectCountry && geoip.country) {
+      metadata.country = geoip.country;
+    }
+    if (config.collectCity && geoip.city) {
+      metadata.city = geoip.city;
+    }
+    if (config.collectAsn && geoip.asn) {
+      metadata.asn = geoip.asn;
+    }
+  }
+
+  if (config.proxyHeadersEnabled) {
+    const proxyHeaders = collectProxyHeaders(request, config);
+    if (proxyHeaders) metadata.proxyHeaders = proxyHeaders;
+  }
+
+  return metadata;
+}
+
 const serverPlugin = {
-  async collectClickMetadata({ request, ip, state }) {
-    const config = normalizeEnhancedTrackingConfig(state.config);
-    const metadata: EnhancedTrackingMetadata = {};
+  loadAdminData({ settings }) {
+    return {
+      geoipAvailable: geoipConfigured(settings),
+    };
+  },
 
-    if (shouldCollectGeoip(config) && config.geoipHeadersEnabled) {
-      Object.assign(metadata, collectGeoipHeaders(request, config));
-    } else if (shouldCollectGeoip(config) && config.geoipEnabled) {
-      Object.assign(metadata, await collectGeoip(ip, config));
-    }
-
-    if (config.proxyHeadersEnabled) {
-      const proxyHeaders = collectProxyHeaders(request, config);
-      if (proxyHeaders) metadata.proxyHeaders = proxyHeaders;
-    }
-
-    return metadata;
+  async collectClickMetadata({ request, ip, state, settings }) {
+    const config = normalizeEnhancedTrackingConfig(state.config, {
+      geoipAvailable: geoipConfigured(settings),
+    });
+    return collectEnhancedTrackingMetadata(request, ip, config, settings);
   },
 
   formatClickMetadata({ metadata, state, isAdmin, isOwner }) {

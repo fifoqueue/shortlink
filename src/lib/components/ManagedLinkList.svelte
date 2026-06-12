@@ -10,6 +10,7 @@
   } from '$lib/selection';
   import {
     defaultSiteLocale,
+    linkEditFieldKeys,
     linkOptionKeys,
     type LinkEditFieldKey,
     type LinkOptionKey,
@@ -46,10 +47,7 @@
       passwordProtected: boolean;
     };
     routing: {
-      mobileUrl: string;
-      desktopUrl: string;
-      abUrl: string;
-      abPercent: number;
+      redirectRules: unknown[];
     };
     health: {
       status: 'unchecked' | 'ok' | 'warning' | 'broken';
@@ -85,26 +83,7 @@
     statsHref,
     canDelete,
     canEdit = () => true,
-    editableFields = [
-      'url',
-      'previewTitle',
-      'previewDescription',
-      'previewImageUrl',
-      'themeColor',
-      'utmSource',
-      'utmMedium',
-      'utmCampaign',
-      'utmTerm',
-      'utmContent',
-      'expiresAt',
-      'maxClicks',
-      'password',
-      'tags',
-      'mobileUrl',
-      'desktopUrl',
-      'abUrl',
-      'abPercent',
-    ],
+    editableFields = [...linkEditFieldKeys],
     deleteDisabledReason = () => '',
     policyMessage = '',
     page,
@@ -207,11 +186,8 @@
           })
         : '',
       link.smart.passwordProtected ? text.managedLinks.password : '',
-      link.routing.mobileUrl || link.routing.desktopUrl
-        ? text.managedLinks.deviceRouting
-        : '',
-      link.routing.abUrl && link.routing.abPercent > 0
-        ? `A/B ${link.routing.abPercent}%`
+      link.routing.redirectRules.length > 0
+        ? text.managedLinks.dynamicRouting
         : '',
     ].filter(Boolean);
   }
@@ -407,10 +383,7 @@
                   expiresAt: link.smart.expiresAt,
                   maxClicks: link.smart.maxClicks,
                   passwordProtected: link.smart.passwordProtected,
-                  mobileUrl: link.routing.mobileUrl,
-                  desktopUrl: link.routing.desktopUrl,
-                  abUrl: link.routing.abUrl,
-                  abPercent: link.routing.abPercent,
+                  redirectRules: link.routing.redirectRules,
                 }}
                 {locale}
               />

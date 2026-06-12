@@ -6,6 +6,7 @@ import {
   linkOptionKeys,
   linkedLinkEditFieldPairs,
   linkedLinkOptionKeyPairs,
+  redirectRuleConditionKeys,
   type LinkEditFieldKey,
   type LinkOptionKey as ConfigLinkOptionKey,
   type SiteSettings,
@@ -15,6 +16,7 @@ import type {
   AuthenticatedUser,
 } from '$lib/plugin-contracts';
 import { serverMessage } from '$lib/i18n/ui-text';
+import { redirectRulePermissionKeysFromValue } from './redirect-rules';
 import { pageOffset, paginationMeta } from './pagination';
 import {
   PermissionGroupCidrModel,
@@ -357,6 +359,16 @@ function normalizedEditFieldRules(value: unknown) {
         for (const field of pair) selectedFields.add(field);
       }
     }
+    if (selectedFields.has('redirectRules')) {
+      const hasCondition = redirectRuleConditionKeys.some((key) =>
+        selectedFields.has(key),
+      );
+      if (!hasCondition) {
+        for (const key of redirectRuleConditionKeys) selectedFields.add(key);
+      }
+    } else {
+      for (const key of redirectRuleConditionKeys) selectedFields.delete(key);
+    }
     return Object.fromEntries(
       LINK_EDIT_FIELD_KEYS.map((key) => [
         key,
@@ -393,6 +405,33 @@ function coupleLinkedEditFieldRules(
     }
   }
   return rules;
+}
+
+function normalizeEffectiveRedirectRuleOptions(
+  options: Record<LinkOptionKey, boolean>,
+) {
+  if (!options.redirectRules) {
+    for (const key of redirectRuleConditionKeys) options[key] = false;
+    return;
+  }
+
+  if (!redirectRuleConditionKeys.some((key) => options[key])) {
+    options.redirectRules = false;
+  }
+}
+
+function normalizeEffectiveRedirectRuleEditFields(fields: LinkEditField[]) {
+  const fieldSet = new Set(fields);
+  if (!fieldSet.has('redirectRules')) {
+    for (const key of redirectRuleConditionKeys) fieldSet.delete(key);
+  }
+  if (!redirectRuleConditionKeys.some((key) => fieldSet.has(key))) {
+    fieldSet.delete('redirectRules');
+  }
+  if (redirectRuleConditionKeys.some((key) => fieldSet.has(key))) {
+    fieldSet.add('redirectRules');
+  }
+  return LINK_EDIT_FIELD_KEYS.filter((key) => fieldSet.has(key));
 }
 
 function stringList(value: unknown, limit = 200) {
@@ -1574,7 +1613,7 @@ function basePermissions(
       editAll: settings.links.editAll,
       deleteAll: settings.links.deleteAll,
       statsAll: settings.links.statsAll,
-      statsCsv: true,
+      statsCsv: settings.links.statsCsv,
       healthAll: settings.links.healthAll,
       expiresAtBypass: false,
       passwordBypass: false,
@@ -1734,6 +1773,10 @@ function normalizeEffectiveLinks(permissions: EffectivePermissions) {
     min,
     Math.min(max, Math.round(links.generatedCodeLength)),
   );
+  normalizeEffectiveRedirectRuleOptions(links.options);
+  links.editableFields = normalizeEffectiveRedirectRuleEditFields(
+    links.editableFields,
+  );
   return permissions;
 }
 
@@ -1831,10 +1874,7 @@ export function assertCreateOptionsAllowed(
     ['maxClicks', 'maxClicks', ['maxClicks']],
     ['password', 'password', ['password', 'clearPassword']],
     ['tags', 'tags', ['tags']],
-    ['mobileUrl', 'mobileUrl', ['mobileUrl']],
-    ['desktopUrl', 'desktopUrl', ['desktopUrl']],
-    ['abUrl', 'abUrl', ['abUrl']],
-    ['abPercent', 'abPercent', ['abPercent']],
+    ['redirectRules', 'redirectRules', ['redirectRules']],
   ];
 
   for (const [key, label, names] of checks) {
@@ -1844,13 +1884,20 @@ export function assertCreateOptionsAllowed(
     }
   }
 
-  const hasAbValue =
-    hasValue(form.get('abUrl')) || hasValue(form.get('abPercent'));
-  if (
-    hasAbValue &&
-    (!permissions.links.options.abUrl || !permissions.links.options.abPercent)
-  ) {
-    throw new Error(serverMessage('abOptionDenied'));
+  if (hasValue(form.get('redirectRules'))) {
+    if (!permissions.links.options.redirectRules) {
+      throw new Error(
+        serverMessage('optionDenied', { label: 'redirectRules' }),
+      );
+    }
+
+    for (const key of redirectRulePermissionKeysFromValue(
+      form.get('redirectRules'),
+    )) {
+      if (!permissions.links.options[key]) {
+        throw new Error(serverMessage('optionDenied', { label: key }));
+      }
+    }
   }
 }
 

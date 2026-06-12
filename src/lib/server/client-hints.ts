@@ -98,6 +98,20 @@ export function applyClientHintResponseHeaders(headers: Headers) {
   }
 }
 
+export function shouldApplyClientHintResponseHeaders(pathname: string) {
+  if (
+    pathname === '/custom.css' ||
+    pathname === '/robots.txt' ||
+    pathname.startsWith('/_app/') ||
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/api/')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export function clientHintsFromHeaders(headers: Headers) {
   const hints: Partial<Record<ClientHintHeader, string>> = {};
   for (const header of CLIENT_HINT_HEADERS) {

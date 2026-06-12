@@ -20,6 +20,7 @@ import {
 import { parseLinkSearch } from '$lib/server/link-search';
 import { DEFAULT_PAGE_SIZE, pageParam } from '$lib/server/pagination';
 import { getClientIp } from '$lib/server/client-ip';
+import { validateGeoipSettings } from '$lib/server/geoip';
 import { getLinkOwner } from '$lib/server/link-owner';
 import {
   canAccessAdminSection,
@@ -49,8 +50,10 @@ import {
 } from '$lib/server/settings';
 import {
   defaultLocalizedContentFor,
+  defaultGeoipSettings,
   linkedLinkEditFieldPairs,
   linkedLinkOptionKeyPairs,
+  redirectRuleConditionKeys,
   siteLocaleKeys,
   type LocalizedSiteContent,
   type SiteLocale,
@@ -163,6 +166,56 @@ function parseProxyIpHeaders(value: string) {
   return uniqueHeaders.slice(0, 20);
 }
 
+function parseGeoipSettings(form: FormData) {
+  const settings = {
+    enabled: parseBoolean(form, 'geoipEnabled'),
+    headersEnabled: parseBoolean(form, 'geoipHeadersEnabled'),
+    maxmindEnabled: parseBoolean(form, 'geoipMaxmindEnabled'),
+    cityDatabasePath: stringValue(
+      form,
+      'geoipCityDatabasePath',
+      defaultGeoipSettings.cityDatabasePath,
+    ),
+    countryDatabasePath: stringValue(
+      form,
+      'geoipCountryDatabasePath',
+      defaultGeoipSettings.countryDatabasePath,
+    ),
+    asnDatabasePath: stringValue(
+      form,
+      'geoipAsnDatabasePath',
+      defaultGeoipSettings.asnDatabasePath,
+    ),
+    countryCodeHeader: stringValue(
+      form,
+      'geoipCountryCodeHeader',
+      defaultGeoipSettings.countryCodeHeader,
+    ),
+    countryNameHeader: stringValue(
+      form,
+      'geoipCountryNameHeader',
+      defaultGeoipSettings.countryNameHeader,
+    ),
+    cityNameHeader: stringValue(
+      form,
+      'geoipCityNameHeader',
+      defaultGeoipSettings.cityNameHeader,
+    ),
+    asnNumberHeader: stringValue(
+      form,
+      'geoipAsnNumberHeader',
+      defaultGeoipSettings.asnNumberHeader,
+    ),
+    asnOrganizationHeader: stringValue(
+      form,
+      'geoipAsnOrganizationHeader',
+      defaultGeoipSettings.asnOrganizationHeader,
+    ),
+  };
+  validateGeoipSettings(settings);
+  return settings;
+}
+
 function selectedKeys<T extends string>(
   values: FormDataEntryValue[],
   keys: readonly T[],
@@ -191,6 +244,17 @@ function linkOptionsFromForm(form: FormData) {
       options[right] = allowed;
     }
   }
+  if (options.redirectRules) {
+    const hasCondition = redirectRuleConditionKeys.some((key) => options[key]);
+    if (!hasCondition) {
+      for (const key of redirectRuleConditionKeys) options[key] = true;
+    }
+  } else {
+    for (const key of redirectRuleConditionKeys) options[key] = false;
+  }
+  if (redirectRuleConditionKeys.some((key) => options[key])) {
+    options.redirectRules = true;
+  }
   return options;
 }
 
@@ -204,6 +268,19 @@ function linkEditFieldsFromForm(form: FormData): LinkEditField[] {
     if (pair.some((field) => fieldSet.has(field))) {
       for (const field of pair) fieldSet.add(field);
     }
+  }
+  if (fieldSet.has('redirectRules')) {
+    const hasCondition = redirectRuleConditionKeys.some((key) =>
+      fieldSet.has(key),
+    );
+    if (!hasCondition) {
+      for (const key of redirectRuleConditionKeys) fieldSet.add(key);
+    }
+  } else {
+    for (const key of redirectRuleConditionKeys) fieldSet.delete(key);
+  }
+  if (redirectRuleConditionKeys.some((key) => fieldSet.has(key))) {
+    fieldSet.add('redirectRules');
   }
   return [...fieldSet];
 }
@@ -617,6 +694,7 @@ export const actions: Actions = {
       editAll: parseBoolean(form, 'editAllLinks'),
       deleteAll: parseBoolean(form, 'deleteAllLinks'),
       statsAll: parseBoolean(form, 'statsAllLinks'),
+      statsCsv: parseBoolean(form, 'statsCsvLinks'),
       healthAll: parseBoolean(form, 'healthAllLinks'),
       editableFields: linkEditFieldsFromForm(form),
       trackClicks: parseBoolean(form, 'trackClicks'),
@@ -647,6 +725,7 @@ export const actions: Actions = {
         proxyIpHeaders: parseProxyIpHeaders(
           stringValue(form, 'proxyIpHeaders'),
         ),
+        geoip: parseGeoipSettings(form),
       };
     } catch (cause) {
       return fail(400, {

@@ -9,8 +9,10 @@
   import ToggleField from '$lib/components/ToggleField.svelte';
   import {
     defaultSiteLocale,
+    isRedirectRuleConditionKey,
     linkedLinkEditFieldPairs,
     linkedLinkOptionKeyPairs,
+    redirectRuleConditionKeys,
     type LinkEditFieldKey,
     type LinkOptionKey,
   } from '$lib/config';
@@ -249,10 +251,13 @@
     ['maxClicks', 'admin.maxClicks'],
     ['password', 'admin.password'],
     ['tags', 'admin.tags'],
-    ['mobileUrl', 'admin.mobileDestination'],
-    ['desktopUrl', 'admin.desktopDestination'],
-    ['abUrl', 'admin.abDestination'],
-    ['abPercent', 'admin.abPercentage'],
+    ['redirectRules', 'admin.redirectRules'],
+    ['redirectRuleDevice', 'admin.redirectRuleDevice'],
+    ['redirectRuleLanguage', 'admin.redirectRuleLanguage'],
+    ['redirectRuleQuery', 'admin.redirectRuleQuery'],
+    ['redirectRuleIp', 'admin.redirectRuleIp'],
+    ['redirectRuleGeo', 'admin.redirectRuleGeo'],
+    ['redirectRulePercentage', 'admin.redirectRulePercentage'],
   ] as const satisfies readonly (readonly [LinkOptionKey, PluginLocaleKey])[];
   const linkPermissions = [
     ['create', 'admin.createLinks'],
@@ -285,10 +290,13 @@
     ['maxClicks', 'admin.maxClicks'],
     ['password', 'admin.password'],
     ['tags', 'admin.tags'],
-    ['mobileUrl', 'admin.mobileDestination'],
-    ['desktopUrl', 'admin.desktopDestination'],
-    ['abUrl', 'admin.abDestination'],
-    ['abPercent', 'admin.abPercentage'],
+    ['redirectRules', 'admin.redirectRules'],
+    ['redirectRuleDevice', 'admin.redirectRuleDevice'],
+    ['redirectRuleLanguage', 'admin.redirectRuleLanguage'],
+    ['redirectRuleQuery', 'admin.redirectRuleQuery'],
+    ['redirectRuleIp', 'admin.redirectRuleIp'],
+    ['redirectRuleGeo', 'admin.redirectRuleGeo'],
+    ['redirectRulePercentage', 'admin.redirectRulePercentage'],
   ] as const satisfies readonly (readonly [
     LinkEditFieldKey,
     PluginLocaleKey,
@@ -350,12 +358,71 @@
     );
   }
 
+  function selectValueForRedirectRuleChildren(
+    form: HTMLFormElement,
+    nameForKey: (key: (typeof redirectRuleConditionKeys)[number]) => string,
+  ) {
+    const values = redirectRuleConditionKeys
+      .map((key) => formSelect(form, nameForKey(key))?.value)
+      .filter((value): value is string => value !== undefined);
+    if (values.length === 0) return 'inherit';
+    if (values.every((value) => value === 'allow')) return 'allow';
+    if (values.every((value) => value === 'deny')) return 'deny';
+    if (values.every((value) => value === 'inherit')) return 'inherit';
+    return values.includes('allow') ? 'allow' : 'inherit';
+  }
+
+  function syncRedirectRuleOptionSelect(
+    form: HTMLFormElement,
+    key: LinkOptionKey,
+    value: string,
+  ) {
+    if (key === 'redirectRules') {
+      for (const conditionKey of redirectRuleConditionKeys) {
+        const select = formSelect(form, `linkOption.${conditionKey}`);
+        if (select) select.value = value;
+      }
+      return;
+    }
+
+    if (!isRedirectRuleConditionKey(key)) return;
+    const parent = formSelect(form, 'linkOption.redirectRules');
+    if (!parent) return;
+    parent.value = selectValueForRedirectRuleChildren(
+      form,
+      (conditionKey) => `linkOption.${conditionKey}`,
+    );
+  }
+
+  function syncRedirectRuleEditFieldSelect(
+    form: HTMLFormElement,
+    key: LinkEditFieldKey,
+    value: string,
+  ) {
+    if (key === 'redirectRules') {
+      for (const conditionKey of redirectRuleConditionKeys) {
+        const select = formSelect(form, `linkEditField.${conditionKey}`);
+        if (select) select.value = value;
+      }
+      return;
+    }
+
+    if (!isRedirectRuleConditionKey(key)) return;
+    const parent = formSelect(form, 'linkEditField.redirectRules');
+    if (!parent) return;
+    parent.value = selectValueForRedirectRuleChildren(
+      form,
+      (conditionKey) => `linkEditField.${conditionKey}`,
+    );
+  }
+
   function syncLinkedLinkOptionSelect(
     event: Event & { currentTarget: HTMLSelectElement },
     key: LinkOptionKey,
   ) {
     const form = event.currentTarget.form;
     if (!form) return;
+    syncRedirectRuleOptionSelect(form, key, event.currentTarget.value);
     for (const linkedKey of linkedOptionKeys(key)) {
       const select = formSelect(form, `linkOption.${linkedKey}`);
       if (select) select.value = event.currentTarget.value;
@@ -368,6 +435,7 @@
   ) {
     const form = event.currentTarget.form;
     if (!form) return;
+    syncRedirectRuleEditFieldSelect(form, key, event.currentTarget.value);
     for (const linkedKey of linkedEditFieldKeys(key)) {
       const select = formSelect(form, `linkEditField.${linkedKey}`);
       if (select) select.value = event.currentTarget.value;

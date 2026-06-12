@@ -24,10 +24,7 @@
     utmCampaign?: string;
     utmTerm?: string;
     utmContent?: string;
-    mobileUrl?: string;
-    desktopUrl?: string;
-    abUrl?: string;
-    abPercent?: string | number | null;
+    redirectRules?: string | unknown[] | null;
   };
 
   type LinkOptionValues = LinkOperationValues & {
@@ -35,7 +32,7 @@
     operations?: LinkOperationValues;
   };
 
-  type TabId = 'preview' | 'utm' | 'security' | 'ab' | 'misc';
+  type TabId = 'preview' | 'utm' | 'security' | 'rules' | 'misc';
 
   let {
     mode = 'create',
@@ -62,7 +59,7 @@
     { id: 'preview', label: text.linkOptions.tabs.preview },
     { id: 'utm', label: text.linkOptions.tabs.utm },
     { id: 'security', label: text.linkOptions.tabs.security },
-    { id: 'ab', label: text.linkOptions.tabs.ab },
+    { id: 'rules', label: text.linkOptions.tabs.rules },
     { id: 'misc', label: text.linkOptions.tabs.misc },
   ]);
 
@@ -96,13 +93,8 @@
         optionAllowed('password')
       );
     }
-    if (tab === 'ab')
-      return optionAllowed('abUrl') || optionAllowed('abPercent');
-    return (
-      optionAllowed('tags') ||
-      optionAllowed('mobileUrl') ||
-      optionAllowed('desktopUrl')
-    );
+    if (tab === 'rules') return optionAllowed('redirectRules');
+    return optionAllowed('tags');
   }
 
   const visibleTabs = $derived(tabs.filter((tab) => tabAllowed(tab.id)));
@@ -154,6 +146,13 @@
     return Array.isArray(value) ? value.join(', ') : textValue(value);
   }
 
+  function redirectRulesValue() {
+    const value = optionValue('redirectRules');
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return JSON.stringify(value, null, 2);
+    return '';
+  }
+
   function datetimeLocalValue() {
     const value = optionValue('expiresAt');
     if (!value) return '';
@@ -178,10 +177,7 @@
       stringOption('utmCampaign') ||
       stringOption('utmTerm') ||
       stringOption('utmContent') ||
-      stringOption('mobileUrl') ||
-      stringOption('desktopUrl') ||
-      stringOption('abUrl') ||
-      numberOption('abPercent') ||
+      redirectRulesValue() ||
       values?.passwordProtected,
     );
   }
@@ -417,37 +413,27 @@
     </div>
   {/if}
 
-  {#if tabAllowed('ab')}
+  {#if tabAllowed('rules')}
     <div
-      id={`${idPrefix}-ab`}
+      id={`${idPrefix}-rules`}
       class="option-panel"
       role="tabpanel"
-      hidden={activeTab !== 'ab'}
+      hidden={activeTab !== 'rules'}
     >
-      {#if optionAllowed('abUrl')}
-        <label>
-          <span>{text.linkOptions.abUrl} <em>{text.common.optional}</em></span>
-          <input
-            name="abUrl"
-            type="text"
-            inputmode="url"
-            placeholder="https://example.com/variant"
-            value={stringOption('abUrl')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('abPercent')}
-        <label>
-          <span>{text.linkOptions.abPercent} <em>0-100</em></span>
-          <input
-            name="abPercent"
-            type="number"
-            min="0"
-            max="100"
-            value={numberOption('abPercent')}
-          />
-        </label>
-      {/if}
+      <label class="wide">
+        <span
+          >{text.linkOptions.redirectRules}
+          <em>{text.linkOptions.redirectRulesHelp}</em></span
+        >
+        <textarea
+          class="rules-json"
+          name="redirectRules"
+          rows="7"
+          spellcheck="false"
+          placeholder={text.linkOptions.redirectRulesPlaceholder}
+          >{redirectRulesValue()}</textarea
+        >
+      </label>
     </div>
   {/if}
 
@@ -469,34 +455,6 @@
             type="text"
             placeholder="ads, blog, client-a"
             value={tagsValue()}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('mobileUrl')}
-        <label>
-          <span
-            >{text.linkOptions.mobileUrl} <em>{text.common.optional}</em></span
-          >
-          <input
-            name="mobileUrl"
-            type="text"
-            inputmode="url"
-            placeholder="https://m.example.com"
-            value={stringOption('mobileUrl')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('desktopUrl')}
-        <label>
-          <span
-            >{text.linkOptions.desktopUrl} <em>{text.common.optional}</em></span
-          >
-          <input
-            name="desktopUrl"
-            type="text"
-            inputmode="url"
-            placeholder="https://www.example.com"
-            value={stringOption('desktopUrl')}
           />
         </label>
       {/if}
@@ -784,6 +742,13 @@
     padding: 12px;
     line-height: 1.5;
     resize: vertical;
+  }
+
+  .rules-json {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace;
+    font-size: 0.75rem;
   }
 
   input:not([type='checkbox']):not([type='radio']):not([type='hidden']):focus,

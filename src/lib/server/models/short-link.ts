@@ -27,10 +27,7 @@ export class ShortLinkModel extends Model<
   declare max_clicks: CreationOptional<number>;
   declare password_hash: string | null;
   declare password_salt: string | null;
-  declare mobile_url: string | null;
-  declare desktop_url: string | null;
-  declare ab_url: string | null;
-  declare ab_percent: CreationOptional<number>;
+  declare redirect_rules: CreationOptional<Record<string, unknown>[]>;
   declare health_status: CreationOptional<string>;
   declare health_status_code: number | null;
   declare health_checked_at: Date | null;
@@ -115,22 +112,10 @@ export function initShortLinkModel(sequelize: Sequelize) {
         type: DataTypes.STRING(32),
         allowNull: true,
       },
-      mobile_url: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
-      desktop_url: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
-      ab_url: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
-      ab_percent: {
-        type: DataTypes.INTEGER,
+      redirect_rules: {
+        type: DataTypes.JSONB,
         allowNull: false,
-        defaultValue: 0,
+        defaultValue: [],
       },
       health_status: {
         type: DataTypes.STRING(24),

@@ -17,7 +17,20 @@ import {
 } from './database';
 import { browserLabelFromClientHints } from './client-hints';
 import { getSettings } from './settings';
-import { linkEditFieldKeys, type SiteSettings } from '$lib/config';
+import {
+  linkEditFieldKeys,
+  redirectRuleConditionKeys,
+  type LinkOptionKey,
+  type SiteSettings,
+} from '$lib/config';
+import {
+  matchingRedirectRule,
+  normalizeRedirectRules,
+  redirectRuleContextFromRequest,
+  redirectRulePermissionKeysFromRules,
+  storedRedirectRules,
+  type RedirectRule,
+} from './redirect-rules';
 import type { LinkOwner } from './link-owner';
 import type { LinkSearchState } from '$lib/search';
 import { serverMessage } from '$lib/i18n/ui-text';
@@ -66,10 +79,7 @@ export interface LinkOperationsInput {
   utmCampaign?: string;
   utmTerm?: string;
   utmContent?: string;
-  mobileUrl?: string;
-  desktopUrl?: string;
-  abUrl?: string;
-  abPercent?: string | number | null;
+  redirectRules?: string | RedirectRule[] | null;
 }
 
 export interface LinkSmartOptions {
@@ -79,10 +89,7 @@ export interface LinkSmartOptions {
 }
 
 export interface LinkRoutingOptions {
-  mobileUrl: string;
-  desktopUrl: string;
-  abUrl: string;
-  abPercent: number;
+  redirectRules: RedirectRule[];
 }
 
 export interface LinkHealth {
@@ -161,6 +168,7 @@ export interface UpdateLinkOptions {
   editableFields?: LinkEditField[];
   linkSettings?: SiteSettings['links'];
   owner?: LinkOwner;
+  partial?: boolean;
 }
 
 export type UpdateLinkResult =
@@ -233,10 +241,7 @@ function publicLink(link: ShortLinkModel, owner?: LinkOwner): Link {
       passwordProtected: Boolean(link.password_hash && link.password_salt),
     },
     routing: {
-      mobileUrl: link.mobile_url ?? '',
-      desktopUrl: link.desktop_url ?? '',
-      abUrl: link.ab_url ?? '',
-      abPercent: Math.max(0, Math.min(100, link.ab_percent ?? 0)),
+      redirectRules: storedRedirectRules(link.redirect_rules),
     },
     health: {
       status: healthStatus(link.health_status),
@@ -299,15 +304,6 @@ function normalizeUrl(
 
   if (settings.stripUrlHash) parsed.hash = '';
   return parsed.toString();
-}
-
-function normalizeOptionalUrl(
-  raw: string | undefined,
-  settings: SiteSettings['links'],
-  options: { isAdmin?: boolean },
-) {
-  const value = (raw ?? '').trim();
-  return value ? normalizeUrl(value, settings, options) : null;
 }
 
 function normalizeUtmValue(value: string | undefined) {
@@ -384,21 +380,31 @@ function normalizePreviewForUpdate(
   input: LinkPreviewInput = {},
   fields: Set<LinkEditField>,
   existing: ShortLinkModel,
+  partial = false,
 ) {
   const preview = normalizeStoredPreview(existing.preview);
-  if (fields.has('previewTitle')) {
+  if (fields.has('previewTitle') && (!partial || input.title !== undefined)) {
     preview.title = (input.title ?? '').trim().slice(0, 160);
   }
-  if (fields.has('previewDescription')) {
+  if (
+    fields.has('previewDescription') &&
+    (!partial || input.description !== undefined)
+  ) {
     preview.description = (input.description ?? '').trim().slice(0, 500);
   }
-  if (fields.has('previewImageUrl')) {
+  if (
+    fields.has('previewImageUrl') &&
+    (!partial || input.imageUrl !== undefined)
+  ) {
     preview.imageUrl = normalizePreviewImageUrl(input.imageUrl ?? '').slice(
       0,
       700,
     );
   }
-  if (fields.has('themeColor')) {
+  if (
+    fields.has('themeColor') &&
+    (!partial || input.themeColor !== undefined)
+  ) {
     preview.themeColor = normalizeThemeColor(input.themeColor ?? '');
   }
   return { preview };
@@ -490,45 +496,40 @@ function normalizeLinkOperationsForUpdate(
   options: { isAdmin?: boolean },
   existing: ShortLinkModel,
   fields: Set<LinkEditField>,
+  partial = false,
 ) {
   const updates: Record<string, unknown> = {};
 
-  if (fields.has('tags')) updates.tags = normalizedTags(input.tags);
+  if (fields.has('tags') && (!partial || input.tags !== undefined)) {
+    updates.tags = normalizedTags(input.tags);
+  }
 
-  if (fields.has('expiresAt')) {
+  if (fields.has('expiresAt') && (!partial || input.expiresAt !== undefined)) {
     updates.expires_at = normalizeDate(input.expiresAt);
   }
-  if (fields.has('maxClicks')) {
+  if (fields.has('maxClicks') && (!partial || input.maxClicks !== undefined)) {
     updates.max_clicks = normalizeNonNegativeInt(
       input.maxClicks,
       2_000_000_000,
     );
   }
 
-  if (fields.has('password')) {
+  if (
+    fields.has('password') &&
+    (!partial ||
+      input.password !== undefined ||
+      input.clearPassword !== undefined)
+  ) {
     Object.assign(updates, passwordFields(input, existing));
   }
 
-  if (fields.has('mobileUrl')) {
-    updates.mobile_url = normalizeOptionalUrl(
-      input.mobileUrl,
+  if (fields.has('redirectRules') && input.redirectRules !== undefined) {
+    updates.redirect_rules = normalizeRedirectRulesForStorage(
+      input.redirectRules,
       settings,
       options,
+      redirectRuleEditPermissions(fields),
     );
-  }
-  if (fields.has('desktopUrl')) {
-    updates.desktop_url = normalizeOptionalUrl(
-      input.desktopUrl,
-      settings,
-      options,
-    );
-  }
-
-  if (fields.has('abUrl')) {
-    updates.ab_url = normalizeOptionalUrl(input.abUrl, settings, options);
-  }
-  if (fields.has('abPercent')) {
-    updates.ab_percent = normalizeNonNegativeInt(input.abPercent, 100);
   }
 
   return updates;
@@ -556,21 +557,53 @@ function normalizeLinkOperationsForCreate(
     Object.assign(fields, passwordFields({ password }));
   }
 
-  const mobileUrl = normalizeOptionalUrl(input.mobileUrl, settings, options);
-  if (mobileUrl) fields.mobile_url = mobileUrl;
-
-  const desktopUrl = normalizeOptionalUrl(input.desktopUrl, settings, options);
-  if (desktopUrl) fields.desktop_url = desktopUrl;
-
-  const abUrl = normalizeOptionalUrl(input.abUrl, settings, options);
-  if (abUrl) fields.ab_url = abUrl;
-
-  if (input.abPercent !== undefined && input.abPercent !== null) {
-    const abPercent = normalizeNonNegativeInt(input.abPercent, 100);
-    if (abPercent > 0) fields.ab_percent = abPercent;
+  if (input.redirectRules !== undefined && input.redirectRules !== null) {
+    const redirectRules = normalizeRedirectRulesForStorage(
+      input.redirectRules,
+      settings,
+      options,
+    );
+    if (redirectRules.length > 0) fields.redirect_rules = redirectRules;
   }
 
   return fields;
+}
+
+function normalizeRedirectRulesForStorage(
+  value: LinkOperationsInput['redirectRules'],
+  settings: SiteSettings['links'],
+  options: { isAdmin?: boolean },
+  permissions: Partial<Record<LinkOptionKey, boolean>> = settings.options,
+) {
+  const redirectRules = normalizeRedirectRules(value, (raw) =>
+    normalizeUrl(raw, settings, options),
+  );
+
+  if (redirectRules.length === 0 || options.isAdmin) return redirectRules;
+
+  if (!permissions.redirectRules) {
+    throw new Error(serverMessage('optionDenied', { label: 'redirectRules' }));
+  }
+
+  for (const key of redirectRulePermissionKeysFromRules(redirectRules)) {
+    if (!permissions[key]) {
+      throw new Error(serverMessage('optionDenied', { label: key }));
+    }
+  }
+
+  return redirectRules;
+}
+
+function redirectRuleEditPermissions(
+  fields: Set<LinkEditField>,
+): Partial<Record<LinkOptionKey, boolean>> {
+  const permissions: Partial<Record<LinkOptionKey, boolean>> = {
+    redirectRules: fields.has('redirectRules'),
+  };
+  for (const key of redirectRuleConditionKeys) {
+    permissions[key] = fields.has(key);
+  }
+  return permissions;
 }
 
 function validateCode(
@@ -973,24 +1006,16 @@ function mobileUserAgent(userAgent: string) {
   return /android|iphone|ipad|ipod|mobile|opera mini|iemobile/i.test(userAgent);
 }
 
-export function destinationForRequest(link: Link, request: Request) {
-  const userAgent = request.headers.get('user-agent') ?? '';
-
-  if (mobileUserAgent(userAgent) && link.routing.mobileUrl) {
-    return link.routing.mobileUrl;
-  }
-
-  if (!mobileUserAgent(userAgent) && link.routing.desktopUrl) {
-    return link.routing.desktopUrl;
-  }
-
-  if (
-    link.routing.abUrl &&
-    link.routing.abPercent > 0 &&
-    randomInt(100) < link.routing.abPercent
-  ) {
-    return link.routing.abUrl;
-  }
+export function destinationForRequest(
+  link: Link,
+  request: Request,
+  input: { ip?: string; metadata?: Record<string, string> } = {},
+) {
+  const redirectRule = matchingRedirectRule(
+    link.routing.redirectRules,
+    redirectRuleContextFromRequest(request, input),
+  );
+  if (redirectRule) return redirectRule.longUrl;
 
   return link.url;
 }
@@ -1086,7 +1111,7 @@ export async function createLink(
 export async function updateLink(
   code: string,
   input: {
-    url: string;
+    url?: string;
     preview?: LinkPreviewInput;
     operations?: LinkOperationsInput;
   },
@@ -1105,11 +1130,20 @@ export async function updateLink(
 
   const editableFields = editableFieldsSet(options.editableFields);
   const updates: Record<string, unknown> = {};
-  const editableUtmFields = UTM_FIELDS.map(([field]) => field).filter((field) =>
-    editableFields.has(field),
+  const partial = options.partial === true;
+  const editableUtmFields = UTM_FIELDS.map(([field]) => field).filter(
+    (field) =>
+      editableFields.has(field) &&
+      (!partial || input.operations?.[field] !== undefined),
   );
-  if (editableFields.has('url') || editableUtmFields.length > 0) {
-    const baseUrl = editableFields.has('url') ? input.url : link.url;
+  if (
+    (editableFields.has('url') && (!partial || input.url !== undefined)) ||
+    editableUtmFields.length > 0
+  ) {
+    const baseUrl =
+      editableFields.has('url') && input.url !== undefined
+        ? input.url
+        : link.url;
     const operations = Object.fromEntries(
       editableUtmFields.map((field) => [field, input.operations?.[field]]),
     ) as LinkOperationsInput;
@@ -1118,15 +1152,15 @@ export async function updateLink(
       operations,
     );
   }
-  if (
+  const hasEditablePreviewField =
     editableFields.has('previewTitle') ||
     editableFields.has('previewDescription') ||
     editableFields.has('previewImageUrl') ||
-    editableFields.has('themeColor')
-  ) {
+    editableFields.has('themeColor');
+  if (hasEditablePreviewField && (!partial || input.preview !== undefined)) {
     Object.assign(
       updates,
-      normalizePreviewForUpdate(input.preview, editableFields, link),
+      normalizePreviewForUpdate(input.preview, editableFields, link, partial),
     );
   }
   if (input.operations !== undefined) {
@@ -1138,6 +1172,7 @@ export async function updateLink(
         { isAdmin: options.isAdmin },
         link,
         editableFields,
+        partial,
       ),
     );
   }

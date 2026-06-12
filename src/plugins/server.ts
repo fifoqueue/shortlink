@@ -128,6 +128,7 @@ export function parsePluginStates(
   form: FormData,
   current: Record<string, PluginState>,
   defaultLocale: SiteLocale = defaultSiteLocale,
+  settings?: import('$lib/config').SiteSettings,
 ) {
   const next = { ...current };
   for (const definition of pluginDefinitions) {
@@ -144,6 +145,7 @@ export function parsePluginStates(
         locale: defaultLocale,
         fallbackLocale: defaultLocale,
         strings: pluginLocaleStrings(definition, defaultLocale, defaultLocale),
+        settings,
       }),
     };
   }
@@ -234,6 +236,7 @@ export async function collectClickMetadataPlugins(input: {
   request: Request;
   ip: string;
   states: Record<string, PluginState>;
+  settings: import('$lib/config').SiteSettings;
 }) {
   const metadata: Record<string, unknown> = {};
 
@@ -245,6 +248,7 @@ export async function collectClickMetadataPlugins(input: {
       request: input.request,
       ip: input.ip,
       state,
+      settings: input.settings,
     });
     if (value && Object.keys(value).length > 0) {
       metadata[definition.meta.id] = value;

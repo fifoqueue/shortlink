@@ -24,12 +24,30 @@ export function linkPreviewFromForm(form: FormData): LinkPreviewInput {
   };
 }
 
+export function partialLinkPreviewFromForm(
+  form: FormData,
+): LinkPreviewInput | undefined {
+  const preview: LinkPreviewInput = {};
+  if (form.has('previewTitle'))
+    preview.title = stringValue(form, 'previewTitle');
+  if (form.has('previewDescription')) {
+    preview.description = stringValue(form, 'previewDescription');
+  }
+  if (form.has('previewImageUrl')) {
+    preview.imageUrl = stringValue(form, 'previewImageUrl');
+  }
+  if (form.has('themeColor'))
+    preview.themeColor = stringValue(form, 'themeColor');
+
+  return Object.keys(preview).length > 0 ? preview : undefined;
+}
+
 function expiresAtFromForm(form: FormData) {
   return stringValue(form, 'expiresAt');
 }
 
 export function linkOperationsFromForm(form: FormData): LinkOperationsInput {
-  return {
+  const operations: LinkOperationsInput = {
     tags: stringValue(form, 'tags'),
     expiresAt: expiresAtFromForm(form),
     maxClicks: stringValue(form, 'maxClicks'),
@@ -40,11 +58,44 @@ export function linkOperationsFromForm(form: FormData): LinkOperationsInput {
     utmCampaign: stringValue(form, 'utmCampaign'),
     utmTerm: stringValue(form, 'utmTerm'),
     utmContent: stringValue(form, 'utmContent'),
-    mobileUrl: stringValue(form, 'mobileUrl'),
-    desktopUrl: stringValue(form, 'desktopUrl'),
-    abUrl: stringValue(form, 'abUrl'),
-    abPercent: stringValue(form, 'abPercent'),
   };
+
+  if (form.has('redirectRules')) {
+    operations.redirectRules = stringValue(form, 'redirectRules');
+  }
+
+  return operations;
+}
+
+export function partialLinkOperationsFromForm(
+  form: FormData,
+): LinkOperationsInput | undefined {
+  const operations: LinkOperationsInput = {};
+  if (form.has('tags')) operations.tags = stringValue(form, 'tags');
+  if (form.has('expiresAt')) operations.expiresAt = expiresAtFromForm(form);
+  if (form.has('maxClicks')) {
+    operations.maxClicks = stringValue(form, 'maxClicks');
+  }
+  if (form.has('password')) operations.password = stringValue(form, 'password');
+  if (form.has('clearPassword')) {
+    operations.clearPassword = form.get('clearPassword') === 'on';
+  }
+  if (form.has('utmSource'))
+    operations.utmSource = stringValue(form, 'utmSource');
+  if (form.has('utmMedium'))
+    operations.utmMedium = stringValue(form, 'utmMedium');
+  if (form.has('utmCampaign')) {
+    operations.utmCampaign = stringValue(form, 'utmCampaign');
+  }
+  if (form.has('utmTerm')) operations.utmTerm = stringValue(form, 'utmTerm');
+  if (form.has('utmContent')) {
+    operations.utmContent = stringValue(form, 'utmContent');
+  }
+  if (form.has('redirectRules')) {
+    operations.redirectRules = stringValue(form, 'redirectRules');
+  }
+
+  return Object.keys(operations).length > 0 ? operations : undefined;
 }
 
 export function deleteLinksMessage(

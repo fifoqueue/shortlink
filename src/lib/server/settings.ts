@@ -6,6 +6,7 @@ import {
   linkOptionKeys,
   linkedLinkEditFieldPairs,
   linkedLinkOptionKeyPairs,
+  redirectRuleConditionKeys,
   siteLocaleKeys,
   themePresets,
   type ColorMode,
@@ -112,29 +113,40 @@ function normalizeLinkSettings(settings: SiteSettings) {
       options[right] = allowed;
     }
   }
+  if (!options.redirectRules) {
+    for (const key of redirectRuleConditionKeys) options[key] = false;
+  } else if (redirectRuleConditionKeys.every((key) => !options[key])) {
+    for (const key of redirectRuleConditionKeys) options[key] = true;
+  }
   settings.links.options = options;
   settings.links.allowCustomCodes = options.customCode;
 
   const allowedEditFields = new Set<string>(linkEditFieldKeys);
-  settings.links.editableFields = [
-    ...new Set(
-      settings.links.editableFields
-        .map((field) => String(field))
-        .filter((field): field is (typeof linkEditFieldKeys)[number] =>
-          allowedEditFields.has(field),
-        ),
-    ),
-  ];
+  const editableFieldSet = new Set<(typeof linkEditFieldKeys)[number]>(
+    settings.links.editableFields
+      .map((field) => String(field))
+      .filter((field): field is (typeof linkEditFieldKeys)[number] =>
+        allowedEditFields.has(field),
+      ),
+  );
   for (const pair of linkedLinkEditFieldPairs) {
-    if (pair.some((field) => settings.links.editableFields.includes(field))) {
-      settings.links.editableFields = [
-        ...new Set<(typeof linkEditFieldKeys)[number]>([
-          ...settings.links.editableFields,
-          ...pair,
-        ]),
-      ];
+    if (pair.some((field) => editableFieldSet.has(field))) {
+      for (const field of pair) editableFieldSet.add(field);
     }
   }
+  if (editableFieldSet.has('redirectRules')) {
+    const hasCondition = redirectRuleConditionKeys.some((key) =>
+      editableFieldSet.has(key),
+    );
+    if (!hasCondition) {
+      for (const key of redirectRuleConditionKeys) editableFieldSet.add(key);
+    }
+  } else {
+    for (const key of redirectRuleConditionKeys) editableFieldSet.delete(key);
+  }
+  settings.links.editableFields = linkEditFieldKeys.filter((key) =>
+    editableFieldSet.has(key),
+  );
 }
 
 function normalizeLocalizedContent(

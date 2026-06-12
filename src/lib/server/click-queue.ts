@@ -4,6 +4,7 @@ import type { PluginState } from '$lib/plugin-contracts';
 import { ClickEventQueueModel, ensureDatabase } from './database';
 import { clientHintsFromHeaders } from './client-hints';
 import { getClientIp } from './client-ip';
+import { getSettings } from './settings';
 import { recordClick } from './shortener';
 import { registerServerShutdownTask } from './shutdown';
 
@@ -17,6 +18,7 @@ let collectClickMetadata: (input: {
   request: Request;
   ip: string;
   states: Record<string, PluginState>;
+  settings: SiteSettings;
 }) => Promise<Record<string, unknown>> | Record<string, unknown> = () => ({});
 
 export function setClickMetadataCollector(
@@ -69,6 +71,7 @@ function clientHintMetadata(request: Request) {
 
 async function metadataFor(item: ClickEventQueueModel) {
   const request = requestForQueueItem(item);
+  const settings = await getSettings();
   try {
     return {
       ...clientHintMetadata(request),
@@ -76,6 +79,7 @@ async function metadataFor(item: ClickEventQueueModel) {
         request,
         ip: item.ip_address ?? '',
         states: item.plugin_states as Record<string, PluginState>,
+        settings,
       })),
     };
   } catch (error) {
@@ -188,6 +192,7 @@ async function fallbackRecordClick(input: {
         request: input.request,
         ip: input.ip,
         states: input.settings.plugins,
+        settings: input.settings,
       })),
     },
   });

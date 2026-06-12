@@ -14,8 +14,10 @@
     type LinkSearchState,
   } from '$lib/search';
   import {
+    isRedirectRuleConditionKey,
     linkedLinkEditFieldPairs,
     linkedLinkOptionKeyPairs,
+    redirectRuleConditionKeys,
     siteLocaleKeys,
     siteLocaleLabel,
     themePresets as builtInThemePresets,
@@ -56,10 +58,7 @@
       passwordProtected: boolean;
     };
     routing: {
-      mobileUrl: string;
-      desktopUrl: string;
-      abUrl: string;
-      abPercent: number;
+      redirectRules: unknown[];
     };
     health: {
       status: 'unchecked' | 'ok' | 'warning' | 'broken';
@@ -118,6 +117,7 @@
     ['editAllLinks', 'editAllLinks'],
     ['deleteAllLinks', 'deleteAllLinks'],
     ['statsAllLinks', 'statsAllLinks'],
+    ['statsCsvLinks', 'statsCsvLinks'],
     ['healthAllLinks', 'healthAllLinks'],
   ] as const;
   const linkOptionDefaults = [
@@ -135,10 +135,13 @@
     ['maxClicks', 'maxClicks'],
     ['password', 'password'],
     ['tags', 'tags'],
-    ['mobileUrl', 'mobileDestination'],
-    ['desktopUrl', 'desktopDestination'],
-    ['abUrl', 'abDestination'],
-    ['abPercent', 'abPercentage'],
+    ['redirectRules', 'redirectRules'],
+    ['redirectRuleDevice', 'redirectRuleDevice'],
+    ['redirectRuleLanguage', 'redirectRuleLanguage'],
+    ['redirectRuleQuery', 'redirectRuleQuery'],
+    ['redirectRuleIp', 'redirectRuleIp'],
+    ['redirectRuleGeo', 'redirectRuleGeo'],
+    ['redirectRulePercentage', 'redirectRulePercentage'],
   ] as const;
   const editableFieldDefaults = [
     ['url', 'destinationUrl'],
@@ -155,10 +158,13 @@
     ['maxClicks', 'maxClicks'],
     ['password', 'password'],
     ['tags', 'tags'],
-    ['mobileUrl', 'mobileDestination'],
-    ['desktopUrl', 'desktopDestination'],
-    ['abUrl', 'abDestination'],
-    ['abPercent', 'abPercentage'],
+    ['redirectRules', 'redirectRules'],
+    ['redirectRuleDevice', 'redirectRuleDevice'],
+    ['redirectRuleLanguage', 'redirectRuleLanguage'],
+    ['redirectRuleQuery', 'redirectRuleQuery'],
+    ['redirectRuleIp', 'redirectRuleIp'],
+    ['redirectRuleGeo', 'redirectRuleGeo'],
+    ['redirectRulePercentage', 'redirectRulePercentage'],
   ] as const;
   const localePanels = $derived(
     siteLocaleKeys.map((id) => ({
@@ -197,6 +203,7 @@
     if (name === 'editAllLinks') return data.settings.links.editAll;
     if (name === 'deleteAllLinks') return data.settings.links.deleteAll;
     if (name === 'statsAllLinks') return data.settings.links.statsAll;
+    if (name === 'statsCsvLinks') return data.settings.links.statsCsv;
     return data.settings.links.healthAll;
   }
 
@@ -259,6 +266,50 @@
     );
   }
 
+  function syncRedirectRuleOptionCheckbox(
+    form: HTMLFormElement,
+    key: LinkOptionKey,
+    checked: boolean,
+  ) {
+    if (key === 'redirectRules') {
+      for (const conditionKey of redirectRuleConditionKeys) {
+        const checkbox = formCheckbox(form, `linkOption.${conditionKey}`);
+        if (checkbox) checkbox.checked = checked;
+      }
+      return;
+    }
+
+    if (!isRedirectRuleConditionKey(key)) return;
+    const parent = formCheckbox(form, 'linkOption.redirectRules');
+    if (!parent) return;
+    parent.checked = redirectRuleConditionKeys.some(
+      (conditionKey) =>
+        formCheckbox(form, `linkOption.${conditionKey}`)?.checked === true,
+    );
+  }
+
+  function syncRedirectRuleEditFieldCheckbox(
+    form: HTMLFormElement,
+    key: LinkEditFieldKey,
+    checked: boolean,
+  ) {
+    if (key === 'redirectRules') {
+      for (const conditionKey of redirectRuleConditionKeys) {
+        const checkbox = formCheckbox(form, 'editableFields', conditionKey);
+        if (checkbox) checkbox.checked = checked;
+      }
+      return;
+    }
+
+    if (!isRedirectRuleConditionKey(key)) return;
+    const parent = formCheckbox(form, 'editableFields', 'redirectRules');
+    if (!parent) return;
+    parent.checked = redirectRuleConditionKeys.some(
+      (conditionKey) =>
+        formCheckbox(form, 'editableFields', conditionKey)?.checked === true,
+    );
+  }
+
   function setAllApiCapabilities(checked: boolean) {
     apiGlobalEnabled = checked;
     apiAllowCreate = checked;
@@ -274,6 +325,7 @@
   ) {
     const form = event.currentTarget.form;
     if (!form) return;
+    syncRedirectRuleOptionCheckbox(form, key, event.currentTarget.checked);
     for (const linkedKey of linkedOptionKeys(key)) {
       const checkbox = formCheckbox(form, `linkOption.${linkedKey}`);
       if (checkbox) checkbox.checked = event.currentTarget.checked;
@@ -286,6 +338,7 @@
   ) {
     const form = event.currentTarget.form;
     if (!form) return;
+    syncRedirectRuleEditFieldCheckbox(form, key, event.currentTarget.checked);
     for (const linkedKey of linkedEditFieldKeys(key)) {
       const checkbox = formCheckbox(form, 'editableFields', linkedKey);
       if (checkbox) checkbox.checked = event.currentTarget.checked;
@@ -1070,6 +1123,102 @@
               >{data.settings.network.proxyIpHeaders.join('\n')}</textarea
             ></label
           >
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.geoipTitle}</h3>
+            <p>{text.admin.settings.geoipDescription}</p>
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="geoipEnabled"
+              label={text.admin.settings.geoipEnabled}
+              checked={data.settings.network.geoip.enabled}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="geoipHeadersEnabled"
+              label={text.admin.settings.geoipHeadersEnabled}
+              checked={data.settings.network.geoip.headersEnabled}
+            />
+          </div>
+          <div class="two wide">
+            <label>
+              {text.admin.settings.geoipCountryCodeHeader}
+              <input
+                name="geoipCountryCodeHeader"
+                value={data.settings.network.geoip.countryCodeHeader}
+              />
+            </label>
+            <label>
+              {text.admin.settings.geoipCountryNameHeader}
+              <input
+                name="geoipCountryNameHeader"
+                value={data.settings.network.geoip.countryNameHeader}
+              />
+            </label>
+            <label>
+              {text.admin.settings.geoipCityHeader}
+              <input
+                name="geoipCityNameHeader"
+                value={data.settings.network.geoip.cityNameHeader}
+              />
+            </label>
+            <label>
+              {text.admin.settings.geoipAsnNumberHeader}
+              <input
+                name="geoipAsnNumberHeader"
+                value={data.settings.network.geoip.asnNumberHeader}
+              />
+            </label>
+            <label class="wide">
+              {text.admin.settings.geoipAsnOrganizationHeader}
+              <input
+                name="geoipAsnOrganizationHeader"
+                value={data.settings.network.geoip.asnOrganizationHeader}
+              />
+            </label>
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="geoipMaxmindEnabled"
+              label={text.admin.settings.geoipMaxmindEnabled}
+              checked={data.settings.network.geoip.maxmindEnabled}
+            />
+          </div>
+          <div class="two wide geoip-database-grid">
+            <label>
+              <span class="label-line">
+                {text.admin.settings.geoipCityDatabasePath}
+              </span>
+              <input
+                name="geoipCityDatabasePath"
+                placeholder={text.admin.settings.geoipCityDatabasePlaceholder}
+                value={data.settings.network.geoip.cityDatabasePath}
+              />
+            </label>
+            <label>
+              <span class="label-line">
+                {text.admin.settings.geoipCountryDatabasePath}
+                <small>{text.admin.settings.geoipCountryDatabaseHint}</small>
+              </span>
+              <input
+                name="geoipCountryDatabasePath"
+                placeholder={text.admin.settings
+                  .geoipCountryDatabasePlaceholder}
+                value={data.settings.network.geoip.countryDatabasePath}
+              />
+            </label>
+            <label class="wide">
+              <span class="label-line">
+                {text.admin.settings.geoipAsnDatabasePath}
+              </span>
+              <input
+                name="geoipAsnDatabasePath"
+                placeholder={text.admin.settings.geoipAsnDatabasePlaceholder}
+                value={data.settings.network.geoip.asnDatabasePath}
+              />
+            </label>
+          </div>
           <div class="wide">
             <ToggleField
               name="stripUrlHash"
@@ -1386,6 +1535,40 @@
     font-size: 0.76rem;
     font-weight: 650;
   }
+  .label-line {
+    display: flex;
+    min-height: 18px;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .subsection-heading {
+    display: grid;
+    gap: 6px;
+    border-top: 1px solid var(--admin-border);
+    margin-top: 6px;
+    padding-top: 16px;
+  }
+  .subsection-heading h3 {
+    margin: 0;
+    color: var(--admin-text);
+    font-size: 0.94rem;
+  }
+  .subsection-heading p {
+    margin: 0;
+    color: var(--admin-muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+  .two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .geoip-database-grid {
+    align-items: start;
+    row-gap: 14px;
+  }
   input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
   textarea,
   select {
@@ -1670,6 +1853,9 @@
     }
     .locale-panel > .wide {
       grid-column: auto;
+    }
+    .two {
+      grid-template-columns: 1fr;
     }
   }
   @media (max-width: 380px) {
