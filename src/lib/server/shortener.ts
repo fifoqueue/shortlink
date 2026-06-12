@@ -35,6 +35,7 @@ import {
 import type { LinkOwner } from './link-owner';
 import type { LinkSearchState } from '$lib/search';
 import { serverMessage } from '$lib/i18n/ui-text';
+import { outboundRequest } from './outbound-http';
 import {
   DEFAULT_PAGE_SIZE,
   normalizedPage,
@@ -98,6 +99,7 @@ export interface LinkHealth {
   statusCode: number | null;
   checkedAt: string | null;
   error: string;
+  responseBody: string;
   latencyMs: number | null;
 }
 
@@ -179,6 +181,7 @@ export interface UpdateLinkOptions {
   allowAnyOwner?: boolean;
   editableFields?: LinkEditField[];
   linkSettings?: SiteSettings['links'];
+  siteSettings?: SiteSettings;
   owner?: LinkOwner;
   partial?: boolean;
 }
@@ -311,6 +314,7 @@ function publicLink(link: ShortLinkModel, owner?: LinkOwner): Link {
       statusCode: link.health_status_code ?? null,
       checkedAt: link.health_checked_at?.toISOString() ?? null,
       error: (link.health_error ?? '').slice(0, 500),
+      responseBody: (link.health_response_body ?? '').slice(0, 8_000),
       latencyMs: link.health_latency_ms ?? null,
     },
   };
@@ -1276,25 +1280,72 @@ export async function updateLink(
   return { status: 'updated', link: publicLink(link) };
 }
 
-async function fetchHealth(url: string) {
+function normalizeResponseText(value: string) {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 8_000);
+}
+
+function htmlToPlainText(value: string) {
+  return normalizeResponseText(
+    value
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '\n')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(
+        /<\/(address|article|aside|blockquote|div|footer|form|h[1-6]|header|li|main|nav|ol|p|pre|section|table|tr|ul)>/gi,
+        '\n',
+      )
+      .replace(/<li\b[^>]*>/gi, '- ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'"),
+  );
+}
+
+function plainResponseBody(body: string, contentType: string) {
+  if (!body.trim()) return '';
+  if (/html|xml/i.test(contentType)) return htmlToPlainText(body);
+  return normalizeResponseText(body)
+    .replace(/<[^>]+>/g, ' ')
+    .trim();
+}
+
+async function fetchHealth(url: string, settings: SiteSettings) {
   const startedAt = Date.now();
 
   try {
-    let response = await fetch(url, {
+    let response = await outboundRequest({
+      url,
       method: 'HEAD',
-      redirect: 'follow',
-      signal: AbortSignal.timeout(8_000),
+      settings,
+      purpose: 'link-health',
+      timeoutMs: 8_000,
     });
 
-    if (response.status === 405 || response.status === 403) {
-      response = await fetch(url, {
+    if (response.status === 405 || response.status >= 400) {
+      response = await outboundRequest({
+        url,
         method: 'GET',
-        redirect: 'follow',
-        signal: AbortSignal.timeout(8_000),
+        settings,
+        purpose: 'link-health',
+        timeoutMs: 8_000,
       });
     }
 
     const latencyMs = Date.now() - startedAt;
+    const isErrorResponse = response.status >= 400;
+    const responseBody = isErrorResponse
+      ? plainResponseBody(response.body, response.headers['content-type'] ?? '')
+      : '';
     return {
       status:
         response.status >= 500
@@ -1303,7 +1354,10 @@ async function fetchHealth(url: string) {
             ? ('warning' as const)
             : ('ok' as const),
       statusCode: response.status,
-      error: '',
+      error: isErrorResponse
+        ? `${response.status}${response.statusText ? ` ${response.statusText}` : ''}`
+        : '',
+      responseBody,
       latencyMs,
     };
   } catch (error) {
@@ -1312,6 +1366,7 @@ async function fetchHealth(url: string) {
       statusCode: null,
       error:
         error instanceof Error ? error.message.slice(0, 500) : 'Request failed',
+      responseBody: '',
       latencyMs: Date.now() - startedAt,
     };
   }
@@ -1331,12 +1386,14 @@ export async function checkLinkHealth(
     }
   }
 
-  const result = await fetchHealth(link.url);
+  const settings = options.siteSettings ?? (await getSettings());
+  const result = await fetchHealth(link.url, settings);
   await link.update({
     health_status: result.status,
     health_status_code: result.statusCode,
     health_checked_at: new Date(),
     health_error: result.error,
+    health_response_body: result.responseBody || null,
     health_latency_ms: result.latencyMs,
   });
 

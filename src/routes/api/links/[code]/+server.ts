@@ -265,6 +265,7 @@ export const POST: RequestHandler = async ({
   const result = await checkLinkHealth(code, {
     isAdmin: api.principal.isAdmin,
     allowAnyOwner: permissions.links.healthAll,
+    siteSettings: settings,
     owner: { userId: api.principal.id },
   });
   if (result.status === 'not_found') {

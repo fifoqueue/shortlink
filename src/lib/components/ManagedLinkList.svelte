@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import { keepFormValues } from '$lib/forms';
   import {
     allAllowedSelected,
@@ -54,8 +55,14 @@
       statusCode: number | null;
       checkedAt: string | null;
       error: string;
+      responseBody: string;
       latencyMs: number | null;
     };
+  };
+
+  type HealthActionData = Record<string, unknown> & {
+    healthResponseBody?: string;
+    healthStatusCode?: number | null;
   };
 
   type SearchConfig = {
@@ -130,6 +137,10 @@
   );
   let copiedCode = $state<string | null>(null);
   let selectedCodes = $state<string[]>([]);
+  let healthResponseModal = $state<{
+    title: string;
+    body: string;
+  } | null>(null);
 
   const deletableCodes = $derived(
     links.filter(canDelete).map((link) => link.code),
@@ -198,6 +209,40 @@
 
   function canEditLink(link: ManagedLinkItem) {
     return canEdit(link) && editableFields.length > 0;
+  }
+
+  function healthResponseTitle(
+    link: ManagedLinkItem,
+    statusCode: number | null = link.health.statusCode,
+  ) {
+    return formatText(text.managedLinks.healthResponseTitle, {
+      code: link.code,
+      status: statusCode ?? text.common.notChecked,
+    });
+  }
+
+  function openHealthResponse(link: ManagedLinkItem, body: string) {
+    const textBody = body.trim();
+    if (!textBody) return;
+    healthResponseModal = {
+      title: healthResponseTitle(link),
+      body: textBody,
+    };
+  }
+
+  function healthCheckEnhance(link: ManagedLinkItem): SubmitFunction {
+    return () =>
+      async ({ result, update }) => {
+        await update();
+        if (result.type !== 'success' && result.type !== 'failure') return;
+        const data = result.data as HealthActionData | undefined;
+        if (data?.healthResponseBody?.trim()) {
+          healthResponseModal = {
+            title: healthResponseTitle(link, data.healthStatusCode ?? null),
+            body: data.healthResponseBody.trim(),
+          };
+        }
+      };
   }
 
   function editAllowedOptions(): Partial<Record<LinkOptionKey, boolean>> {
@@ -300,7 +345,11 @@
           {/if}
         </div>
         <div class="meta">
-          <span>{link.clicks} clicks</span>
+          <span
+            >{formatText(text.managedLinks.clickCount, {
+              count: link.clicks,
+            })}</span
+          >
           <span>{new Date(link.created_at).toLocaleDateString()}</span>
           <span
             class:ok={link.health.status === 'ok'}
@@ -322,11 +371,19 @@
               class="inline-form"
               method="POST"
               action={healthAction}
-              use:enhance
+              use:enhance={healthCheckEnhance(link)}
             >
               <input type="hidden" name="code" value={link.code} />
               <button type="submit">{text.managedLinks.health}</button>
             </form>
+          {/if}
+          {#if link.health.responseBody}
+            <button
+              type="button"
+              onclick={() => openHealthResponse(link, link.health.responseBody)}
+            >
+              {text.managedLinks.healthResponse}
+            </button>
           {/if}
           <DangerConfirmButton
             formId={deleteFormId}
@@ -404,6 +461,25 @@
     label={pageLabel}
     {locale}
   />
+{/if}
+
+{#if healthResponseModal}
+  <div class="modal-backdrop" role="presentation">
+    <div
+      class="health-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={healthResponseModal.title}
+    >
+      <div class="modal-head">
+        <h2>{healthResponseModal.title}</h2>
+        <button type="button" onclick={() => (healthResponseModal = null)}>
+          {text.managedLinks.closeHealthResponse}
+        </button>
+      </div>
+      <pre>{healthResponseModal.body}</pre>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -620,6 +696,69 @@
     padding: 50px 20px;
     color: var(--managed-link-muted, var(--muted));
     text-align: center;
+  }
+  .modal-backdrop {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: color-mix(
+      in srgb,
+      var(--managed-link-text, var(--text)) 45%,
+      transparent
+    );
+  }
+  .health-modal {
+    display: grid;
+    width: min(760px, 100%);
+    max-height: min(760px, 86vh);
+    overflow: hidden;
+    border: 1px solid var(--managed-link-border, var(--border));
+    border-radius: var(--managed-link-radius, var(--radius));
+    background: var(--managed-link-surface, var(--surface));
+    color: var(--managed-link-text, var(--text));
+    box-shadow: 0 24px 80px
+      color-mix(in srgb, var(--managed-link-text, var(--text)) 20%, transparent);
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--managed-link-border, var(--border));
+    padding: 14px 16px;
+  }
+  .modal-head h2 {
+    margin: 0;
+    font-size: 0.98rem;
+  }
+  .modal-head button {
+    min-height: 34px;
+    border: 1px solid var(--managed-link-border, var(--border));
+    border-radius: 8px;
+    padding: 7px 10px;
+    background: transparent;
+    color: var(--managed-link-muted, var(--muted));
+    font-size: 0.76rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .health-modal pre {
+    max-height: calc(86vh - 70px);
+    margin: 0;
+    overflow: auto;
+    padding: 16px;
+    color: var(--managed-link-text, var(--text));
+    font:
+      0.82rem/1.55 ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Consolas,
+      monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   @media (max-width: 820px) {
     .link-row {

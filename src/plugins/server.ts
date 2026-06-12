@@ -10,6 +10,10 @@ import type {
 } from '$lib/plugin-contracts';
 import { defaultSiteLocale, type SiteLocale } from '$lib/config';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
+import {
+  registerOutboundProxyProtocol,
+  registerOutboundProxyResolver,
+} from '$lib/server/outbound-http';
 import { pluginFolderFromPath } from './utils';
 
 type PluginModule = { default: PluginDefinition };
@@ -29,10 +33,13 @@ type ServerPluginModule = {
       | 'collectClickMetadata'
       | 'formatClickMetadata'
       | 'getClickMetadataSearchFields'
+      | 'outboundProxyProtocols'
+      | 'handleOutboundProxyRequest'
       | 'loadAccountData'
       | 'loadAdminData'
       | 'loadAdminSubpage'
       | 'loadUserAdminData'
+      | 'resolveOutboundProxy'
       | 'validateConfig'
       | 'verifyFormSubmission'
     >
@@ -65,6 +72,75 @@ export const pluginDefinitions = Object.entries(modules)
       (left.meta.order ?? 100) - (right.meta.order ?? 100) ||
       left.meta.name.localeCompare(right.meta.name),
   );
+
+for (const definition of pluginDefinitions) {
+  for (const protocol of definition.outboundProxyProtocols ?? []) {
+    registerOutboundProxyProtocol({
+      protocol: protocol.protocol,
+      defaultPort: protocol.defaultPort,
+      request: async (input) => {
+        const state = input.settings.plugins[definition.meta.id];
+        if (!state?.enabled || !definition.handleOutboundProxyRequest) {
+          throw new Error(
+            `Outbound proxy protocol "${protocol.protocol}" is not available.`,
+          );
+        }
+
+        const result = await definition.handleOutboundProxyRequest({
+          url: input.url,
+          method: input.method,
+          proxy: {
+            protocol: input.proxy.protocol,
+            host: input.proxy.host,
+            port: input.proxy.port,
+            username: input.proxy.username,
+            password: input.proxy.password,
+            rawUrl: input.proxy.rawUrl,
+            searchParams: input.proxy.searchParams,
+          },
+          purpose: input.purpose,
+          timeoutMs: input.timeoutMs,
+          state,
+          settings: input.settings,
+        });
+
+        return {
+          url: result.url,
+          status: result.status,
+          statusText: result.statusText ?? '',
+          headers: result.headers ?? {},
+          body: result.body ?? '',
+        };
+      },
+    });
+  }
+}
+
+registerOutboundProxyResolver(async (input) => {
+  for (const definition of pluginDefinitions) {
+    const state = input.settings.plugins[definition.meta.id];
+    if (!state?.enabled || !definition.resolveOutboundProxy) continue;
+    const proxy = await definition.resolveOutboundProxy({
+      url: input.url,
+      purpose: input.purpose,
+      state,
+      settings: input.settings,
+    });
+    if (proxy) {
+      return {
+        protocol: proxy.protocol,
+        host: proxy.host,
+        port: proxy.port,
+        username: proxy.username ?? '',
+        password: proxy.password ?? '',
+        rawUrl: proxy.rawUrl,
+        searchParams: proxy.searchParams,
+      };
+    }
+  }
+
+  return null;
+});
 
 export function isRequiredPlugin(definition: PluginDefinition) {
   return definition.meta.required === true;

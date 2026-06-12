@@ -136,6 +136,10 @@ export interface SiteSettings {
       asnNumberHeader: string;
       asnOrganizationHeader: string;
     };
+    outboundProxy: {
+      enabled: boolean;
+      url: string;
+    };
   };
   general: {
     siteName: string;
@@ -264,6 +268,12 @@ export const defaultGeoipSettings: SiteSettings['network']['geoip'] = {
   asnNumberHeader: 'X-GeoIP-ASN',
   asnOrganizationHeader: 'X-GeoIP-ASN-Organization',
 };
+
+export const defaultOutboundProxySettings: SiteSettings['network']['outboundProxy'] =
+  {
+    enabled: false,
+    url: '',
+  };
 
 export function geoipSettingsConfigured(
   settings: SiteSettings['network']['geoip'],
@@ -409,6 +419,7 @@ export const defaultSettings: SiteSettings = {
     trustProxyHeaders: false,
     proxyIpHeaders: defaultProxyIpHeaders,
     geoip: defaultGeoipSettings,
+    outboundProxy: defaultOutboundProxySettings,
   },
   general: {
     siteName: defaultSiteContent.general.siteName,

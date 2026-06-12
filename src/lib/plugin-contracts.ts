@@ -89,6 +89,29 @@ export interface ClickMetadataSearchField {
   paths: string[][];
 }
 
+export interface PluginOutboundProxyConfig {
+  protocol: string;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  rawUrl?: string;
+  searchParams?: Record<string, string>;
+}
+
+export interface PluginOutboundProxyProtocol {
+  protocol: string;
+  defaultPort: number;
+}
+
+export interface PluginOutboundProxyRequestResult {
+  url: string;
+  status: number;
+  statusText?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
 export interface AuthMethodPresentation {
   buttonColor?: string;
   buttonTextColor?: string;
@@ -360,6 +383,28 @@ export interface PluginDefinition {
     isAdmin: boolean;
     isOwner: boolean;
   }) => ClickMetadataSearchField[] | Promise<ClickMetadataSearchField[]>;
+  outboundProxyProtocols?: PluginOutboundProxyProtocol[];
+  resolveOutboundProxy?: (input: {
+    url: URL;
+    purpose: string;
+    state: PluginState;
+    settings: SiteSettings;
+  }) =>
+    | PluginOutboundProxyConfig
+    | null
+    | undefined
+    | Promise<PluginOutboundProxyConfig | null | undefined>;
+  handleOutboundProxyRequest?: (input: {
+    url: URL;
+    method: 'HEAD' | 'GET';
+    proxy: PluginOutboundProxyConfig;
+    purpose: string;
+    timeoutMs: number;
+    state: PluginState;
+    settings: SiteSettings;
+  }) =>
+    | PluginOutboundProxyRequestResult
+    | Promise<PluginOutboundProxyRequestResult>;
   publicConfig?: (config: PluginConfig) => PluginConfig;
   transformCreateUrl?: (url: URL, form: FormData, config: PluginConfig) => URL;
 }

@@ -51,6 +51,7 @@ import {
 import {
   defaultLocalizedContentFor,
   defaultGeoipSettings,
+  defaultOutboundProxySettings,
   linkedLinkEditFieldPairs,
   linkedLinkOptionKeyPairs,
   redirectRuleConditionKeys,
@@ -61,6 +62,7 @@ import {
   type ThemeTokens,
 } from '$lib/config';
 import { localeFromValue } from '$lib/i18n';
+import { parseOutboundProxyUrl } from '$lib/server/outbound-http';
 import {
   formatText,
   localizeServerMessage,
@@ -214,6 +216,17 @@ function parseGeoipSettings(form: FormData) {
   };
   validateGeoipSettings(settings);
   return settings;
+}
+
+function parseOutboundProxySettings(form: FormData) {
+  const enabled = parseBoolean(form, 'outboundProxyEnabled');
+  const url = stringValue(
+    form,
+    'outboundProxyUrl',
+    defaultOutboundProxySettings.url,
+  ).slice(0, 1_000);
+  if (enabled) parseOutboundProxyUrl(url);
+  return { enabled, url };
 }
 
 function selectedKeys<T extends string>(
@@ -616,6 +629,7 @@ export const actions: Actions = {
         },
         emailVerification: mergeEmailSettings(form, settings),
       };
+      settings.network.outboundProxy = parseOutboundProxySettings(form);
     } catch (cause) {
       return fail(400, {
         ok: false,
@@ -624,7 +638,7 @@ export const actions: Actions = {
           cause,
           locals.locale,
           locals.settings.i18n.defaultLocale,
-          text.admin.messages.emailSettingsFailed,
+          text.admin.messages.generalSettingsFailed,
         ),
       });
     }
@@ -726,6 +740,8 @@ export const actions: Actions = {
           stringValue(form, 'proxyIpHeaders'),
         ),
         geoip: parseGeoipSettings(form),
+        outboundProxy:
+          settings.network.outboundProxy ?? defaultOutboundProxySettings,
       };
     } catch (cause) {
       return fail(400, {
@@ -993,6 +1009,7 @@ export const actions: Actions = {
     const result = await checkLinkHealth(code, {
       isAdmin: locals.isAdmin,
       allowAnyOwner: permissions.links.healthAll,
+      siteSettings: locals.settings,
       owner: getLinkOwner({
         cookies,
         userId: locals.user?.id,
@@ -1018,6 +1035,9 @@ export const actions: Actions = {
       message: formatText(text.messages.healthChecked, {
         code: result.link.code,
       }),
+      healthResponseBody: result.link.health.responseBody,
+      healthStatus: result.link.health.status,
+      healthStatusCode: result.link.health.statusCode,
     };
   },
 };

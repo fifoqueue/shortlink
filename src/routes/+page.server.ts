@@ -442,6 +442,7 @@ export const actions: Actions = {
     const result = await checkLinkHealth(code, {
       isAdmin: locals.isAdmin,
       allowAnyOwner: permissions.links.healthAll,
+      siteSettings: settings,
       owner: getLinkOwner({
         cookies,
         userId: locals.user?.id,
@@ -470,6 +471,9 @@ export const actions: Actions = {
       message: formatText(text.messages.healthChecked, {
         code: result.link.code,
       }),
+      healthResponseBody: result.link.health.responseBody,
+      healthStatus: result.link.health.status,
+      healthStatusCode: result.link.health.statusCode,
     };
   },
 

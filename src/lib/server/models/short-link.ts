@@ -32,6 +32,7 @@ export class ShortLinkModel extends Model<
   declare health_status_code: number | null;
   declare health_checked_at: Date | null;
   declare health_error: string | null;
+  declare health_response_body: string | null;
   declare health_latency_ms: number | null;
 }
 
@@ -131,6 +132,10 @@ export function initShortLinkModel(sequelize: Sequelize) {
         allowNull: true,
       },
       health_error: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      health_response_body: {
         type: DataTypes.TEXT,
         allowNull: true,
       },

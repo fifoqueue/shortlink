@@ -65,6 +65,7 @@
       statusCode: number | null;
       checkedAt: string | null;
       error: string;
+      responseBody: string;
       latencyMs: number | null;
     };
   };
@@ -529,6 +530,26 @@
                 >{text.admin.settings.publicVisibility}</option
               >
             </select>
+          </label>
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.outboundProxyTitle}</h3>
+            <p>{text.admin.settings.outboundProxyDescription}</p>
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="outboundProxyEnabled"
+              label={text.admin.settings.outboundProxyEnabled}
+              checked={data.settings.network.outboundProxy.enabled}
+            />
+          </div>
+          <label class="wide">
+            {text.admin.settings.outboundProxyUrl}
+            <small>{text.admin.settings.outboundProxyUrlHelp}</small>
+            <input
+              name="outboundProxyUrl"
+              placeholder={text.admin.settings.outboundProxyUrlPlaceholder}
+              value={data.settings.network.outboundProxy.url}
+            />
           </label>
         </div>
       </section>

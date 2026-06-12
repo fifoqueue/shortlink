@@ -49,6 +49,7 @@
       statusCode: number | null;
       checkedAt: string | null;
       error: string;
+      responseBody: string;
       latencyMs: number | null;
     };
   };
