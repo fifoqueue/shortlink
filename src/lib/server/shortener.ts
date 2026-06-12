@@ -133,6 +133,12 @@ export interface ClickEvent {
   metadata: Record<string, unknown>;
 }
 
+export type ClickInsightAlert = {
+  type: 'repeatedIp';
+  count: number;
+  value: string;
+};
+
 type RedirectLink = Link & {
   passwordHash: string | null;
   passwordSalt: string | null;
@@ -906,8 +912,9 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
       repeatedIp && repeatedIp.count >= 10
         ? [
             {
-              label: 'Repeated IP',
-              message: `${repeatedIp.count} recent sample clicks from ${repeatedIp.label}`,
+              type: 'repeatedIp' as const,
+              count: repeatedIp.count,
+              value: repeatedIp.label,
             },
           ]
         : [],

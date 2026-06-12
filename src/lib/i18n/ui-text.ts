@@ -539,6 +539,9 @@ const ko = {
     browsers: '브라우저/기기',
     browser: '브라우저',
     countries: '국가',
+    repeatedIpAlert: '반복 IP',
+    repeatedIpAlertMessage:
+      '최근 샘플 클릭 {count}개가 {value}에서 발생했습니다.',
     metadata: '메타데이터',
     metadataCount: '추적 데이터 {count}개',
     redirectResult: '리다이렉트 결과',
@@ -1255,6 +1258,8 @@ const en: typeof ko = {
     browsers: 'Browsers/devices',
     browser: 'Browser',
     countries: 'Countries',
+    repeatedIpAlert: 'Repeated IP',
+    repeatedIpAlertMessage: '{count} recent sample clicks from {value}',
     metadata: 'Metadata',
     metadataCount: '{count} tracking details',
     redirectResult: 'Redirect result',

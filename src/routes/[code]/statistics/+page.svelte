@@ -23,6 +23,12 @@
     details: Array<{ label: string; value: string }>;
   };
 
+  type InsightAlert = {
+    type: 'repeatedIp';
+    count: number;
+    value: string;
+  };
+
   type LinkStats = {
     code: string;
     url: string;
@@ -47,7 +53,7 @@
       topReferrers: Array<{ label: string; count: number }>;
       topBrowsers: Array<{ label: string; count: number }>;
       topCountries: Array<{ label: string; count: number }>;
-      alerts: Array<{ label: string; message: string }>;
+      alerts: InsightAlert[];
     };
     health: {
       status: 'unchecked' | 'ok' | 'warning' | 'broken';
@@ -184,6 +190,21 @@
       creator.ipAddress ? `IP ${creator.ipAddress}` : '',
     ];
     return details.filter(Boolean).join(' · ');
+  }
+
+  function alertLabel(alert: InsightAlert) {
+    if (alert.type === 'repeatedIp') return text.stats.repeatedIpAlert;
+    return '';
+  }
+
+  function alertMessage(alert: InsightAlert) {
+    if (alert.type === 'repeatedIp') {
+      return formatText(text.stats.repeatedIpAlertMessage, {
+        count: alert.count.toLocaleString(),
+        value: alert.value,
+      });
+    }
+    return '';
   }
 </script>
 
@@ -333,8 +354,8 @@
     </div>
     {#if data.link.insights.alerts.length > 0}
       <div class="alerts">
-        {#each data.link.insights.alerts as alert (`${alert.label}:${alert.message}`)}
-          <p><strong>{alert.label}</strong> {alert.message}</p>
+        {#each data.link.insights.alerts as alert (`${alert.type}:${alert.value}`)}
+          <p><strong>{alertLabel(alert)}</strong> {alertMessage(alert)}</p>
         {/each}
       </div>
     {/if}
