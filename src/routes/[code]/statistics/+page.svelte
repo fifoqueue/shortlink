@@ -17,6 +17,7 @@
   type ClickEvent = {
     created_at: string;
     ip: string | null;
+    browser: string;
     user_agent: string | null;
     referer: string | null;
     details: Array<{ label: string; value: string }>;
@@ -79,6 +80,8 @@
 
   const text = $derived(uiText(data.locale));
   const hasSearch = $derived(data.search.query.trim().length > 0);
+  let copiedKey = $state('');
+  let copiedResetTimer: ReturnType<typeof setTimeout> | undefined;
 
   function returnToQuery() {
     return data.returnTo !== '/'
@@ -111,6 +114,25 @@
 
   function resolvePath(path: string) {
     return resolve(path as '/');
+  }
+
+  function csvHref() {
+    return resolve(`/${data.link.code}/statistics.csv`);
+  }
+
+  async function copyStatValue(value: string | null, key: string) {
+    const trimmed = value?.trim();
+    if (!trimmed) return;
+    try {
+      await navigator.clipboard.writeText(trimmed);
+      copiedKey = key;
+      if (copiedResetTimer) clearTimeout(copiedResetTimer);
+      copiedResetTimer = setTimeout(() => {
+        if (copiedKey === key) copiedKey = '';
+      }, 1800);
+    } catch {
+      copiedKey = '';
+    }
   }
 
   function deltaText() {
@@ -163,6 +185,27 @@
     return details.filter(Boolean).join(' · ');
   }
 </script>
+
+{#snippet copyMetadata(
+  label: string,
+  value: string | null,
+  key: string,
+  emptyLabel = text.common.none,
+)}
+  <button
+    class="copy-meta"
+    class:empty={!value?.trim()}
+    type="button"
+    disabled={!value?.trim()}
+    onclick={() => copyStatValue(value, key)}
+  >
+    <span>{label}</span>
+    <strong>{value?.trim() || emptyLabel}</strong>
+    {#if value?.trim()}
+      <em>{copiedKey === key ? text.common.copied : text.common.copy}</em>
+    {/if}
+  </button>
+{/snippet}
 
 <svelte:head>
   <title
@@ -308,10 +351,13 @@
           })}
         </p>
       </div>
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href={data.link.short_url} target="_blank" rel="noreferrer"
-        >{text.stats.openShortLink}</a
-      >
+      <div class="section-actions">
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a href={data.link.short_url} target="_blank" rel="noreferrer"
+          >{text.stats.openShortLink}</a
+        >
+        <a href={csvHref()} download>{text.stats.downloadCsv}</a>
+      </div>
     </div>
 
     <SearchForm
@@ -335,25 +381,63 @@
     {:else}
       <div class="events">
         {#each data.link.click_events as click, index (`${click.created_at}-${index}`)}
+          {@const clickedAt = new Date(click.created_at).toLocaleString()}
           <article>
-            <div class="event-topline">
-              <strong>{new Date(click.created_at).toLocaleString()}</strong>
-              <span>IP: {click.ip ?? text.common.none}</span>
+            <div class="event-metadata">
+              {@render copyMetadata(
+                text.stats.clickFields.created_at,
+                clickedAt,
+                `${index}:created_at`,
+              )}
+              {@render copyMetadata(
+                text.stats.clickFields.ip_address,
+                click.ip,
+                `${index}:ip`,
+              )}
+              {@render copyMetadata(
+                text.stats.browser,
+                click.browser,
+                `${index}:browser`,
+              )}
+              {@render copyMetadata(
+                text.stats.clickFields.referer,
+                click.referer ?? text.stats.direct,
+                `${index}:referer`,
+              )}
             </div>
-            <span class="event-referrer"
-              >{click.referer ?? text.stats.direct}</span
-            >
             {#if click.details.length > 0}
               <dl class="event-details">
-                {#each click.details as detail (`${detail.label}:${detail.value}`)}
+                {#each click.details as detail, detailIndex (`${detail.label}:${detail.value}`)}
                   <div>
                     <dt>{detail.label}</dt>
-                    <dd>{detail.value}</dd>
+                    <dd>
+                      <button
+                        class="copy-detail"
+                        type="button"
+                        onclick={() =>
+                          copyStatValue(
+                            detail.value,
+                            `${index}:detail:${detailIndex}`,
+                          )}
+                      >
+                        <span>{detail.value}</span>
+                        <em
+                          >{copiedKey === `${index}:detail:${detailIndex}`
+                            ? text.common.copied
+                            : text.common.copy}</em
+                        >
+                      </button>
+                    </dd>
                   </div>
                 {/each}
               </dl>
             {/if}
-            <p>{click.user_agent ?? text.stats.noUserAgent}</p>
+            {@render copyMetadata(
+              text.stats.clickFields.user_agent,
+              click.user_agent,
+              `${index}:user_agent`,
+              text.stats.noUserAgent,
+            )}
           </article>
         {/each}
       </div>
@@ -447,13 +531,17 @@
   }
   header p,
   .section-heading p,
-  .events span,
-  .events p,
   .empty {
     color: var(--page-muted);
     line-height: 1.6;
   }
-  .section-heading a {
+  .section-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .section-actions a {
     height: fit-content;
     border: 1px solid var(--page-border);
     border-radius: 10px;
@@ -582,30 +670,56 @@
   .events article:first-child {
     border-top: 0;
   }
-  .event-topline {
-    display: flex;
-    min-width: 0;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 14px;
+  .event-metadata {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
   }
-  .event-topline strong {
+  .copy-meta {
+    display: grid;
     min-width: 0;
-    line-height: 1.3;
+    gap: 5px;
+    border: 1px solid var(--page-border);
+    border-radius: 10px;
+    padding: 10px;
+    background: color-mix(in srgb, var(--page-bg) 52%, var(--page-surface));
+    color: var(--page-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
   }
-  .event-topline span {
-    flex: none;
-    font-size: 0.78rem;
-    font-weight: 800;
+  .copy-meta:disabled {
+    cursor: default;
+    opacity: 0.72;
+  }
+  .copy-meta:not(:disabled):hover,
+  .copy-detail:hover {
+    border-color: color-mix(
+      in srgb,
+      var(--page-primary) 45%,
+      var(--page-border)
+    );
+  }
+  .copy-meta span {
+    color: var(--page-muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .copy-meta strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .event-referrer {
-    overflow-wrap: anywhere;
-    font-size: 0.84rem;
-  }
-  .events p {
-    overflow-wrap: anywhere;
-    font-size: 0.82rem;
+  .copy-meta em,
+  .copy-detail em {
+    color: var(--page-primary);
+    font-size: 0.7rem;
+    font-style: normal;
+    font-weight: 850;
   }
   .event-details {
     display: flex;
@@ -637,11 +751,26 @@
   .event-details dd {
     min-width: 0;
     margin: 0;
-    overflow-wrap: anywhere;
+  }
+  .copy-detail {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    border-radius: 8px;
+    padding: 0;
+    background: transparent;
     color: var(--page-text);
+    font: inherit;
     font-size: 0.78rem;
     font-weight: 800;
     line-height: 1.25;
+    cursor: pointer;
+  }
+  .copy-detail span {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   @media (max-width: 720px) {
     header,
@@ -651,17 +780,13 @@
     }
     .summary-primary,
     .summary-secondary,
-    .insight-grid {
+    .insight-grid,
+    .event-metadata {
       grid-auto-flow: row;
       grid-template-columns: 1fr;
     }
-    .event-topline {
-      align-items: start;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .event-topline span {
-      white-space: normal;
+    .section-actions {
+      justify-content: flex-start;
     }
   }
 </style>

@@ -7,6 +7,7 @@ import {
 import { uiText } from '$lib/i18n/ui-text';
 import { defaultSiteLocale } from '$lib/config';
 import { setClickMetadataCollector } from '$lib/server/click-queue';
+import { applyClientHintResponseHeaders } from '$lib/server/client-hints';
 import { getClientIp } from '$lib/server/client-ip';
 import { getSettings, setPluginStateNormalizer } from '$lib/server/settings';
 import { getPluginUser } from './plugins/auth-registry';
@@ -44,12 +45,17 @@ export const handle: Handle = async ({ event, resolve }) => {
     isAdmin: event.locals.isAdmin,
     ip,
   });
-  if (pluginResponse) return pluginResponse;
+  if (pluginResponse) {
+    applyClientHintResponseHeaders(pluginResponse.headers);
+    return pluginResponse;
+  }
 
-  return resolve(event, {
+  const response = await resolve(event, {
     transformPageChunk: ({ html }) =>
       html.replace('<html lang="ko">', `<html lang="${locale}">`),
   });
+  applyClientHintResponseHeaders(response.headers);
+  return response;
 };
 
 export const handleError: HandleServerError = ({ error, event, status }) => {

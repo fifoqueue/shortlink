@@ -25,10 +25,7 @@
   flex: none;
   place-content: center;
   border: 1px solid
-    var(
-      --form-checkbox-border,
-      var(--admin-border, var(--border, #aebbb2))
-    );
+    var(--form-checkbox-border, var(--admin-border, var(--border, #aebbb2)));
   border-radius: var(--form-checkbox-radius, 6px);
   margin: 0;
   padding: 0;
@@ -74,10 +71,7 @@
   background:
     url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M3.5 8.2 6.6 11.2 12.8 4.8' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e")
       center / 14px 14px no-repeat,
-    var(
-      --form-checkbox-primary,
-      var(--admin-primary, var(--primary, #215e40))
-    );
+    var(--form-checkbox-primary, var(--admin-primary, var(--primary, #215e40)));
 }
 
 :where(.site-theme, .admin-theme) :where(input[type='checkbox']:indeterminate) {
@@ -87,10 +81,7 @@
   );
   background:
     linear-gradient(currentColor 0 0) center / 10px 2px no-repeat,
-    var(
-      --form-checkbox-primary,
-      var(--admin-primary, var(--primary, #215e40))
-    );
+    var(--form-checkbox-primary, var(--admin-primary, var(--primary, #215e40)));
 }
 
 :where(.site-theme, .admin-theme) :where(input[type='checkbox']:disabled) {

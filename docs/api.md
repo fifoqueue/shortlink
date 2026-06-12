@@ -318,6 +318,7 @@ curl http://localhost:5173/api/links/hello \
       {
         "created_at": "2026-06-10T00:10:00.000Z",
         "ip": "203.0.113.10",
+        "browser": "Chrome",
         "user_agent": "Mozilla/5.0",
         "referer": "https://example.org",
         "details": []

@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import type { SiteSettings } from '$lib/config';
 import type { PluginState } from '$lib/plugin-contracts';
 import { ClickEventQueueModel, ensureDatabase } from './database';
+import { clientHintsFromHeaders } from './client-hints';
 import { getClientIp } from './client-ip';
 import { recordClick } from './shortener';
 import { registerServerShutdownTask } from './shutdown';
@@ -61,16 +62,25 @@ function requestForQueueItem(item: ClickEventQueueModel) {
   }
 }
 
+function clientHintMetadata(request: Request) {
+  const clientHints = clientHintsFromHeaders(request.headers);
+  return Object.keys(clientHints).length > 0 ? { clientHints } : {};
+}
+
 async function metadataFor(item: ClickEventQueueModel) {
+  const request = requestForQueueItem(item);
   try {
-    return await collectClickMetadata({
-      request: requestForQueueItem(item),
-      ip: item.ip_address ?? '',
-      states: item.plugin_states as Record<string, PluginState>,
-    });
+    return {
+      ...clientHintMetadata(request),
+      ...(await collectClickMetadata({
+        request,
+        ip: item.ip_address ?? '',
+        states: item.plugin_states as Record<string, PluginState>,
+      })),
+    };
   } catch (error) {
     console.error('An error occurred while collecting click metadata.', error);
-    return {};
+    return clientHintMetadata(request);
   }
 }
 
@@ -172,11 +182,14 @@ async function fallbackRecordClick(input: {
     ip: input.ip,
     userAgent: input.request.headers.get('user-agent'),
     referer: input.request.headers.get('referer'),
-    metadata: await collectClickMetadata({
-      request: input.request,
-      ip: input.ip,
-      states: input.settings.plugins,
-    }),
+    metadata: {
+      ...clientHintMetadata(input.request),
+      ...(await collectClickMetadata({
+        request: input.request,
+        ip: input.ip,
+        states: input.settings.plugins,
+      })),
+    },
   });
 }
 

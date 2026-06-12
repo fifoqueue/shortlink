@@ -15,6 +15,7 @@ import {
   ShortLinkModel,
   UserModel,
 } from './database';
+import { browserLabelFromClientHints } from './client-hints';
 import { getSettings } from './settings';
 import { linkEditFieldKeys, type SiteSettings } from '$lib/config';
 import type { LinkOwner } from './link-owner';
@@ -115,6 +116,7 @@ export interface ClickEvent {
   ip: string | null;
   user_agent: string | null;
   referer: string | null;
+  browser: string;
   metadata: Record<string, unknown>;
 }
 
@@ -720,6 +722,16 @@ function userAgentLabel(value: string | null) {
   return mobileUserAgent(userAgent) ? 'Mobile browser' : 'Other browser';
 }
 
+function clickBrowserLabel(input: {
+  metadata: Record<string, unknown>;
+  user_agent: string | null;
+}) {
+  return (
+    browserLabelFromClientHints(input.metadata) ??
+    userAgentLabel(input.user_agent)
+  );
+}
+
 function metadataCountry(metadata: Record<string, unknown>) {
   const country =
     metadata.country &&
@@ -766,7 +778,7 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
     const referer = refererLabel(click.referer);
     referrers.set(referer, (referrers.get(referer) ?? 0) + 1);
 
-    const browser = userAgentLabel(click.user_agent);
+    const browser = clickBrowserLabel(click);
     browsers.set(browser, (browsers.get(browser) ?? 0) + 1);
 
     const country = metadataCountry(click.metadata);
@@ -796,6 +808,24 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
             },
           ]
         : [],
+  };
+}
+
+function publicClickEvent(
+  { created_at, ip_address, metadata, referer, user_agent }: ClickEventModel,
+  options: { isAdmin?: boolean } = {},
+): ClickEvent {
+  return {
+    created_at: created_at.toISOString(),
+    ip: ip_address
+      ? options.isAdmin
+        ? ip_address
+        : anonymizeIp(ip_address)
+      : null,
+    referer,
+    user_agent,
+    browser: clickBrowserLabel({ metadata, user_agent }),
+    metadata,
   };
 }
 
@@ -1259,6 +1289,21 @@ export async function getStats(
   return getStatsForLink(publicLink(link), options);
 }
 
+export async function listClickEventsForLink(
+  link: Pick<Link, 'id'>,
+  options: { isAdmin?: boolean; search?: ClickEventSearch } = {},
+) {
+  await ensureDatabase();
+  const clicks = await ClickEventModel.findAll({
+    where: combineWhere(
+      { link_id: link.id },
+      clickEventSearchWhere(options.search),
+    ),
+    order: [['created_at', 'DESC']],
+  });
+  return clicks.map((click) => publicClickEvent(click, options));
+}
+
 export async function getStatsForLink(
   link: Link,
   options: {
@@ -1312,25 +1357,7 @@ export async function getStatsForLink(
     page: requestedPage,
     pageSize,
   });
-  const clickEvents = clicks.map(
-    ({
-      created_at,
-      ip_address,
-      metadata,
-      referer,
-      user_agent,
-    }): ClickEvent => ({
-      created_at: created_at.toISOString(),
-      ip: ip_address
-        ? options.isAdmin
-          ? ip_address
-          : anonymizeIp(ip_address)
-        : null,
-      referer,
-      user_agent,
-      metadata,
-    }),
-  );
+  const clickEvents = clicks.map((click) => publicClickEvent(click, options));
   const [creator, insights] = await Promise.all([
     creatorPromise,
     insightsPromise,

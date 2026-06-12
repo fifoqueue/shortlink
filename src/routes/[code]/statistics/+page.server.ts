@@ -190,6 +190,7 @@ export const load: PageServerLoad = async ({
   const clickEvents = stats.click_events.map((click, index) => ({
     created_at: click.created_at,
     ip: click.ip,
+    browser: click.browser,
     user_agent: click.user_agent,
     referer: click.referer,
     details: clickDetails[index] ?? [],
