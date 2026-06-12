@@ -69,6 +69,12 @@ function clientHintMetadata(request: Request) {
   return Object.keys(clientHints).length > 0 ? { clientHints } : {};
 }
 
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 async function metadataFor(item: ClickEventQueueModel) {
   const request = requestForQueueItem(item);
   const settings = await getSettings();
@@ -81,10 +87,14 @@ async function metadataFor(item: ClickEventQueueModel) {
         states: item.plugin_states as Record<string, PluginState>,
         settings,
       })),
+      ...metadataRecord(item.metadata),
     };
   } catch (error) {
     console.error('An error occurred while collecting click metadata.', error);
-    return clientHintMetadata(request);
+    return {
+      ...clientHintMetadata(request),
+      ...metadataRecord(item.metadata),
+    };
   }
 }
 
@@ -181,6 +191,7 @@ async function fallbackRecordClick(input: {
   request: Request;
   ip: string;
   settings: SiteSettings;
+  metadata?: Record<string, unknown>;
 }) {
   await recordClick(input.linkId, {
     ip: input.ip,
@@ -194,6 +205,7 @@ async function fallbackRecordClick(input: {
         states: input.settings.plugins,
         settings: input.settings,
       })),
+      ...metadataRecord(input.metadata),
     },
   });
 }
@@ -203,6 +215,7 @@ export async function enqueueClick(input: {
   request: Request;
   getClientAddress: () => string;
   settings: SiteSettings;
+  metadata?: Record<string, unknown>;
 }) {
   const ip = getClientIp(
     input.request,
@@ -218,6 +231,7 @@ export async function enqueueClick(input: {
       request_url: input.request.url,
       request_headers: headersRecord(input.request.headers),
       plugin_states: clone(input.settings.plugins),
+      metadata: metadataRecord(input.metadata),
       ip_address: ip || null,
       user_agent: input.request.headers.get('user-agent'),
       referer: input.request.headers.get('referer'),

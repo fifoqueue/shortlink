@@ -8,6 +8,10 @@ import {
 import { getSettings } from '$lib/server/settings';
 import { getLinkOwner } from '$lib/server/link-owner';
 import { effectivePermissions } from '$lib/server/permissions';
+import {
+  combineClickMetadataDisplayLists,
+  formatCoreClickMetadataList,
+} from '$lib/server/click-metadata';
 import { formatClickMetadataListPlugins } from '../../../plugins/server';
 import { uiText } from '$lib/i18n/ui-text';
 
@@ -87,12 +91,22 @@ export const GET: RequestHandler = async ({
   const clicks = await listClickEventsForLink(access.link, {
     isAdmin: locals.isAdmin,
   });
-  const clickDetails = await formatClickMetadataListPlugins({
-    metadataItems: clicks.map((click) => click.metadata),
+  const metadataItems = clicks.map((click) => click.metadata);
+  const coreDetails = formatCoreClickMetadataList({
+    metadataItems,
+    locale: locals.locale,
+    fallbackLocale: settings.i18n.defaultLocale,
+  });
+  const pluginDetails = await formatClickMetadataListPlugins({
+    metadataItems,
     states: settings.plugins,
     isAdmin: locals.isAdmin,
     isOwner: access.isOwner,
   });
+  const clickDetails = combineClickMetadataDisplayLists(
+    coreDetails,
+    pluginDetails,
+  );
 
   const csv = csvRows([
     [

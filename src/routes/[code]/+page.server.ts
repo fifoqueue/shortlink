@@ -2,11 +2,11 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { enqueueClick } from '$lib/server/click-queue';
 import {
-  destinationForRequest,
   getRedirectLinkByCode,
   linkAccessBlockReason,
   protectedLinkCookieName,
   protectedLinkCookieValue,
+  redirectResultForRequest,
   verifyLinkPassword,
 } from '$lib/server/shortener';
 import {
@@ -18,6 +18,7 @@ import {
 } from '$lib/server/link-redirect-page';
 import { getClientIp } from '$lib/server/client-ip';
 import { collectGeoipMetadata, geoipMetadataForRules } from '$lib/server/geoip';
+import { redirectRuleClickMetadata } from '$lib/server/click-metadata';
 import { effectivePermissions } from '$lib/server/permissions';
 import { redirectRuleConditionTypes } from '$lib/server/redirect-rules';
 import { getSettings } from '$lib/server/settings';
@@ -88,19 +89,19 @@ export const load: PageServerLoad = async ({
     }
   }
 
-  if (settings.links.trackClicks) {
-    await enqueueClick({
-      linkId: link.id,
-      request,
-      getClientAddress,
-      settings,
-    });
-  }
-
   if (
     shouldRenderOpenGraphPreview(request.headers.get('user-agent')) &&
     hasExplicitOpenGraphMetadata(link)
   ) {
+    if (settings.links.trackClicks) {
+      await enqueueClick({
+        linkId: link.id,
+        request,
+        getClientAddress,
+        settings,
+      });
+    }
+
     return {
       mode: 'preview' as const,
       link: publicLink,
@@ -122,14 +123,26 @@ export const load: PageServerLoad = async ({
         }),
       )
     : {};
+  const redirectResult = redirectResultForRequest(link, request, {
+    ip: clientIp,
+    metadata: redirectRuleMetadata,
+  });
 
-  redirect(
-    settings.links.redirectStatus,
-    destinationForRequest(link, request, {
-      ip: clientIp,
-      metadata: redirectRuleMetadata,
-    }),
-  );
+  if (settings.links.trackClicks) {
+    await enqueueClick({
+      linkId: link.id,
+      request,
+      getClientAddress,
+      settings,
+      metadata: redirectRuleClickMetadata({
+        ruleCount: link.routing.redirectRules.length,
+        destinationUrl: redirectResult.url,
+        matchedRule: redirectResult.matchedRule,
+      }),
+    });
+  }
+
+  redirect(settings.links.redirectStatus, redirectResult.url);
 };
 
 export const actions: Actions = {

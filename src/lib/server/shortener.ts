@@ -24,11 +24,12 @@ import {
   type SiteSettings,
 } from '$lib/config';
 import {
-  matchingRedirectRule,
+  matchedRedirectRule,
   normalizeRedirectRules,
   redirectRuleContextFromRequest,
   redirectRulePermissionKeysFromRules,
   storedRedirectRules,
+  type MatchedRedirectRule,
   type RedirectRule,
 } from './redirect-rules';
 import type { LinkOwner } from './link-owner';
@@ -98,6 +99,11 @@ export interface LinkHealth {
   checkedAt: string | null;
   error: string;
   latencyMs: number | null;
+}
+
+export interface RedirectDestinationResult {
+  url: string;
+  matchedRule: MatchedRedirectRule | null;
 }
 
 export interface LinkCreatorInfo {
@@ -1075,13 +1081,21 @@ export function destinationForRequest(
   request: Request,
   input: { ip?: string; metadata?: Record<string, string> } = {},
 ) {
-  const redirectRule = matchingRedirectRule(
+  return redirectResultForRequest(link, request, input).url;
+}
+
+export function redirectResultForRequest(
+  link: Link,
+  request: Request,
+  input: { ip?: string; metadata?: Record<string, string> } = {},
+): RedirectDestinationResult {
+  const matchedRule = matchedRedirectRule(
     link.routing.redirectRules,
     redirectRuleContextFromRequest(request, input),
   );
-  if (redirectRule) return redirectRule.longUrl;
+  if (matchedRule) return { url: matchedRule.rule.longUrl, matchedRule };
 
-  return link.url;
+  return { url: link.url, matchedRule: null };
 }
 
 async function insertLink(

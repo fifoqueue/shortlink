@@ -17,6 +17,7 @@ export class ClickEventQueueModel extends Model<
   declare request_url: string;
   declare request_headers: CreationOptional<Record<string, string>>;
   declare plugin_states: CreationOptional<Record<string, unknown>>;
+  declare metadata: CreationOptional<Record<string, unknown>>;
   declare ip_address: string | null;
   declare user_agent: string | null;
   declare referer: string | null;
@@ -50,6 +51,11 @@ export function initClickEventQueueModel(sequelize: Sequelize) {
         defaultValue: {},
       },
       plugin_states: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+        defaultValue: {},
+      },
+      metadata: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: {},

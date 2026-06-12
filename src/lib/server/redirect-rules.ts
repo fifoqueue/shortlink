@@ -25,6 +25,11 @@ export interface RedirectRule {
   conditions: RedirectRuleCondition[];
 }
 
+export interface MatchedRedirectRule {
+  index: number;
+  rule: RedirectRule;
+}
+
 export interface RedirectRuleContext {
   requestUrl: string;
   userAgent: string;
@@ -83,6 +88,13 @@ function stringValue(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function scalarStringValue(value: unknown) {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return String(value);
+  return '';
+}
+
 function parsedRules(value: unknown) {
   if (value === undefined || value === null) return [];
   if (Array.isArray(value)) return value;
@@ -116,7 +128,7 @@ function normalizeCondition(value: unknown): RedirectRuleCondition | null {
   const type = normalizedType(value.type);
   if (!type) throw new Error(serverMessage('redirectRuleConditionInvalid'));
   const matchKey = stringValue(value.matchKey).slice(0, 120) || null;
-  const rawMatchValue = stringValue(value.matchValue).slice(0, 300);
+  const rawMatchValue = scalarStringValue(value.matchValue).slice(0, 300);
   const matchValue =
     type === 'device' || type === 'language' || type === 'geo-country'
       ? rawMatchValue.toLowerCase() || null
@@ -470,9 +482,22 @@ export function matchingRedirectRule(
   rules: RedirectRule[],
   context: RedirectRuleContext,
 ) {
-  return rules.find((rule) =>
-    rule.conditions.every((condition) => conditionMatches(context, condition)),
-  );
+  return matchedRedirectRule(rules, context)?.rule;
+}
+
+export function matchedRedirectRule(
+  rules: RedirectRule[],
+  context: RedirectRuleContext,
+): MatchedRedirectRule | null {
+  for (const [index, rule] of rules.entries()) {
+    if (
+      rule.conditions.every((condition) => conditionMatches(context, condition))
+    ) {
+      return { index, rule };
+    }
+  }
+
+  return null;
 }
 
 export function redirectRuleClientHints(headers: Headers) {

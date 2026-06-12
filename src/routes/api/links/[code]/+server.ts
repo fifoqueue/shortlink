@@ -22,6 +22,10 @@ import {
 } from '$lib/server/permissions';
 import { requireApiPermissionContext } from '$lib/server/api-permissions';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import {
+  combineClickMetadataDisplayLists,
+  formatCoreClickMetadataList,
+} from '$lib/server/click-metadata';
 import { formatClickMetadataListPlugins } from '../../../../plugins/server';
 
 export const GET: RequestHandler = async ({
@@ -68,12 +72,22 @@ export const GET: RequestHandler = async ({
         ? 'name'
         : 'none',
   });
-  const clickDetails = await formatClickMetadataListPlugins({
-    metadataItems: stats.click_events.map((click) => click.metadata),
+  const metadataItems = stats.click_events.map((click) => click.metadata);
+  const coreDetails = formatCoreClickMetadataList({
+    metadataItems,
+    locale: settings.i18n.defaultLocale,
+    fallbackLocale: settings.i18n.defaultLocale,
+  });
+  const pluginDetails = await formatClickMetadataListPlugins({
+    metadataItems,
     states: settings.plugins,
     isAdmin: api.principal.isAdmin,
     isOwner: access.isOwner,
   });
+  const clickDetails = combineClickMetadataDisplayLists(
+    coreDetails,
+    pluginDetails,
+  );
   const clickEvents = stats.click_events.map((click, index) => ({
     created_at: click.created_at,
     ip: click.ip,

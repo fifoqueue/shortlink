@@ -12,6 +12,11 @@ import { getLinkOwner } from '$lib/server/link-owner';
 import { effectivePermissions } from '$lib/server/permissions';
 import { DEFAULT_PAGE_SIZE, pageParam } from '$lib/server/pagination';
 import {
+  combineClickMetadataDisplayLists,
+  CORE_CLICK_METADATA_KEY,
+  formatCoreClickMetadataList,
+} from '$lib/server/click-metadata';
+import {
   formatClickMetadataListPlugins,
   getClickMetadataSearchFieldsPlugins,
 } from '../../../plugins/server';
@@ -46,6 +51,18 @@ function baseSearchSpecs(text: ReturnType<typeof uiText>): StatsSearchSpec[] {
       value: 'user_agent',
       label: text.stats.clickFields.user_agent,
       template: { field: 'user_agent' },
+    },
+    {
+      value: 'redirect_rule',
+      label: text.stats.clickFields.redirect_rule,
+      template: {
+        field: 'metadata',
+        paths: [
+          [CORE_CLICK_METADATA_KEY, 'redirect', 'source'],
+          [CORE_CLICK_METADATA_KEY, 'redirect', 'ruleNumber'],
+          [CORE_CLICK_METADATA_KEY, 'redirect', 'destinationUrl'],
+        ],
+      },
     },
   ];
 }
@@ -181,12 +198,22 @@ export const load: PageServerLoad = async ({
     search: clickEventSearch(search, searchSpecs),
   });
   if (!stats) error(404, text.messages.linkNotFound);
-  const clickDetails = await formatClickMetadataListPlugins({
-    metadataItems: stats.click_events.map((click) => click.metadata),
+  const metadataItems = stats.click_events.map((click) => click.metadata);
+  const coreDetails = formatCoreClickMetadataList({
+    metadataItems,
+    locale: locals.locale,
+    fallbackLocale: settings.i18n.defaultLocale,
+  });
+  const pluginDetails = await formatClickMetadataListPlugins({
+    metadataItems,
     states: settings.plugins,
     isAdmin: locals.isAdmin,
     isOwner: access.isOwner,
   });
+  const clickDetails = combineClickMetadataDisplayLists(
+    coreDetails,
+    pluginDetails,
+  );
   const clickEvents = stats.click_events.map((click, index) => ({
     created_at: click.created_at,
     ip: click.ip,
