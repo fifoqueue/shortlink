@@ -47,7 +47,11 @@ export const load: PageServerLoad = async ({ locals }) => {
     emailVerificationEnabled:
       settings.auth.emailVerification.enabled && !availability.setupRequired,
     registrationAllowed: availability.allowed,
-    registrationUnavailableReason: availability.reason,
+    registrationUnavailableReason: localizeServerMessage(
+      locals.locale,
+      availability.reason,
+      settings.i18n.defaultLocale,
+    ),
   };
 };
 

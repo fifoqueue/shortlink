@@ -4,13 +4,17 @@ import {
   deleteLinks as deleteShortLinks,
   listLinks,
 } from '$lib/server/shortener';
-import { shortUrl } from '$lib/server/url';
+import {
+  selectedShortLinkDomainForCreate,
+  shortLinkLookupDomain,
+  shortUrl,
+} from '$lib/server/url';
 import { requireApiPermissionContext } from '$lib/server/api-permissions';
 import {
   deleteLinksMessage,
-  linkCodesFromForm,
   linkOperationsFromForm,
   linkPreviewFromForm,
+  linkSelectionsFromForm,
 } from '$lib/server/link-form';
 import { formDataFromJson, recordValue } from '$lib/server/api-link-input';
 import {
@@ -41,7 +45,7 @@ export const GET: RequestHandler = async ({
   const owner = permissions.links.viewAll ? undefined : currentOwner;
   const links = (await listLinks(30, owner, currentOwner)).map((link) => ({
     ...link,
-    short_url: shortUrl(url.origin, link.code),
+    short_url: shortUrl(url.origin, link.code, link.domain, settings),
   }));
 
   return json({
@@ -72,6 +76,7 @@ export const POST: RequestHandler = async ({
     const form = formDataFromJson(body);
     const rawUrl = String(form.get('url') ?? '');
     const rawCode = String(form.get('code') ?? '');
+    const rawDomain = String(form.get('domain') ?? '');
     assertCreateOptionsAllowed(form, permissions);
 
     const parsed = new URL(
@@ -85,6 +90,12 @@ export const POST: RequestHandler = async ({
 
     const link = await createLink(targetUrl, rawCode, {
       isAdmin: api.principal.isAdmin,
+      domain: selectedShortLinkDomainForCreate(
+        rawDomain,
+        permissions.links.domains,
+        settings.general.defaultDomain,
+        settings.general.domains,
+      ),
       linkSettings: linkSettingsForPermissions(settings.links, permissions),
       owner: { userId: api.principal.id, ipAddress: clientIp },
       preview: linkPreviewFromForm(form),
@@ -95,7 +106,7 @@ export const POST: RequestHandler = async ({
       {
         link: {
           ...link,
-          short_url: shortUrl(url.origin, link.code),
+          short_url: shortUrl(url.origin, link.code, link.domain, settings),
         },
         permission_groups: publicPermissionGroupReasons(permissions),
       },
@@ -121,6 +132,7 @@ export const POST: RequestHandler = async ({
 
 export const DELETE: RequestHandler = async ({
   request,
+  url,
   locals,
   getClientAddress,
 }) => {
@@ -136,8 +148,9 @@ export const DELETE: RequestHandler = async ({
   const { permissions } = api;
 
   const body = recordValue(await request.json().catch(() => ({})));
-  const codes = linkCodesFromForm(formDataFromJson(body));
-  if (codes.length === 0) {
+  const form = formDataFromJson(body);
+  const links = linkSelectionsFromForm(form);
+  if (links.length === 0) {
     return json(
       {
         message: text.deleteNeedsSelection,
@@ -147,12 +160,17 @@ export const DELETE: RequestHandler = async ({
     );
   }
 
-  const result = await deleteShortLinks(codes, {
+  const result = await deleteShortLinks(links, {
     isAdmin: api.principal.isAdmin,
     allowAnyOwner: permissions.links.deleteAll,
     owner: { userId: api.principal.id },
     allowUserDelete: permissions.links.deleteOwn,
     maxClicks: permissions.links.deleteMaxClicks,
+    domain: shortLinkLookupDomain(
+      settings,
+      String(form.get('domain') || url.searchParams.get('domain') || ''),
+      url.origin,
+    ),
   });
   const message = deleteLinksMessage(result, { text });
 

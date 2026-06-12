@@ -89,6 +89,7 @@
         codeMinLength: number | null;
         codeMaxLength: number | null;
         generatedCodeLength: number | null;
+        domains: string[] | null;
         deleteOwn: RuleValue;
         deleteMaxClicks: number | null;
         editOwn: RuleValue;
@@ -896,6 +897,21 @@
                 max="64"
                 value={group.rules.links.generatedCodeLength ?? 7}
               />
+            </div>
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.allowedShortLinkDomains')}</span>
+                <ToggleField
+                  name="overrideDomains"
+                  checked={group.rules.links.domains !== null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overrideAllowedShortLinkDomains')}
+                />
+              </div>
+              <textarea name="allowedDomains" rows="4"
+                >{group.rules.links.domains?.join('\n') ?? ''}</textarea
+              >
+              <small>{t('admin.allowedShortLinkDomainsHelp')}</small>
             </div>
             <div class="override-control">
               <div class="override-heading">

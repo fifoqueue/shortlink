@@ -5,6 +5,7 @@ import {
   listClickEventsForLink,
   type ClickEvent,
 } from '$lib/server/shortener';
+import { shortLinkLookupDomain } from '$lib/server/url';
 import { getSettings } from '$lib/server/settings';
 import { getLinkOwner } from '$lib/server/link-owner';
 import { effectivePermissions } from '$lib/server/permissions';
@@ -51,6 +52,7 @@ function clickRow(
 export const GET: RequestHandler = async ({
   params,
   request,
+  url,
   locals,
   cookies,
   getClientAddress,
@@ -59,6 +61,11 @@ export const GET: RequestHandler = async ({
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
   const code = params.code;
   if (!code) error(404, text.messages.linkNotFound);
+  const domain = shortLinkLookupDomain(
+    settings,
+    url.searchParams.get('domain'),
+    url.origin,
+  );
 
   const clientIp = getClientIp(
     request,
@@ -79,6 +86,7 @@ export const GET: RequestHandler = async ({
   });
   const access = await canViewStats({
     code,
+    domain,
     isAdmin: locals.isAdmin,
     allowAnyOwner: permissions.links.statsAll,
     owner,

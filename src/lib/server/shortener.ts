@@ -49,6 +49,7 @@ import type { LinkEditField } from './permissions';
 export interface Link {
   id: number;
   code: string;
+  domain: string;
   url: string;
   owned?: boolean;
   preview: LinkPreview;
@@ -165,6 +166,7 @@ export interface DeleteLinksOptions {
   allowUserDelete?: boolean;
   allowAnyOwner?: boolean;
   maxClicks?: number;
+  domain?: string;
 }
 
 export interface DeleteLinksResult {
@@ -176,12 +178,18 @@ export interface DeleteLinksResult {
   tooManyClicks: number;
 }
 
+export interface LinkCodeSelection {
+  code: string;
+  domain?: string;
+}
+
 export interface UpdateLinkOptions {
   isAdmin?: boolean;
   allowAnyOwner?: boolean;
   editableFields?: LinkEditField[];
   linkSettings?: SiteSettings['links'];
   siteSettings?: SiteSettings;
+  domain?: string;
   owner?: LinkOwner;
   partial?: boolean;
 }
@@ -220,6 +228,18 @@ const UTM_FIELDS = [
 ] as const;
 type UtmField = (typeof UTM_FIELDS)[number][0];
 type UtmPermissions = Partial<Record<UtmField, boolean>>;
+
+function domainWhere(domain: string | undefined): WhereOptions {
+  if (domain === undefined) return {};
+  return { domain };
+}
+
+function linkLookupWhere(
+  code: string,
+  domain: string | undefined,
+): WhereOptions {
+  return combineWhere({ code }, domainWhere(domain)) ?? { code };
+}
 
 interface UrlPolicyOptions {
   isAdmin?: boolean;
@@ -295,6 +315,7 @@ function publicLink(link: ShortLinkModel, owner?: LinkOwner): Link {
   const output: Link = {
     id: link.id,
     code: link.code,
+    domain: link.domain,
     url: link.url,
     preview,
     tags: normalizedTags(link.tags),
@@ -334,6 +355,7 @@ interface CreateLinkOptions {
   isAdmin?: boolean;
   linkSettings?: SiteSettings['links'];
   owner?: LinkOwner;
+  domain: string;
   preview?: LinkPreviewInput;
   operations?: LinkOperationsInput;
 }
@@ -987,13 +1009,6 @@ function linkMatchesOwner(link: ShortLinkModel, owner: LinkOwner) {
   );
 }
 
-function normalizeCodes(codes: string[]) {
-  const normalized = codes
-    .map((code) => code.trim())
-    .filter((code) => /^[A-Za-z0-9_-]{1,64}$/.test(code));
-  return [...new Set(normalized)].slice(0, 250);
-}
-
 export async function listLinks(
   limit = 30,
   owner?: LinkOwner,
@@ -1039,15 +1054,19 @@ export async function listLinksPage(
   } satisfies PaginatedLinks;
 }
 
-export async function getLinkByCode(code: string) {
+export async function getLinkByCode(code: string, domain?: string) {
   await ensureDatabase();
-  const link = await ShortLinkModel.findOne({ where: { code } });
+  const link = await ShortLinkModel.findOne({
+    where: linkLookupWhere(code, domain),
+  });
   return link ? publicLink(link) : undefined;
 }
 
-export async function getRedirectLinkByCode(code: string) {
+export async function getRedirectLinkByCode(code: string, domain?: string) {
   await ensureDatabase();
-  const link = await ShortLinkModel.findOne({ where: { code } });
+  const link = await ShortLinkModel.findOne({
+    where: linkLookupWhere(code, domain),
+  });
   return link ? redirectLink(link) : undefined;
 }
 
@@ -1112,6 +1131,7 @@ export function redirectResultForRequest(
 async function insertLink(
   code: string,
   url: string,
+  domain: string,
   owner?: LinkOwner,
   preview: LinkPreviewInput = {},
   operations: LinkOperationsInput = {},
@@ -1121,6 +1141,7 @@ async function insertLink(
   try {
     const link = await ShortLinkModel.create({
       code,
+      domain,
       url,
       ...normalizePreviewForCreate(preview),
       ...normalizeLinkOperationsForCreate(
@@ -1145,7 +1166,7 @@ async function insertLink(
 export async function createLink(
   rawUrl: string,
   rawCode = '',
-  options: CreateLinkOptions = {},
+  options: CreateLinkOptions,
 ) {
   await ensureDatabase();
   const settings = options.linkSettings ?? (await getSettings()).links;
@@ -1164,6 +1185,7 @@ export async function createLink(
     return insertLink(
       requestedCode,
       url,
+      options.domain,
       options.owner,
       options.preview,
       options.operations,
@@ -1182,6 +1204,7 @@ export async function createLink(
       return await insertLink(
         code,
         url,
+        options.domain,
         options.owner,
         options.preview,
         options.operations,
@@ -1213,7 +1236,9 @@ export async function updateLink(
 ): Promise<UpdateLinkResult> {
   await ensureDatabase();
   const settings = options.linkSettings ?? (await getSettings()).links;
-  const link = await ShortLinkModel.findOne({ where: { code } });
+  const link = await ShortLinkModel.findOne({
+    where: linkLookupWhere(code, options.domain),
+  });
   if (!link) return { status: 'not_found' };
 
   if (!options.isAdmin && !options.allowAnyOwner) {
@@ -1377,7 +1402,9 @@ export async function checkLinkHealth(
   options: UpdateLinkOptions = {},
 ): Promise<LinkHealthResult> {
   await ensureDatabase();
-  const link = await ShortLinkModel.findOne({ where: { code } });
+  const link = await ShortLinkModel.findOne({
+    where: linkLookupWhere(code, options.domain),
+  });
   if (!link) return { status: 'not_found' };
 
   if (!options.isAdmin && !options.allowAnyOwner) {
@@ -1463,6 +1490,7 @@ export async function recordClick(
 export async function getStats(
   code: string,
   options: {
+    domain?: string;
     isAdmin?: boolean;
     creatorVisibility?: CreatorVisibility;
     page?: number;
@@ -1471,7 +1499,9 @@ export async function getStats(
   } = {},
 ) {
   await ensureDatabase();
-  const link = await ShortLinkModel.findOne({ where: { code } });
+  const link = await ShortLinkModel.findOne({
+    where: linkLookupWhere(code, options.domain),
+  });
   if (!link) return undefined;
   return getStatsForLink(publicLink(link), options);
 }
@@ -1561,12 +1591,15 @@ export async function getStatsForLink(
 
 export async function canViewStats(input: {
   code: string;
+  domain?: string;
   isAdmin?: boolean;
   allowAnyOwner?: boolean;
   owner?: LinkOwner;
 }) {
   await ensureDatabase();
-  const link = await ShortLinkModel.findOne({ where: { code: input.code } });
+  const link = await ShortLinkModel.findOne({
+    where: linkLookupWhere(input.code, input.domain),
+  });
   if (!link) return { allowed: false, link: undefined };
   const isOwner = input.owner ? linkMatchesOwner(link, input.owner) : false;
   return {
@@ -1576,19 +1609,44 @@ export async function canViewStats(input: {
   };
 }
 
-export async function deleteLink(code: string) {
+export async function deleteLink(code: string, domain?: string) {
   await ensureDatabase();
-  return (await ShortLinkModel.destroy({ where: { code } })) > 0;
+  return (
+    (await ShortLinkModel.destroy({ where: linkLookupWhere(code, domain) })) > 0
+  );
+}
+
+function normalizedLinkSelections(
+  selections: Array<string | LinkCodeSelection>,
+  fallbackDomain?: string,
+) {
+  const normalized = selections
+    .map((selection) =>
+      typeof selection === 'string'
+        ? { code: selection.trim(), domain: fallbackDomain }
+        : {
+            code: selection.code.trim(),
+            domain: selection.domain ?? fallbackDomain,
+          },
+    )
+    .filter((selection) => /^[A-Za-z0-9_-]{1,64}$/.test(selection.code));
+  const seen = new Set<string>();
+  return normalized.filter((selection) => {
+    const key = `${selection.domain ?? ''}\u0000${selection.code}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function deleteLinks(
-  codes: string[],
+  codes: Array<string | LinkCodeSelection>,
   options: DeleteLinksOptions = {},
 ) {
   await ensureDatabase();
-  const requestedCodes = normalizeCodes(codes);
+  const requestedLinks = normalizedLinkSelections(codes, options.domain);
   const result: DeleteLinksResult = {
-    requested: requestedCodes.length,
+    requested: requestedLinks.length,
     deleted: 0,
     notFound: 0,
     denied: 0,
@@ -1596,18 +1654,26 @@ export async function deleteLinks(
     tooManyClicks: 0,
   };
 
-  if (requestedCodes.length === 0) return result;
+  if (requestedLinks.length === 0) return result;
 
   const links = await ShortLinkModel.findAll({
-    where: { code: { [Op.in]: requestedCodes } },
+    where: {
+      [Op.or]: requestedLinks.map((link) =>
+        linkLookupWhere(link.code, link.domain),
+      ),
+    },
   });
-  const linksByCode = new Map(links.map((link) => [link.code, link]));
+  const linksByKey = new Map(
+    links.map((link) => [`${link.domain ?? ''}\u0000${link.code}`, link]),
+  );
   const deletableIds: number[] = [];
   const maxClicks = Math.max(0, Math.trunc(options.maxClicks ?? 0));
   const clickLimitEnabled = maxClicks > 0;
 
-  for (const code of requestedCodes) {
-    const link = linksByCode.get(code);
+  for (const selection of requestedLinks) {
+    const link = linksByKey.get(
+      `${selection.domain ?? ''}\u0000${selection.code}`,
+    );
     if (!link) {
       result.notFound += 1;
       continue;
@@ -1643,4 +1709,16 @@ export async function deleteLinks(
   }
 
   return result;
+}
+
+export async function countLinksByDomain(domains: readonly string[]) {
+  await ensureDatabase();
+  const normalizedDomains = [...new Set(domains.filter(Boolean))];
+  const entries = await Promise.all(
+    normalizedDomains.map(async (domain) => [
+      domain,
+      await ShortLinkModel.count({ where: { domain } }),
+    ]),
+  );
+  return Object.fromEntries(entries) as Record<string, number>;
 }

@@ -6,7 +6,7 @@ import {
   getStatsForLink,
   type ClickEventSearch,
 } from '$lib/server/shortener';
-import { shortUrl } from '$lib/server/url';
+import { shortLinkLookupDomain, shortUrl } from '$lib/server/url';
 import { getSettings } from '$lib/server/settings';
 import { getLinkOwner } from '$lib/server/link-owner';
 import { effectivePermissions } from '$lib/server/permissions';
@@ -129,6 +129,11 @@ export const load: PageServerLoad = async ({
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
   const code = params.code;
   if (!code) error(404, text.messages.linkNotFound);
+  const domain = shortLinkLookupDomain(
+    settings,
+    url.searchParams.get('domain'),
+    url.origin,
+  );
 
   const displaySettings = locals.localizedSettings ?? settings;
   const clientIp = getClientIp(
@@ -150,6 +155,7 @@ export const load: PageServerLoad = async ({
   });
   const access = await canViewStats({
     code,
+    domain,
     isAdmin: locals.isAdmin,
     allowAnyOwner: permissions.links.statsAll,
     owner,
@@ -227,7 +233,7 @@ export const load: PageServerLoad = async ({
     link: {
       ...stats,
       click_events: clickEvents,
-      short_url: shortUrl(url.origin, stats.code),
+      short_url: shortUrl(url.origin, stats.code, stats.domain, settings),
     },
     locale: locals.locale,
     returnTo:

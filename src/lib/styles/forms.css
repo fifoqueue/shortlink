@@ -13,7 +13,8 @@
   --form-control-radius: 11px;
 }
 
-:where(.site-theme, .admin-theme) :where(input[type='checkbox']) {
+:where(.site-theme, .admin-theme)
+  :where(input[type='checkbox'], input[type='radio']) {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
@@ -43,14 +44,27 @@
     opacity 0.15s;
 }
 
-:where(.site-theme, .admin-theme) :where(input[type='checkbox']:hover) {
+:where(.site-theme, .admin-theme) :where(input[type='checkbox']) {
+  border-radius: var(--form-checkbox-radius, 6px);
+}
+
+:where(.site-theme, .admin-theme) :where(input[type='radio']) {
+  border-radius: 50%;
+}
+
+:where(.site-theme, .admin-theme)
+  :where(input[type='checkbox']:hover, input[type='radio']:hover) {
   border-color: var(
     --form-checkbox-primary,
     var(--admin-primary, var(--primary, #215e40))
   );
 }
 
-:where(.site-theme, .admin-theme) :where(input[type='checkbox']:focus-visible) {
+:where(.site-theme, .admin-theme)
+  :where(
+    input[type='checkbox']:focus-visible,
+    input[type='radio']:focus-visible
+  ) {
   outline: 0;
   box-shadow: 0 0 0 3px
     var(
@@ -74,6 +88,21 @@
     var(--form-checkbox-primary, var(--admin-primary, var(--primary, #215e40)));
 }
 
+:where(.site-theme, .admin-theme) :where(input[type='radio']:checked) {
+  border-color: var(
+    --form-checkbox-primary,
+    var(--admin-primary, var(--primary, #215e40))
+  );
+  background:
+    radial-gradient(circle, currentColor 0 42%, transparent 46%) center / 100%
+      100% no-repeat,
+    var(--form-checkbox-surface, var(--admin-surface, var(--surface, #fff)));
+  color: var(
+    --form-checkbox-primary,
+    var(--admin-primary, var(--primary, #215e40))
+  );
+}
+
 :where(.site-theme, .admin-theme) :where(input[type='checkbox']:indeterminate) {
   border-color: var(
     --form-checkbox-primary,
@@ -84,7 +113,8 @@
     var(--form-checkbox-primary, var(--admin-primary, var(--primary, #215e40)));
 }
 
-:where(.site-theme, .admin-theme) :where(input[type='checkbox']:disabled) {
+:where(.site-theme, .admin-theme)
+  :where(input[type='checkbox']:disabled, input[type='radio']:disabled) {
   cursor: not-allowed;
   opacity: 0.45;
 }

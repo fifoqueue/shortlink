@@ -20,6 +20,7 @@
     size = 'regular',
     buttonTitle,
     locale = defaultSiteLocale,
+    onconfirm,
   }: {
     label: string;
     title?: string;
@@ -36,6 +37,7 @@
     size?: 'regular' | 'small';
     buttonTitle?: string;
     locale?: SiteLocale;
+    onconfirm?: () => void;
   } = $props();
 
   const text = $derived(uiText(locale));
@@ -82,6 +84,12 @@
 
   function submitConfirmed() {
     if (!canConfirm) return;
+    if (onconfirm) {
+      open = false;
+      onconfirm();
+      return;
+    }
+
     const form = targetForm();
     if (!form) return;
 

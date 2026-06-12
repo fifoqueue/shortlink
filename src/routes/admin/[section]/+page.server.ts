@@ -7,15 +7,16 @@ import {
 } from '$lib/delimited';
 import {
   checkLinkHealth,
+  countLinksByDomain,
   deleteLinks as deleteShortLinks,
   listLinksPage,
   updateLink as updateShortLink,
 } from '$lib/server/shortener';
 import {
   deleteLinksMessage,
-  linkCodesFromForm,
   linkOperationsFromForm,
   linkPreviewFromForm,
+  linkSelectionsFromForm,
 } from '$lib/server/link-form';
 import { parseLinkSearch } from '$lib/server/link-search';
 import { DEFAULT_PAGE_SIZE, pageParam } from '$lib/server/pagination';
@@ -69,7 +70,14 @@ import {
   serverMessage,
   uiText,
 } from '$lib/i18n/ui-text';
-import { shortUrl } from '$lib/server/url';
+import {
+  normalizeShortLinkDomain,
+  normalizeShortLinkDomains,
+  normalizeShortLinkDomainScheme,
+  normalizeShortLinkDomainSettings,
+  shortLinkLookupDomain,
+  shortUrl,
+} from '$lib/server/url';
 import { clearPluginSessions } from '../../../plugins/auth-registry';
 
 function parseColor(value: string, fallback: string) {
@@ -227,6 +235,30 @@ function parseOutboundProxySettings(form: FormData) {
   ).slice(0, 1_000);
   if (enabled) parseOutboundProxyUrl(url);
   return { enabled, url };
+}
+
+function parseShortLinkDomains(form: FormData, currentDefaultDomain = '') {
+  const domainValues = form.getAll('shortLinkDomains');
+  const schemeValues = form.getAll('shortLinkDomainSchemes');
+  const domainSchemes: Record<string, string> = {};
+
+  domainValues.forEach((value, index) => {
+    const domain = normalizeShortLinkDomain(String(value ?? ''));
+    if (!domain) return;
+    domainSchemes[domain] = normalizeShortLinkDomainScheme(schemeValues[index]);
+  });
+
+  return normalizeShortLinkDomainSettings({
+    defaultDomain: stringValue(form, 'defaultDomain') || currentDefaultDomain,
+    domains: domainValues,
+    domainSchemes,
+  });
+}
+
+function parseAllowedShortLinkDomains(value: string) {
+  return normalizeShortLinkDomains(
+    parseLines(value).flatMap((line) => line.split(/[\s,]+/)),
+  );
 }
 
 function selectedKeys<T extends string>(
@@ -508,8 +540,8 @@ export const load: PageServerLoad = async ({
     ip: clientIp,
   });
   const owner = permissions.links.viewAll ? undefined : currentOwner;
-  const [settings, linkPage] = await Promise.all([
-    getSettings(),
+  const settings = await getSettings();
+  const [linkPage, domainLinkCounts] = await Promise.all([
     listLinksPage(
       pageParam(url),
       DEFAULT_PAGE_SIZE,
@@ -517,6 +549,7 @@ export const load: PageServerLoad = async ({
       search,
       currentOwner,
     ),
+    countLinksByDomain(settings.general.domains),
   ]);
 
   return {
@@ -529,8 +562,9 @@ export const load: PageServerLoad = async ({
     search,
     links: linkPage.items.map((link) => ({
       ...link,
-      short_url: shortUrl(url.origin, link.code),
+      short_url: shortUrl(url.origin, link.code, link.domain, settings),
     })),
+    domainLinkCounts,
     pagination: {
       page: linkPage.page,
       pageSize: linkPage.pageSize,
@@ -588,12 +622,34 @@ export const actions: Actions = {
       localeFromValue(stringValue(form, 'defaultLocale')) ??
       settings.i18n.defaultLocale;
     const defaultContent = locales[defaultLocale];
+    let shortLinkDomains: ReturnType<typeof parseShortLinkDomains>;
+
+    try {
+      shortLinkDomains = parseShortLinkDomains(
+        form,
+        settings.general.defaultDomain,
+      );
+    } catch (cause) {
+      return fail(400, {
+        ok: false,
+        action: 'saveGeneral',
+        message: actionErrorMessage(
+          cause,
+          locals.locale,
+          locals.settings.i18n.defaultLocale,
+          text.admin.messages.generalSettingsFailed,
+        ),
+      });
+    }
 
     settings.general = {
       ...settings.general,
       ...defaultContent.general,
       logoUrl: stringValue(form, 'logoUrl').slice(0, 500),
       faviconUrl: stringValue(form, 'faviconUrl', '/favicon.svg').slice(0, 500),
+      defaultDomain: shortLinkDomains.defaultDomain,
+      domains: shortLinkDomains.domains,
+      domainSchemes: shortLinkDomains.domainSchemes,
       language: defaultLocale,
     };
     settings.seo = {
@@ -694,6 +750,9 @@ export const actions: Actions = {
         7,
         minLength,
         maxLength,
+      ),
+      allowedDomains: parseAllowedShortLinkDomains(
+        stringValue(form, 'allowedDomains'),
       ),
       allowUserDelete: parseBoolean(form, 'allowUserDelete'),
       userDeleteMaxClicks: numberValue(
@@ -873,15 +932,15 @@ export const actions: Actions = {
     });
     requireSectionAccess(permissions, 'data');
     const form = await request.formData();
-    const codes = linkCodesFromForm(form);
-    if (codes.length === 0) {
+    const links = linkSelectionsFromForm(form);
+    if (links.length === 0) {
       return fail(400, {
         action: 'deleteLink',
         message: text.messages.deleteNeedsSelection,
       });
     }
 
-    const result = await deleteShortLinks(codes, {
+    const result = await deleteShortLinks(links, {
       isAdmin: locals.isAdmin,
       allowAnyOwner: permissions.links.deleteAll,
       owner: getLinkOwner({
@@ -923,6 +982,11 @@ export const actions: Actions = {
     const form = await request.formData();
     const settings = locals.settings;
     const code = stringValue(form, 'code');
+    const domain = shortLinkLookupDomain(
+      settings,
+      stringValue(form, 'domain'),
+      new URL(request.url).origin,
+    );
     if (!code) {
       return fail(400, {
         action: 'updateLink',
@@ -957,6 +1021,7 @@ export const actions: Actions = {
             userId: locals.user?.id,
             ip: clientIp,
           }),
+          domain,
         },
       );
 
@@ -999,6 +1064,11 @@ export const actions: Actions = {
     requireSectionAccess(permissions, 'data');
     const form = await request.formData();
     const code = stringValue(form, 'code');
+    const domain = shortLinkLookupDomain(
+      locals.settings,
+      stringValue(form, 'domain'),
+      new URL(request.url).origin,
+    );
     if (!code) {
       return fail(400, {
         action: 'checkHealth',
@@ -1010,6 +1080,7 @@ export const actions: Actions = {
       isAdmin: locals.isAdmin,
       allowAnyOwner: permissions.links.healthAll,
       siteSettings: locals.settings,
+      domain,
       owner: getLinkOwner({
         cookies,
         userId: locals.user?.id,

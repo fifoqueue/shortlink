@@ -141,10 +141,14 @@ const plugin: PluginDefinition = {
         'admin.minimumLength': '최소 길이',
         'admin.maximumLength': '최대 길이',
         'admin.generatedCodeLength': '생성 코드 길이',
+        'admin.allowedShortLinkDomains': '허용 단축 도메인',
+        'admin.allowedShortLinkDomainsHelp':
+          '이 그룹이 링크 생성에 사용할 수 있는 단축 링크 도메인을 줄바꿈 또는 쉼표로 입력하세요. 비워두면 등록된 모든 도메인을 사용할 수 있습니다.',
         'admin.maxClicksForDeletion': '삭제 허용 최대 클릭 수',
         'admin.overrideCodeMinLength': '코드 최소 길이 override',
         'admin.overrideCodeMaxLength': '코드 최대 길이 override',
         'admin.overrideGeneratedCodeLength': '자동 코드 길이 override',
+        'admin.overrideAllowedShortLinkDomains': '허용 단축 도메인 override',
         'admin.overrideDeleteMaxClicks': '삭제 클릭 수 조건 override',
         'admin.zeroMeansUnlimited': '0은 무제한',
         'admin.adminAccess': '관리자 접근',
@@ -384,10 +388,15 @@ const plugin: PluginDefinition = {
         'admin.minimumLength': 'Minimum length',
         'admin.maximumLength': 'Maximum length',
         'admin.generatedCodeLength': 'Generated code length',
+        'admin.allowedShortLinkDomains': 'Allowed short link domains',
+        'admin.allowedShortLinkDomainsHelp':
+          'Enter short link domains this group can use when creating links. Separate by line or comma. Leave blank to allow every registered domain.',
         'admin.maxClicksForDeletion': 'Max clicks allowed for deletion',
         'admin.overrideCodeMinLength': 'Override code minimum length',
         'admin.overrideCodeMaxLength': 'Override code maximum length',
         'admin.overrideGeneratedCodeLength': 'Override generated code length',
+        'admin.overrideAllowedShortLinkDomains':
+          'Override allowed short link domains',
         'admin.overrideDeleteMaxClicks':
           'Override max clicks allowed for deletion',
         'admin.zeroMeansUnlimited': '0 means unlimited',

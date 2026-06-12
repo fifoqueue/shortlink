@@ -13,6 +13,7 @@ export class ShortLinkModel extends Model<
 > {
   declare id: CreationOptional<number>;
   declare code: string;
+  declare domain: string;
   declare url: string;
   declare preview: CreationOptional<Record<string, unknown>>;
   declare tags: CreationOptional<string[]>;
@@ -47,7 +48,10 @@ export function initShortLinkModel(sequelize: Sequelize) {
       code: {
         type: DataTypes.STRING(64),
         allowNull: false,
-        unique: true,
+      },
+      domain: {
+        type: DataTypes.STRING(320),
+        allowNull: false,
       },
       url: {
         type: DataTypes.TEXT,
@@ -156,6 +160,8 @@ export function initShortLinkModel(sequelize: Sequelize) {
         { fields: ['creator_user_id', 'id'] },
         { fields: ['creator_session_id', 'id'] },
         { fields: ['creator_ip_hash', 'id'] },
+        { name: 'short_links_domain_idx', fields: ['domain'] },
+        { name: 'short_links_code_idx', fields: ['code'] },
         { fields: ['health_status'] },
       ],
     },

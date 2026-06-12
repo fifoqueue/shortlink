@@ -8,6 +8,7 @@ import { shortUrl } from './url';
 
 type RedirectLink = {
   code: string;
+  domain: string;
   url: string;
   preview: {
     title: string;
@@ -66,7 +67,7 @@ export function openGraphMetadata(
     description,
     imageUrl,
     themeColor,
-    canonicalUrl: shortUrl(origin, link.code),
+    canonicalUrl: shortUrl(origin, link.code, link.domain, settings),
     targetUrl: link.url,
   };
 }

@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths';
   import { adminSections } from '$lib/admin-sections';
   import AdminShell from '$lib/components/AdminShell.svelte';
+  import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import LocaleFieldSelector from '$lib/components/LocaleFieldSelector.svelte';
   import ManagedLinkList from '$lib/components/ManagedLinkList.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
@@ -26,6 +27,7 @@
     type EmailProvider,
     type LinkEditFieldKey,
     type LinkOptionKey,
+    type ShortLinkDomainScheme,
     type SiteLocale,
     type SiteSettings,
     type ThemePreset,
@@ -35,11 +37,13 @@
   import { localizedPluginMeta } from '$lib/i18n/plugin';
   import { formatText, uiText } from '$lib/i18n/ui-text';
   import type { AdminPluginAccessPermission } from '$lib/plugin-contracts';
+  import { SvelteURLSearchParams } from 'svelte/reactivity';
   import { adminPluginRegistry } from '../../../plugins/admin-registry';
 
   type AdminLink = {
     id: number;
     code: string;
+    domain: string;
     url: string;
     preview: {
       title: string;
@@ -96,12 +100,19 @@
     themePresets: Record<ThemePreset, ThemeTokens>;
     search: LinkSearchState;
     links: AdminLink[];
+    domainLinkCounts: Record<string, number>;
     pagination: {
       page: number;
       pageSize: number;
       totalItems: number;
       totalPages: number;
     };
+  };
+
+  type ShortLinkDomainRow = {
+    id: number;
+    value: string;
+    scheme: ShortLinkDomainScheme;
   };
 
   type ActionResult = { ok?: boolean; action?: string; message?: string };
@@ -181,6 +192,13 @@
   let searchContentLocale = $state<SiteLocale>(siteLocaleKeys[0]);
   let legalContentLocale = $state<SiteLocale>(siteLocaleKeys[0]);
   let contentLocalesInitialized = $state(false);
+  let nextShortLinkDomainId = 1;
+  let shortLinkDomainRows = $state<ShortLinkDomainRow[]>([]);
+  let shortLinkDomainSignature = $state('');
+  let defaultShortLinkDomain = $state('');
+  const shortLinkDomainsReady = $derived(
+    shortLinkDomainSignature === shortLinkDomainSettingsSignature(),
+  );
   const brandContent = $derived(
     data.settings.i18n.locales[brandContentLocale] ??
       data.settings.i18n.locales[data.settings.i18n.defaultLocale],
@@ -320,6 +338,84 @@
     apiAllowUpdate = checked;
   }
 
+  function clientDomainHost(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    try {
+      const candidate = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)
+        ? trimmed
+        : `https://${trimmed}`;
+      const parsed = new URL(candidate);
+      return parsed.host.toLowerCase();
+    } catch {
+      return trimmed.toLowerCase();
+    }
+  }
+
+  function domainLinkCount(value: string) {
+    return data.domainLinkCounts[clientDomainHost(value)] ?? 0;
+  }
+
+  function shortLinkDomainScheme(value: string): ShortLinkDomainScheme {
+    const domain = clientDomainHost(value);
+    return data.settings.general.domainSchemes[domain] ?? 'https';
+  }
+
+  function shortLinkDomainSettingsSignature() {
+    return [
+      data.settings.general.defaultDomain,
+      ...data.settings.general.domains.map(
+        (domain) => `${domain}:${shortLinkDomainScheme(domain)}`,
+      ),
+    ].join('\n');
+  }
+
+  function updateShortLinkDomain(row: ShortLinkDomainRow, value: string) {
+    const previous = clientDomainHost(row.value);
+    row.value = value;
+    const next = clientDomainHost(value);
+    if (previous && previous === defaultShortLinkDomain) {
+      defaultShortLinkDomain = next;
+    }
+  }
+
+  function domainDeleteConfirmDetails(domains: string[]) {
+    return domains.map((domain) =>
+      formatText(text.admin.settings.shortLinkDomainDeleteConfirm, {
+        domain,
+        count: data.domainLinkCounts[domain] ?? 0,
+      }),
+    );
+  }
+
+  function removedShortLinkDomains() {
+    const current = new Set(
+      shortLinkDomainRows
+        .map((row) => clientDomainHost(row.value))
+        .filter(Boolean),
+    );
+    return data.settings.general.domains.filter(
+      (domain) => !current.has(domain) && (data.domainLinkCounts[domain] ?? 0),
+    );
+  }
+
+  function addShortLinkDomain() {
+    shortLinkDomainRows = [
+      ...shortLinkDomainRows,
+      { id: nextShortLinkDomainId++, value: '', scheme: 'https' },
+    ];
+  }
+
+  function removeShortLinkDomain(row: ShortLinkDomainRow) {
+    const domain = clientDomainHost(row.value);
+    if (domain && domain === defaultShortLinkDomain) {
+      return;
+    }
+    shortLinkDomainRows = shortLinkDomainRows.filter(
+      (item) => item.id !== row.id,
+    );
+  }
+
   function syncLinkedLinkOptionCheckbox(
     event: Event & { currentTarget: HTMLInputElement },
     key: LinkOptionKey,
@@ -345,6 +441,27 @@
       if (checkbox) checkbox.checked = event.currentTarget.checked;
     }
   }
+
+  $effect(() => {
+    const signature = shortLinkDomainSettingsSignature();
+    if (signature !== shortLinkDomainSignature) {
+      shortLinkDomainSignature = signature;
+      defaultShortLinkDomain =
+        data.settings.general.defaultDomain ||
+        data.settings.general.domains[0] ||
+        '';
+      shortLinkDomainRows = data.settings.general.domains.map((value) => ({
+        id: nextShortLinkDomainId++,
+        value,
+        scheme: shortLinkDomainScheme(value),
+      }));
+    }
+  });
+
+  const removedShortLinkDomainsForConfirm = $derived(removedShortLinkDomains());
+  const removedShortLinkDomainDetails = $derived(
+    domainDeleteConfirmDetails(removedShortLinkDomainsForConfirm),
+  );
 
   $effect(() => {
     if (!data.authenticated) return;
@@ -426,12 +543,12 @@
     return resolve(searchPageHref('/admin/links', data.search, page) as '/');
   }
 
-  function adminLinkStatsHref(code: string) {
-    return resolve(
-      `/${code}/statistics?returnTo=${encodeURIComponent(
-        adminLinksPageHref(data.pagination.page),
-      )}`,
-    );
+  function adminLinkStatsHref(link: AdminLink) {
+    const params = new SvelteURLSearchParams({
+      returnTo: adminLinksPageHref(data.pagination.page),
+    });
+    if (link.domain) params.set('domain', link.domain);
+    return resolve(`/${link.code}/statistics?${params.toString()}`);
   }
 
   const allowedAdminSections = $derived(
@@ -551,6 +668,126 @@
               value={data.settings.network.outboundProxy.url}
             />
           </label>
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.shortLinkDomainsTitle}</h3>
+            <p>{text.admin.settings.shortLinkDomainsDescription}</p>
+          </div>
+          <div class="short-domain-list wide">
+            {#if shortLinkDomainsReady}
+              {#each shortLinkDomainRows as domainRow (domainRow.id)}
+                {@const rowHost = clientDomainHost(domainRow.value)}
+                <div class="short-domain-row">
+                  <label>
+                    {text.admin.settings.shortLinkDomain}
+                    <input
+                      name="shortLinkDomains"
+                      placeholder={text.admin.settings
+                        .shortLinkDomainPlaceholder}
+                      value={domainRow.value}
+                      oninput={(event) =>
+                        updateShortLinkDomain(
+                          domainRow,
+                          event.currentTarget.value,
+                        )}
+                    />
+                  </label>
+                  <label class="domain-scheme-field">
+                    {text.admin.settings.shortLinkDomainScheme}
+                    <select
+                      name="shortLinkDomainSchemes"
+                      value={domainRow.scheme}
+                      onchange={(event) =>
+                        (domainRow.scheme = event.currentTarget
+                          .value as ShortLinkDomainScheme)}
+                    >
+                      <option value="https">HTTPS</option>
+                      <option value="http">HTTP</option>
+                    </select>
+                  </label>
+                  <label class="default-domain-choice">
+                    <input
+                      type="radio"
+                      name="defaultDomain"
+                      value={rowHost}
+                      checked={Boolean(rowHost) &&
+                        rowHost === defaultShortLinkDomain}
+                      disabled={!rowHost}
+                      onchange={() => (defaultShortLinkDomain = rowHost)}
+                    />
+                    <span>{text.admin.settings.defaultShortLinkDomain}</span>
+                  </label>
+                  <span>
+                    {formatText(text.admin.settings.shortLinkDomainLinkCount, {
+                      count: domainLinkCount(domainRow.value),
+                    })}
+                  </span>
+                  <DangerConfirmButton
+                    label={text.common.delete}
+                    size="small"
+                    disabled={Boolean(rowHost) &&
+                      rowHost === defaultShortLinkDomain}
+                    title={text.admin.settings.shortLinkDomainDeleteTitle}
+                    message={text.admin.settings.shortLinkDomainDeleteMessage}
+                    details={domainDeleteConfirmDetails([rowHost])}
+                    confirmLabel={text.common.delete}
+                    locale={data.locale}
+                    onconfirm={() => removeShortLinkDomain(domainRow)}
+                  />
+                </div>
+              {:else}
+                <p class="empty-note">
+                  {text.admin.settings.noShortLinkDomains}
+                </p>
+              {/each}
+            {:else}
+              {#each data.settings.general.domains as domain (domain)}
+                <div class="short-domain-row">
+                  <label>
+                    {text.admin.settings.shortLinkDomain}
+                    <input name="shortLinkDomains" value={domain} />
+                  </label>
+                  <label class="domain-scheme-field">
+                    {text.admin.settings.shortLinkDomainScheme}
+                    <select
+                      name="shortLinkDomainSchemes"
+                      value={shortLinkDomainScheme(domain)}
+                    >
+                      <option value="https">HTTPS</option>
+                      <option value="http">HTTP</option>
+                    </select>
+                  </label>
+                  <label class="default-domain-choice">
+                    <input
+                      type="radio"
+                      name="defaultDomain"
+                      value={domain}
+                      checked={domain === data.settings.general.defaultDomain}
+                      disabled
+                    />
+                    <span>{text.admin.settings.defaultShortLinkDomain}</span>
+                  </label>
+                  <span>
+                    {formatText(text.admin.settings.shortLinkDomainLinkCount, {
+                      count: domainLinkCount(domain),
+                    })}
+                  </span>
+                  <DangerConfirmButton
+                    label={text.common.delete}
+                    size="small"
+                    disabled
+                    title={text.admin.settings.shortLinkDomainDeleteTitle}
+                    message={text.admin.settings.shortLinkDomainDeleteMessage}
+                    details={domainDeleteConfirmDetails([domain])}
+                    confirmLabel={text.common.delete}
+                    locale={data.locale}
+                  />
+                </div>
+              {/each}
+            {/if}
+            <button type="button" class="add-row" onclick={addShortLinkDomain}
+              >{text.admin.settings.addShortLinkDomain}</button
+            >
+          </div>
         </div>
       </section>
 
@@ -972,7 +1209,18 @@
         </div>
       </section>
       <div class="savebar">
-        <button type="submit">{text.admin.settings.saveGeneral}</button>
+        {#if removedShortLinkDomainsForConfirm.length > 0}
+          <DangerConfirmButton
+            label={text.admin.settings.saveGeneral}
+            title={text.admin.settings.shortLinkDomainDeleteTitle}
+            message={text.admin.settings.shortLinkDomainDeleteMessage}
+            details={removedShortLinkDomainDetails}
+            confirmLabel={text.admin.settings.saveGeneral}
+            locale={data.locale}
+          />
+        {:else}
+          <button type="submit">{text.admin.settings.saveGeneral}</button>
+        {/if}
       </div>
     </form>
   {:else if activeSection === 'links'}
@@ -998,6 +1246,13 @@
               />
             </div>
           {/each}
+          <label class="wide">
+            {text.admin.settings.allowedShortLinkDomains}
+            <small>{text.admin.settings.allowedShortLinkDomainsHelp}</small>
+            <textarea name="allowedDomains" rows="4"
+              >{data.settings.links.allowedDomains.join('\n')}</textarea
+            >
+          </label>
           <label
             >{text.admin.settings.userDeleteMaxClicks}
             <small>{text.admin.settings.noLimitZero}</small>
@@ -1581,6 +1836,75 @@
     font-size: 0.82rem;
     line-height: 1.55;
   }
+  .short-domain-list {
+    display: grid;
+    gap: 10px;
+  }
+  .short-domain-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(104px, 122px) auto auto auto;
+    align-items: end;
+    gap: 10px;
+    border: 1px solid var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.45);
+    padding: 12px;
+    background: color-mix(in srgb, var(--admin-surface) 76%, transparent);
+  }
+  .short-domain-row span {
+    min-height: var(--form-control-height);
+    display: inline-flex;
+    align-items: center;
+    color: var(--admin-muted);
+    font-size: 0.76rem;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+  .domain-scheme-field {
+    min-width: 104px;
+  }
+  .default-domain-choice {
+    min-height: var(--form-control-height);
+    align-items: center;
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 8px;
+    color: var(--admin-muted);
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .default-domain-choice input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+  }
+  .add-row {
+    min-height: var(--form-control-height);
+    border-radius: var(--form-control-radius);
+    padding: 0 14px;
+    font-size: 0.8rem;
+    font-weight: 850;
+  }
+  .short-domain-row :global(.danger-confirm-trigger) {
+    min-height: var(--form-control-height);
+    border-radius: var(--form-control-radius);
+    padding: 0 14px;
+    font-size: 0.8rem;
+    font-weight: 850;
+  }
+  .add-row {
+    justify-self: start;
+    border: 1px solid var(--admin-border);
+    background: var(--admin-surface);
+    color: var(--admin-text);
+  }
+  .empty-note {
+    margin: 0;
+    border: 1px dashed var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.45);
+    padding: 14px;
+    color: var(--admin-muted);
+    font-size: 0.82rem;
+  }
   .two {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1629,6 +1953,12 @@
     padding: 0 20px;
     background: var(--admin-primary);
     color: var(--admin-primary-contrast);
+    font-weight: 850;
+  }
+  .savebar :global(.danger-confirm-trigger) {
+    min-height: 46px;
+    border-radius: calc(var(--admin-radius) * 0.5);
+    padding: 0 20px;
     font-weight: 850;
   }
   button:disabled {
@@ -1877,6 +2207,14 @@
     }
     .two {
       grid-template-columns: 1fr;
+    }
+    .short-domain-row {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+    .short-domain-row span,
+    .short-domain-row :global(.danger-confirm-trigger) {
+      min-height: 38px;
     }
   }
   @media (max-width: 380px) {

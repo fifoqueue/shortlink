@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
+  import { SvelteURLSearchParams } from 'svelte/reactivity';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import LinkFormOptions from '$lib/components/LinkFormOptions.svelte';
   import ManagedLinkList from '$lib/components/ManagedLinkList.svelte';
@@ -23,6 +24,7 @@
   type LinkItem = {
     id: number;
     code: string;
+    domain: string;
     url: string;
     preview: {
       title: string;
@@ -97,6 +99,7 @@
     values?: {
       url?: string;
       code?: string;
+      domain?: string;
       preview?: Partial<LinkItem['preview']>;
       operations?: {
         tags?: string[] | string;
@@ -150,12 +153,12 @@
     return resolve(searchPageHref('/', data.search, page) as '/');
   }
 
-  function statsHref(code: string) {
-    return resolve(
-      `/${code}/statistics?returnTo=${encodeURIComponent(
-        pageHref(data.pagination.page),
-      )}`,
-    );
+  function statsHref(link: Pick<LinkItem, 'code' | 'domain'>) {
+    const params = new SvelteURLSearchParams({
+      returnTo: pageHref(data.pagination.page),
+    });
+    if (link.domain) params.set('domain', link.domain);
+    return resolve(`/${link.code}/statistics?${params.toString()}`);
   }
 
   function canDeleteLink(link: { clicks: number; owned?: boolean }) {
@@ -359,6 +362,21 @@
               />
             </label>
 
+            {#if data.settings.general.domains.length > 1}
+              <label class="domain-field">
+                <span>{text.home.shortLinkDomain}</span>
+                <select
+                  name="domain"
+                  value={createForm?.values?.domain ||
+                    data.settings.general.domains[0]}
+                >
+                  {#each data.settings.general.domains as domain (domain)}
+                    <option value={domain}>{domain}</option>
+                  {/each}
+                </select>
+              </label>
+            {/if}
+
             {#if data.permissions.links.options.customCode}
               <label class="code-field">
                 <span
@@ -557,7 +575,8 @@
   }
   :global(button),
   :global(input),
-  :global(textarea) {
+  :global(textarea),
+  :global(select) {
     font: inherit;
   }
   .site {
@@ -810,7 +829,7 @@
   }
   .primary-fields {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 220px auto;
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(170px, 220px)) auto;
     gap: 10px;
   }
   label {
@@ -840,7 +859,21 @@
     height: 52px;
     padding: 0 15px;
   }
+  select {
+    width: 100%;
+    height: 52px;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 0.55);
+    padding: 0 15px;
+    background: var(--page-bg);
+    color: var(--text);
+    outline: none;
+  }
   input:not([type='checkbox']):not([type='radio']):not([type='hidden']):focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+  }
+  select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
   }

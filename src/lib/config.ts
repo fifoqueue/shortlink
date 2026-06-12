@@ -3,6 +3,7 @@ import type { PluginState } from '$lib/plugin-contracts';
 export type ThemePreset = 'emerald' | 'ocean' | 'violet' | 'sunset' | 'mono';
 export type ColorMode = 'light' | 'dark' | 'system';
 export type RedirectStatus = 301 | 302 | 307 | 308;
+export type ShortLinkDomainScheme = 'http' | 'https';
 export type EmailProvider = 'smtp' | 'http';
 export type EmailHttpMethod = 'POST' | 'PUT' | 'PATCH';
 export type EmailHttpAuthMode = 'none' | 'authorization' | 'basic' | 'headers';
@@ -148,6 +149,9 @@ export interface SiteSettings {
     description: string;
     logoUrl: string;
     faviconUrl: string;
+    defaultDomain: string;
+    domains: string[];
+    domainSchemes: Record<string, ShortLinkDomainScheme>;
     language: string;
     footerText: string;
   };
@@ -175,6 +179,7 @@ export interface SiteSettings {
     codeMinLength: number;
     codeMaxLength: number;
     generatedCodeLength: number;
+    allowedDomains: string[];
     allowUserDelete: boolean;
     userDeleteMaxClicks: number;
     editOwn: boolean;
@@ -428,6 +433,9 @@ export const defaultSettings: SiteSettings = {
     description: defaultSiteContent.general.description,
     logoUrl: '',
     faviconUrl: '/favicon.svg',
+    defaultDomain: '',
+    domains: [],
+    domainSchemes: {},
     language: defaultSiteLocale,
     footerText: defaultSiteContent.general.footerText,
   },
@@ -477,6 +485,7 @@ export const defaultSettings: SiteSettings = {
     codeMinLength: 3,
     codeMaxLength: 32,
     generatedCodeLength: 7,
+    allowedDomains: [],
     allowUserDelete: false,
     userDeleteMaxClicks: 0,
     editOwn: true,

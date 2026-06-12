@@ -22,6 +22,10 @@ import {
 import type { PluginState } from '$lib/plugin-contracts';
 import { Op } from 'sequelize';
 import { AppSettingModel, ensureDatabase } from './database';
+import {
+  normalizeShortLinkDomains,
+  normalizeShortLinkDomainSettings,
+} from './url';
 
 const SITE_SETTINGS_KEY = 'site';
 const PLUGIN_SETTINGS_PREFIX = 'plugins:';
@@ -79,7 +83,10 @@ function merge<T>(defaults: T, value: unknown): T {
     if (Array.isArray(defaultValue)) {
       result[key] = Array.isArray(candidate) ? candidate : clone(defaultValue);
     } else if (isRecord(defaultValue)) {
-      result[key] = merge(defaultValue, candidate);
+      result[key] =
+        Object.keys(defaultValue).length === 0 && isRecord(candidate)
+          ? clone(candidate)
+          : merge(defaultValue, candidate);
     } else if (
       candidate !== undefined &&
       typeof candidate === typeof defaultValue
@@ -147,6 +154,20 @@ function normalizeLinkSettings(settings: SiteSettings) {
   settings.links.editableFields = linkEditFieldKeys.filter((key) =>
     editableFieldSet.has(key),
   );
+  settings.links.allowedDomains = normalizeShortLinkDomains(
+    settings.links.allowedDomains,
+  );
+}
+
+function normalizeGeneralSettings(settings: SiteSettings) {
+  const domains = normalizeShortLinkDomainSettings({
+    defaultDomain: settings.general.defaultDomain,
+    domains: settings.general.domains,
+    domainSchemes: settings.general.domainSchemes,
+  });
+  settings.general.defaultDomain = domains.defaultDomain;
+  settings.general.domains = domains.domains;
+  settings.general.domainSchemes = domains.domainSchemes;
 }
 
 function normalizeLocalizedContent(
@@ -244,6 +265,7 @@ function normalizeSettings(
   pluginValues?: unknown,
 ): SiteSettings {
   const settings = merge(defaultSettings, siteValue);
+  normalizeGeneralSettings(settings);
   normalizeI18nSettings(settings, siteValue);
   normalizeLinkSettings(settings);
   settings.plugins = normalizePluginStates(pluginValues);

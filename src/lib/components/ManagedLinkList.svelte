@@ -30,6 +30,7 @@
   type ManagedLinkItem = {
     id: number;
     code: string;
+    domain: string;
     url: string;
     preview: {
       title: string;
@@ -111,7 +112,7 @@
     deleteAction: string;
     updateAction: string;
     healthAction?: string;
-    statsHref: (code: string) => string;
+    statsHref: (link: ManagedLinkItem) => string;
     canDelete: (link: ManagedLinkItem) => boolean;
     canEdit?: (link: ManagedLinkItem) => boolean;
     editableFields?: LinkEditFieldKey[];
@@ -135,42 +136,51 @@
   const resolvedEmptyMessage = $derived(
     emptyMessage ?? text.managedLinks.empty,
   );
-  let copiedCode = $state<string | null>(null);
-  let selectedCodes = $state<string[]>([]);
+  let copiedLink = $state<string | null>(null);
+  let selectedLinks = $state<string[]>([]);
   let healthResponseModal = $state<{
     title: string;
     body: string;
   } | null>(null);
 
-  const deletableCodes = $derived(
-    links.filter(canDelete).map((link) => link.code),
+  const deletableLinks = $derived(
+    links.filter(canDelete).map((link) => linkSelectionValue(link)),
   );
   const selectedCount = $derived(
-    selectedAllowedCount(selectedCodes, deletableCodes),
+    selectedAllowedCount(selectedLinks, deletableLinks),
   );
   const allDeletableSelected = $derived(
-    allAllowedSelected(selectedCodes, deletableCodes),
+    allAllowedSelected(selectedLinks, deletableLinks),
   );
 
   $effect(() => {
-    const next = reconcileSelection(selectedCodes, deletableCodes);
-    if (next.length !== selectedCodes.length) selectedCodes = next;
+    const next = reconcileSelection(selectedLinks, deletableLinks);
+    if (next.length !== selectedLinks.length) selectedLinks = next;
   });
 
-  async function copy(text: string, code: string) {
+  async function copy(text: string, link: ManagedLinkItem) {
+    const key = linkSelectionValue(link);
     await navigator.clipboard.writeText(text);
-    copiedCode = code;
+    copiedLink = key;
     setTimeout(() => {
-      if (copiedCode === code) copiedCode = null;
+      if (copiedLink === key) copiedLink = null;
     }, 1400);
   }
 
-  function toggleCode(code: string, checked: boolean) {
-    selectedCodes = toggleSelection(selectedCodes, code, checked);
+  function linkSelectionValue(link: Pick<ManagedLinkItem, 'code' | 'domain'>) {
+    return `${link.domain}\t${link.code}`;
+  }
+
+  function toggleLink(link: ManagedLinkItem, checked: boolean) {
+    selectedLinks = toggleSelection(
+      selectedLinks,
+      linkSelectionValue(link),
+      checked,
+    );
   }
 
   function toggleAll(checked: boolean) {
-    selectedCodes = selectAll(deletableCodes, checked);
+    selectedLinks = selectAll(deletableLinks, checked);
   }
 
   function healthText(link: ManagedLinkItem) {
@@ -274,7 +284,7 @@
     <ToggleField
       form={deleteFormId}
       checked={allDeletableSelected}
-      disabled={deletableCodes.length === 0}
+      disabled={deletableLinks.length === 0}
       label={formatText(text.managedLinks.selected, { count: selectedCount })}
       onchange={(event) => toggleAll(event.currentTarget.checked)}
     />
@@ -301,15 +311,14 @@
         <ToggleField
           form={deleteFormId}
           class="row-check"
-          name="codes"
-          value={link.code}
+          name="links"
+          value={linkSelectionValue(link)}
           ariaLabel={formatText(text.managedLinks.selectLink, {
             code: link.code,
           })}
-          checked={selectedCodes.includes(link.code)}
+          checked={selectedLinks.includes(linkSelectionValue(link))}
           disabled={!canDelete(link)}
-          onchange={(event) =>
-            toggleCode(link.code, event.currentTarget.checked)}
+          onchange={(event) => toggleLink(link, event.currentTarget.checked)}
         />
         <div class="link-mark">↗</div>
         <div class="link-copy">
@@ -359,13 +368,13 @@
           </span>
         </div>
         <div class="actions">
-          <button type="button" onclick={() => copy(link.short_url, link.code)}>
-            {copiedCode === link.code
+          <button type="button" onclick={() => copy(link.short_url, link)}>
+            {copiedLink === linkSelectionValue(link)
               ? text.managedLinks.copied
               : text.managedLinks.copy}
           </button>
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href={statsHref(link.code)}>{text.managedLinks.stats}</a>
+          <a href={statsHref(link)}>{text.managedLinks.stats}</a>
           {#if healthAction}
             <form
               class="inline-form"
@@ -374,6 +383,7 @@
               use:enhance={healthCheckEnhance(link)}
             >
               <input type="hidden" name="code" value={link.code} />
+              <input type="hidden" name="domain" value={link.domain} />
               <button type="submit">{text.managedLinks.health}</button>
             </form>
           {/if}
@@ -389,8 +399,8 @@
             formId={deleteFormId}
             label={text.managedLinks.delete}
             size="small"
-            name="singleCode"
-            value={link.code}
+            name="singleLink"
+            value={linkSelectionValue(link)}
             disabled={!canDelete(link)}
             buttonTitle={deleteReason}
             title={formatText(text.managedLinks.deleteTitle, {
@@ -420,6 +430,7 @@
               use:enhance={keepFormValues}
             >
               <input type="hidden" name="code" value={link.code} />
+              <input type="hidden" name="domain" value={link.domain} />
               {#if fieldEditable('url')}
                 <label class="wide">
                   <span>{text.managedLinks.destinationUrl}</span>

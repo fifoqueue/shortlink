@@ -13,6 +13,10 @@ import {
 } from '$lib/server/client-hints';
 import { getClientIp } from '$lib/server/client-ip';
 import { getSettings, setPluginStateNormalizer } from '$lib/server/settings';
+import {
+  isDefaultShortLinkDomain,
+  shortLinkDomainOrigin,
+} from '$lib/server/url';
 import { getPluginUser } from './plugins/auth-registry';
 import {
   collectClickMetadataPlugins,
@@ -22,6 +26,68 @@ import {
 
 setPluginStateNormalizer(normalizePluginStates);
 setClickMetadataCollector(collectClickMetadataPlugins);
+
+const appRouteSegments = new Set([
+  '_app',
+  'account',
+  'admin',
+  'api',
+  'assets',
+  'auth',
+  'custom.css',
+  'favicon.ico',
+  'favicon.svg',
+  'language',
+  'login',
+  'logout',
+  'privacy',
+  'robots.txt',
+  'signup',
+  'sitemap.xml',
+  'terms',
+]);
+
+function decodedPathSegment(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function staticAssetPath(pathname: string) {
+  const lastSegment = pathname.split('/').pop() ?? '';
+  return (
+    pathname.startsWith('/_app/') ||
+    pathname.startsWith('/assets/') ||
+    /\.[A-Za-z0-9]{2,8}$/.test(lastSegment)
+  );
+}
+
+function shortLinkPath(pathname: string) {
+  if (staticAssetPath(pathname)) return false;
+  const trimmed = pathname.replace(/^\/+|\/+$/g, '');
+  if (!trimmed || trimmed.includes('/')) return false;
+  const segment = decodedPathSegment(trimmed);
+  if (appRouteSegments.has(segment.toLowerCase())) return false;
+  return /^[A-Za-z0-9_-]+$/.test(segment);
+}
+
+function defaultDomainRedirect(
+  settings: Awaited<ReturnType<typeof getSettings>>,
+  url: URL,
+) {
+  if (!settings.general.defaultDomain) return null;
+  if (isDefaultShortLinkDomain(settings, url.origin)) return null;
+  if (shortLinkPath(url.pathname)) return null;
+  if (staticAssetPath(url.pathname)) return null;
+
+  const target = new URL(
+    `${url.pathname}${url.search}`,
+    shortLinkDomainOrigin(settings.general.defaultDomain, url.origin, settings),
+  );
+  return Response.redirect(target, 302);
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
   const settings = await getSettings();
@@ -33,6 +99,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   event.locals.settings = settings;
   event.locals.locale = locale;
   event.locals.localizedSettings = localizedSettings(settings, locale);
+  const redirectResponse = defaultDomainRedirect(settings, event.url);
+  if (redirectResponse) return redirectResponse;
   event.locals.user = await getPluginUser(event.cookies, settings.plugins);
   event.locals.isAdmin = event.locals.user?.isAdmin === true;
   const ip = getClientIp(

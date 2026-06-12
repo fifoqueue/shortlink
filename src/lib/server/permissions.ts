@@ -28,6 +28,7 @@ import {
 } from './database';
 import { getClientIp } from './client-ip';
 import { parseBoolean, stringValue } from './settings';
+import { normalizeShortLinkDomains } from './url';
 
 export const LINK_OPTION_KEYS = linkOptionKeys;
 export type LinkOptionKey = ConfigLinkOptionKey;
@@ -61,6 +62,7 @@ export interface PermissionRules {
     codeMinLength: number | null;
     codeMaxLength: number | null;
     generatedCodeLength: number | null;
+    domains: string[] | null;
     deleteOwn: boolean | null;
     deleteMaxClicks: number | null;
     editOwn: boolean | null;
@@ -210,6 +212,7 @@ export interface EffectivePermissions {
     codeMinLength: number;
     codeMaxLength: number;
     generatedCodeLength: number;
+    domains: string[];
     deleteOwn: boolean;
     deleteMaxClicks: number;
     editOwn: boolean;
@@ -249,6 +252,7 @@ const emptyRules: PermissionRules = {
     codeMinLength: null,
     codeMaxLength: null,
     generatedCodeLength: null,
+    domains: null,
     deleteOwn: null,
     deleteMaxClicks: null,
     editOwn: null,
@@ -665,6 +669,9 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
       codeMinLength: boundedNumber(links.codeMinLength, 1, 64),
       codeMaxLength: boundedNumber(links.codeMaxLength, 1, 64),
       generatedCodeLength: boundedNumber(links.generatedCodeLength, 1, 64),
+      domains: Object.prototype.hasOwnProperty.call(links, 'domains')
+        ? normalizeShortLinkDomains(stringList(links.domains, 100))
+        : null,
       deleteOwn: nullableBoolean(links.deleteOwn),
       deleteMaxClicks: boundedNumber(links.deleteMaxClicks, 0, 1_000_000),
       editOwn: nullableBoolean(links.editOwn),
@@ -1595,6 +1602,11 @@ function basePermissions(
   settings: SiteSettings,
   user: AuthenticatedUser | null,
 ): EffectivePermissions {
+  const defaultDomains =
+    settings.links.allowedDomains.length > 0
+      ? settings.links.allowedDomains
+      : settings.general.domains;
+
   return {
     isAdmin: false,
     matchedGroups: [],
@@ -1606,6 +1618,7 @@ function basePermissions(
       codeMinLength: settings.links.codeMinLength,
       codeMaxLength: settings.links.codeMaxLength,
       generatedCodeLength: settings.links.generatedCodeLength,
+      domains: [...defaultDomains],
       deleteOwn: settings.links.allowUserDelete,
       deleteMaxClicks: settings.links.userDeleteMaxClicks,
       editOwn: settings.links.editOwn,
@@ -1648,6 +1661,7 @@ function adminPermissions(settings: SiteSettings): EffectivePermissions {
       codeMinLength: 1,
       codeMaxLength: settings.links.codeMaxLength,
       generatedCodeLength: settings.links.generatedCodeLength,
+      domains: [...settings.general.domains],
       deleteOwn: true,
       deleteMaxClicks: 0,
       editOwn: true,
@@ -1684,6 +1698,7 @@ function applyGroupRules(
   permissions: EffectivePermissions,
   group: PublicPermissionGroup,
   matchedGroup: EffectivePermissions['matchedGroups'][number],
+  settings: SiteSettings,
 ) {
   const rules = group.rules;
   permissions.matchedGroups.push(matchedGroup);
@@ -1703,6 +1718,12 @@ function applyGroupRules(
   }
   if (rules.links.generatedCodeLength !== null) {
     permissions.links.generatedCodeLength = rules.links.generatedCodeLength;
+  }
+  if (rules.links.domains !== null) {
+    permissions.links.domains =
+      rules.links.domains.length > 0
+        ? [...rules.links.domains]
+        : [...settings.general.domains];
   }
   if (rules.links.deleteOwn !== null) {
     permissions.links.deleteOwn = rules.links.deleteOwn;
@@ -1763,7 +1784,10 @@ function applyGroupRules(
   }
 }
 
-function normalizeEffectiveLinks(permissions: EffectivePermissions) {
+function normalizeEffectiveLinks(
+  permissions: EffectivePermissions,
+  settings: SiteSettings,
+) {
   const links = permissions.links;
   const min = Math.max(1, Math.min(64, Math.round(links.codeMinLength)));
   const max = Math.max(min, Math.min(64, Math.round(links.codeMaxLength)));
@@ -1777,6 +1801,10 @@ function normalizeEffectiveLinks(permissions: EffectivePermissions) {
   links.editableFields = normalizeEffectiveRedirectRuleEditFields(
     links.editableFields,
   );
+  const configuredDomains = new Set(settings.general.domains);
+  links.domains = [
+    ...new Set(links.domains.filter((domain) => configuredDomains.has(domain))),
+  ];
   return permissions;
 }
 
@@ -1804,10 +1832,10 @@ export async function effectivePermissions(input: {
     );
 
   for (const { group, matchedGroup } of groups) {
-    applyGroupRules(permissions, group, matchedGroup);
+    applyGroupRules(permissions, group, matchedGroup, input.settings);
   }
 
-  return normalizeEffectiveLinks(permissions);
+  return normalizeEffectiveLinks(permissions, input.settings);
 }
 
 export function publicPermissionGroupReasons(
@@ -1847,6 +1875,7 @@ export function linkSettingsForPermissions(
     codeMinLength: permissions.links.codeMinLength,
     codeMaxLength: permissions.links.codeMaxLength,
     generatedCodeLength: permissions.links.generatedCodeLength,
+    allowedDomains: [...permissions.links.domains],
   };
 }
 
@@ -1999,6 +2028,9 @@ export function permissionGroupInputFromForm(
     'overrideGeneratedCodeLength',
   )
     ? boundedNumber(form.get('generatedCodeLength'), 1, 64)
+    : null;
+  rules.links.domains = parseBoolean(form, 'overrideDomains')
+    ? normalizeShortLinkDomains(stringList(stringValue(form, 'allowedDomains')))
     : null;
   rules.links.deleteMaxClicks = parseBoolean(form, 'overrideDeleteMaxClicks')
     ? boundedNumber(form.get('deleteMaxClicks'), 0, 1_000_000)

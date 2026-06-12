@@ -6,7 +6,7 @@ import {
   getStatsForLink,
   updateLink as updateShortLink,
 } from '$lib/server/shortener';
-import { shortUrl } from '$lib/server/url';
+import { shortLinkLookupDomain, shortUrl } from '$lib/server/url';
 import type { SiteSettings } from '$lib/config';
 import { formDataFromJson, recordValue } from '$lib/server/api-link-input';
 import {
@@ -47,8 +47,14 @@ export const GET: RequestHandler = async ({
   const { permissions } = api;
   const code = params.code;
   if (!code) error(404, text.linkNotFound);
+  const domain = shortLinkLookupDomain(
+    settings,
+    url.searchParams.get('domain'),
+    url.origin,
+  );
   const access = await canViewStats({
     code,
+    domain,
     isAdmin: api.principal.isAdmin,
     allowAnyOwner: permissions.links.statsAll,
     owner: { userId: api.principal.id },
@@ -101,7 +107,7 @@ export const GET: RequestHandler = async ({
     link: {
       ...stats,
       click_events: clickEvents,
-      short_url: shortUrl(url.origin, stats.code),
+      short_url: shortUrl(url.origin, stats.code, stats.domain, settings),
     },
     permission_groups: publicPermissionGroupReasons(permissions),
   });
@@ -142,6 +148,11 @@ async function updateApiLink(
     const body = recordValue(await request.json().catch(() => ({})));
     const form = formDataFromJson(body);
     const partial = options.partial === true;
+    const domain = shortLinkLookupDomain(
+      settings,
+      String(form.get('domain') || url.searchParams.get('domain') || ''),
+      url.origin,
+    );
     const result = await updateShortLink(
       code,
       {
@@ -163,6 +174,7 @@ async function updateApiLink(
         editableFields: permissions.links.editableFields,
         linkSettings: linkSettingsForPermissions(settings.links, permissions),
         owner: { userId: api.principal.id },
+        domain,
         partial,
       },
     );
@@ -189,7 +201,12 @@ async function updateApiLink(
     return json({
       link: {
         ...result.link,
-        short_url: shortUrl(url.origin, result.link.code),
+        short_url: shortUrl(
+          url.origin,
+          result.link.code,
+          result.link.domain,
+          settings,
+        ),
       },
       permission_groups: publicPermissionGroupReasons(permissions),
     });
@@ -262,10 +279,16 @@ export const POST: RequestHandler = async ({
     );
   }
 
+  const domain = shortLinkLookupDomain(
+    settings,
+    String(body.domain || url.searchParams.get('domain') || ''),
+    url.origin,
+  );
   const result = await checkLinkHealth(code, {
     isAdmin: api.principal.isAdmin,
     allowAnyOwner: permissions.links.healthAll,
     siteSettings: settings,
+    domain,
     owner: { userId: api.principal.id },
   });
   if (result.status === 'not_found') {
@@ -290,7 +313,12 @@ export const POST: RequestHandler = async ({
   return json({
     link: {
       ...result.link,
-      short_url: shortUrl(url.origin, result.link.code),
+      short_url: shortUrl(
+        url.origin,
+        result.link.code,
+        result.link.domain,
+        settings,
+      ),
     },
     permission_groups: publicPermissionGroupReasons(permissions),
   });
@@ -299,6 +327,7 @@ export const POST: RequestHandler = async ({
 export const DELETE: RequestHandler = async ({
   params,
   request,
+  url,
   locals,
   getClientAddress,
 }) => {
@@ -322,6 +351,11 @@ export const DELETE: RequestHandler = async ({
     owner: { userId: api.principal.id },
     allowUserDelete: permissions.links.deleteOwn,
     maxClicks: permissions.links.deleteMaxClicks,
+    domain: shortLinkLookupDomain(
+      settings,
+      url.searchParams.get('domain'),
+      url.origin,
+    ),
   });
   const message = deleteLinksMessage(result, { text });
   if (result.deleted === 0) {

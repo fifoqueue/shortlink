@@ -112,6 +112,23 @@ const ko = {
         '상태 확인 요청의 출발 IP를 숨기거나 분리할 때 사용합니다.',
       outboundProxyUrlPlaceholder:
         'http://user:pass@proxy.example:8080 또는 socks5h://127.0.0.1:1080',
+      shortLinkDomainsTitle: '단축 링크 도메인',
+      shortLinkDomainsDescription:
+        '새 링크를 만들 때 선택할 수 있는 공개 호스트명입니다. 경로는 자동으로 /slug 형식으로 붙습니다.',
+      shortLinkDomain: '도메인',
+      shortLinkDomainScheme: '프로토콜',
+      shortLinkDomainPlaceholder: 'go.example.com',
+      defaultShortLinkDomain: '기본 도메인',
+      defaultShortLinkDomainDeleteBlocked:
+        '기본 도메인은 삭제할 수 없습니다. 다른 도메인을 기본 도메인으로 지정한 뒤 삭제하세요.',
+      addShortLinkDomain: '도메인 추가',
+      noShortLinkDomains: '등록된 도메인이 없으면 링크를 생성할 수 없습니다.',
+      shortLinkDomainLinkCount: '생성된 링크 {count}개',
+      shortLinkDomainDeleteTitle: '도메인을 삭제할까요?',
+      shortLinkDomainDeleteMessage:
+        '생성된 링크가 있는 도메인을 선택 가능한 도메인 목록에서 제거합니다.',
+      shortLinkDomainDeleteConfirm:
+        '{domain} 도메인으로 생성된 링크가 {count}개 있습니다. 그래도 이 도메인을 삭제할까요?',
       brandContentTitle: '브랜드와 콘텐츠',
       brandContentDescription:
         '공개 페이지에서 방문자가 가장 먼저 보는 이름과 메시지입니다.',
@@ -198,6 +215,9 @@ const ko = {
       healthAllLinks: '다른 사용자 링크 상태 확인',
       userDeleteMaxClicks: '사용자 삭제 허용 최대 클릭 수',
       noLimitZero: '0이면 제한 없음',
+      allowedShortLinkDomains: '허용 단축 도메인',
+      allowedShortLinkDomainsHelp:
+        '링크 생성에 사용할 수 있는 단축 링크 도메인을 줄바꿈 또는 쉼표로 입력하세요. 비워두면 등록된 모든 도메인을 사용할 수 있습니다.',
       codeRulesTitle: '코드 생성 규칙',
       codeRulesDescription:
         '자동 생성 코드와 사용자가 입력하는 커스텀 코드의 범위를 정합니다.',
@@ -349,6 +369,7 @@ const ko = {
   home: {
     menuOpen: '메뉴 열기',
     destinationUrl: '목적지 URL',
+    shortLinkDomain: '단축 도메인',
     customCode: '커스텀 코드',
     createLink: '링크 만들기',
     linkReady: '링크가 준비되었습니다.',
@@ -608,6 +629,13 @@ const ko = {
     urlSchemeNotAllowed:
       '허용되지 않은 URL scheme입니다. 허용된 scheme: {schemes}',
     domainBlocked: '차단된 도메인입니다.',
+    shortLinkDomainInvalid: '단축 링크 도메인이 올바르지 않습니다.',
+    shortLinkDomainSchemeInvalid:
+      '단축 링크 도메인은 http 또는 https만 사용할 수 있습니다.',
+    shortLinkDomainHostRequired: '단축 링크 도메인에 호스트가 필요합니다.',
+    shortLinkDomainOriginOnly:
+      '단축 링크 도메인은 scheme, 경로, 쿼리, 해시 없이 호스트명만 입력해주세요.',
+    shortLinkDomainNotAllowed: '허용되지 않은 단축 링크 도메인입니다.',
     previewImageUrlInvalid:
       '공유 이미지 URL은 http 또는 https URL이어야 합니다.',
     themeColorFormat: '테마 컬러는 #RRGGBB 형식으로 입력해주세요.',
@@ -841,6 +869,24 @@ const en: typeof ko = {
         'Use this when health checks should leave through a separate proxy IP.',
       outboundProxyUrlPlaceholder:
         'http://user:pass@proxy.example:8080 or socks5h://127.0.0.1:1080',
+      shortLinkDomainsTitle: 'Short Link Domains',
+      shortLinkDomainsDescription:
+        'Public hostnames users can choose when creating a new link. The /slug path is appended automatically.',
+      shortLinkDomain: 'Domain',
+      shortLinkDomainScheme: 'Protocol',
+      shortLinkDomainPlaceholder: 'go.example.com',
+      defaultShortLinkDomain: 'Default domain',
+      defaultShortLinkDomainDeleteBlocked:
+        'The default domain cannot be deleted. Select another default domain first.',
+      addShortLinkDomain: 'Add domain',
+      noShortLinkDomains:
+        'Links cannot be created until at least one domain is registered.',
+      shortLinkDomainLinkCount: '{count} created links',
+      shortLinkDomainDeleteTitle: 'Delete domain?',
+      shortLinkDomainDeleteMessage:
+        'This removes domains with created links from the selectable domain list.',
+      shortLinkDomainDeleteConfirm:
+        '{count} links were created with {domain}. Delete this domain anyway?',
       brandContentTitle: 'Brand and Content',
       brandContentDescription:
         'The name and message visitors see first on the public page.',
@@ -929,6 +975,9 @@ const en: typeof ko = {
       healthAllLinks: 'Check other users link health',
       userDeleteMaxClicks: 'Max clicks for user deletion',
       noLimitZero: '0 means no limit',
+      allowedShortLinkDomains: 'Allowed short link domains',
+      allowedShortLinkDomainsHelp:
+        'Enter short link domains that can be used for link creation. Separate by line or comma. Leave blank to allow every registered domain.',
       codeRulesTitle: 'Code Generation Rules',
       codeRulesDescription:
         'Set ranges for generated codes and user-entered custom codes.',
@@ -1084,6 +1133,7 @@ const en: typeof ko = {
   home: {
     menuOpen: 'Open menu',
     destinationUrl: 'Destination URL',
+    shortLinkDomain: 'Short domain',
     customCode: 'Custom code',
     createLink: 'Create link',
     linkReady: 'Your link is ready.',
@@ -1345,6 +1395,13 @@ const en: typeof ko = {
     urlSchemeNotAllowed:
       'URL scheme is not allowed. Allowed schemes: {schemes}',
     domainBlocked: 'This domain is blocked.',
+    shortLinkDomainInvalid: 'The short link domain is invalid.',
+    shortLinkDomainSchemeInvalid:
+      'Short link domains can use only http or https.',
+    shortLinkDomainHostRequired: 'The short link domain needs a host.',
+    shortLinkDomainOriginOnly:
+      'Enter only the hostname for a short link domain, without a scheme, path, query, or hash.',
+    shortLinkDomainNotAllowed: 'This short link domain is not allowed.',
     previewImageUrlInvalid: 'Preview image URL must be an http or https URL.',
     themeColorFormat: 'Theme color must use #RRGGBB format.',
     expirationDateInvalid: 'Expiration date format is invalid.',

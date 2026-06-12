@@ -2,6 +2,7 @@ import { stringValue } from './settings';
 import { formatText, type UiText } from '$lib/i18n/ui-text';
 import type {
   DeleteLinksResult,
+  LinkCodeSelection,
   LinkOperationsInput,
   LinkPreviewInput,
 } from './shortener';
@@ -13,6 +14,32 @@ export function linkCodesFromForm(form: FormData) {
     .getAll('codes')
     .map((code) => String(code).trim())
     .filter(Boolean);
+}
+
+function parseLinkSelection(
+  value: FormDataEntryValue,
+): LinkCodeSelection | null {
+  const raw = String(value);
+  if (raw.includes('\t')) {
+    const [domain, code] = raw.split('\t', 2);
+    const normalizedCode = (code ?? '').trim();
+    return normalizedCode
+      ? { code: normalizedCode, domain: domain || undefined }
+      : null;
+  }
+  const code = raw.trim();
+  return code ? { code } : null;
+}
+
+export function linkSelectionsFromForm(form: FormData) {
+  const single = form.get('singleLink');
+  const values = single ? [single] : form.getAll('links');
+  if (values.length > 0) {
+    return values
+      .map(parseLinkSelection)
+      .filter((value): value is LinkCodeSelection => value !== null);
+  }
+  return linkCodesFromForm(form).map((code) => ({ code }));
 }
 
 export function linkPreviewFromForm(form: FormData): LinkPreviewInput {

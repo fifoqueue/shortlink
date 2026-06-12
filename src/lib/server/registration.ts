@@ -8,6 +8,12 @@ import {
   verifyUserEmailToken,
 } from './users';
 import { sendVerificationEmail } from './email';
+import { updateSettings } from './settings';
+import {
+  normalizeShortLinkDomainSettings,
+  shortLinkDomainSchemeFromOrigin,
+  shortLinkHostnameFromOrigin,
+} from './url';
 
 function verificationUrl(origin: string, token: string) {
   const url = new URL('/signup/verify', origin);
@@ -100,6 +106,27 @@ export async function registerUser(input: {
       await user.destroy();
       throw cause;
     }
+  }
+
+  if (firstUser) {
+    const defaultDomain = shortLinkHostnameFromOrigin(origin);
+    const domains = normalizeShortLinkDomainSettings({
+      defaultDomain,
+      domains: settings.general.domains,
+      domainSchemes: {
+        ...settings.general.domainSchemes,
+        [defaultDomain]: shortLinkDomainSchemeFromOrigin(origin),
+      },
+    });
+    await updateSettings({
+      ...settings,
+      general: {
+        ...settings.general,
+        defaultDomain: domains.defaultDomain,
+        domains: domains.domains,
+        domainSchemes: domains.domainSchemes,
+      },
+    });
   }
 
   return {

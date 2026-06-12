@@ -7,15 +7,19 @@ import {
   listLinksPage,
   updateLink as updateShortLink,
 } from '$lib/server/shortener';
-import { shortUrl } from '$lib/server/url';
+import {
+  selectedShortLinkDomainForCreate,
+  shortLinkLookupDomain,
+  shortUrl,
+} from '$lib/server/url';
 import { canCreateLinks } from '$lib/server/access';
 import { getClientIp } from '$lib/server/client-ip';
 import { getLinkOwner, getOrCreateLinkOwner } from '$lib/server/link-owner';
 import {
   deleteLinksMessage,
-  linkCodesFromForm,
   linkOperationsFromForm,
   linkPreviewFromForm,
+  linkSelectionsFromForm,
 } from '$lib/server/link-form';
 import { parseLinkSearch } from '$lib/server/link-search';
 import { DEFAULT_PAGE_SIZE, pageParam } from '$lib/server/pagination';
@@ -42,7 +46,9 @@ function linkCreateDeniedNotice(
   user: App.Locals['user'],
   text: ReturnType<typeof uiText>,
 ) {
-  if (permissions.links.canCreate) return null;
+  if (permissions.links.canCreate && permissions.links.domains.length > 0) {
+    return null;
+  }
 
   if (!settings.links.allowCreate) {
     return {
@@ -141,7 +147,7 @@ export const load: PageServerLoad = async ({
       };
   const links = linkPage.items.map((link) => ({
     ...link,
-    short_url: shortUrl(url.origin, link.code),
+    short_url: shortUrl(url.origin, link.code, link.domain, settings),
   }));
   const authMethods = getAuthLoginMethods(
     settings.plugins,
@@ -155,12 +161,28 @@ export const load: PageServerLoad = async ({
     ),
   });
   const displaySettings = locals.localizedSettings;
+  const publicDomains = permissions.links.domains;
   const publicSettings = {
     ...displaySettings,
+    general: {
+      ...displaySettings.general,
+      defaultDomain: publicDomains.includes(settings.general.defaultDomain)
+        ? settings.general.defaultDomain
+        : (publicDomains[0] ?? ''),
+      domains: publicDomains,
+      domainSchemes: Object.fromEntries(
+        publicDomains.map((domain) => [
+          domain,
+          settings.general.domainSchemes[domain] ?? 'https',
+        ]),
+      ),
+    },
     links: linkSettingsForPermissions(settings.links, permissions),
     plugins: getPublicPluginStates(settings.plugins),
   };
-  const canCreate = canCreateLinks(settings, locals, permissions);
+  const canCreate =
+    canCreateLinks(settings, locals, permissions) &&
+    permissions.links.domains.length > 0;
 
   return {
     links,
@@ -193,9 +215,16 @@ export const actions: Actions = {
     const formData = await request.formData();
     const rawUrl = String(formData.get('url') ?? '');
     const rawCode = String(formData.get('code') ?? '');
+    const rawDomain = String(formData.get('domain') ?? '');
     const preview = linkPreviewFromForm(formData);
     const operations = linkOperationsFromForm(formData);
-    const values = { url: rawUrl, code: rawCode, preview, operations };
+    const values = {
+      url: rawUrl,
+      code: rawCode,
+      domain: rawDomain,
+      preview,
+      operations,
+    };
     const settings = locals.settings;
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
     const clientIp = getClientIp(
@@ -270,6 +299,12 @@ export const actions: Actions = {
 
       const link = await createLink(targetUrl, rawCode, {
         isAdmin: locals.isAdmin,
+        domain: selectedShortLinkDomainForCreate(
+          rawDomain,
+          permissions.links.domains,
+          settings.general.defaultDomain,
+          settings.general.domains,
+        ),
         linkSettings: linkSettingsForPermissions(settings.links, permissions),
         owner: getOrCreateLinkOwner({
           cookies,
@@ -284,7 +319,7 @@ export const actions: Actions = {
         action: 'create',
         link: {
           ...link,
-          short_url: shortUrl(url.origin, link.code),
+          short_url: shortUrl(url.origin, link.code, link.domain, settings),
         },
       };
     } catch (error) {
@@ -307,6 +342,11 @@ export const actions: Actions = {
   updateLink: async ({ request, url, locals, cookies, getClientAddress }) => {
     const form = await request.formData();
     const code = String(form.get('code') ?? '').trim();
+    const domain = shortLinkLookupDomain(
+      locals.settings,
+      String(form.get('domain') ?? ''),
+      url.origin,
+    );
     const rawUrl = String(form.get('url') ?? '');
     const preview = linkPreviewFromForm(form);
     const operations = linkOperationsFromForm(form);
@@ -369,6 +409,7 @@ export const actions: Actions = {
             userId: locals.user?.id,
             ip: clientIp,
           }),
+          domain,
         },
       );
 
@@ -395,7 +436,12 @@ export const actions: Actions = {
         }),
         link: {
           ...result.link,
-          short_url: shortUrl(url.origin, result.link.code),
+          short_url: shortUrl(
+            url.origin,
+            result.link.code,
+            result.link.domain,
+            settings,
+          ),
         },
       };
     } catch (error) {
@@ -414,7 +460,7 @@ export const actions: Actions = {
     }
   },
 
-  checkHealth: async ({ request, locals, cookies, getClientAddress }) => {
+  checkHealth: async ({ request, url, locals, cookies, getClientAddress }) => {
     const form = await request.formData();
     const code = String(form.get('code') ?? '').trim();
     const settings = locals.settings;
@@ -440,10 +486,16 @@ export const actions: Actions = {
       });
     }
 
+    const domain = shortLinkLookupDomain(
+      settings,
+      String(form.get('domain') ?? ''),
+      url.origin,
+    );
     const result = await checkLinkHealth(code, {
       isAdmin: locals.isAdmin,
       allowAnyOwner: permissions.links.healthAll,
       siteSettings: settings,
+      domain,
       owner: getLinkOwner({
         cookies,
         userId: locals.user?.id,
@@ -480,7 +532,7 @@ export const actions: Actions = {
 
   deleteLinks: async ({ request, locals, cookies, getClientAddress }) => {
     const form = await request.formData();
-    const codes = linkCodesFromForm(form);
+    const links = linkSelectionsFromForm(form);
     const settings = locals.settings;
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
     const clientIp = getClientIp(
@@ -495,7 +547,7 @@ export const actions: Actions = {
       isAdmin: locals.isAdmin,
       ip: clientIp,
     });
-    if (codes.length === 0) {
+    if (links.length === 0) {
       return fail(400, {
         ok: false,
         action: 'deleteLinks',
@@ -515,7 +567,7 @@ export const actions: Actions = {
       });
     }
 
-    const result = await deleteShortLinks(codes, {
+    const result = await deleteShortLinks(links, {
       isAdmin: locals.isAdmin,
       allowAnyOwner: permissions.links.deleteAll,
       owner: getLinkOwner({

@@ -22,6 +22,7 @@ import { redirectRuleClickMetadata } from '$lib/server/click-metadata';
 import { effectivePermissions } from '$lib/server/permissions';
 import { redirectRuleConditionTypes } from '$lib/server/redirect-rules';
 import { getSettings } from '$lib/server/settings';
+import { shortLinkDomainForOrigin } from '$lib/server/url';
 import { shouldRenderOpenGraphPreview } from '$lib/server/user-agent';
 import { uiText } from '$lib/i18n/ui-text';
 
@@ -38,7 +39,8 @@ export const load: PageServerLoad = async ({
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
   if (!code) error(404, text.messages.linkNotFound);
 
-  const link = await getRedirectLinkByCode(code);
+  const domain = shortLinkDomainForOrigin(settings, url.origin);
+  const link = await getRedirectLinkByCode(code, domain);
   if (!link) error(404, text.messages.linkNotFound);
 
   const displaySettings = locals.localizedSettings ?? settings;
@@ -159,7 +161,8 @@ export const actions: Actions = {
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
     if (!code) error(404, text.messages.linkNotFound);
 
-    const link = await getRedirectLinkByCode(code);
+    const domain = shortLinkDomainForOrigin(settings, url.origin);
+    const link = await getRedirectLinkByCode(code, domain);
     if (!link) error(404, text.messages.linkNotFound);
 
     const blockReason = linkAccessBlockReason(link);

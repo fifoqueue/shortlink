@@ -31,6 +31,7 @@
 
   type LinkStats = {
     code: string;
+    domain: string;
     url: string;
     short_url: string;
     created_at: string;
@@ -96,14 +97,21 @@
       : '';
   }
 
+  function domainQuery() {
+    return data.link.domain
+      ? `domain=${encodeURIComponent(data.link.domain)}`
+      : '';
+  }
+
   function statsBaseHref() {
-    const query = returnToQuery();
+    const query = [domainQuery(), returnToQuery()].filter(Boolean).join('&');
     return `/${data.link.code}/statistics${query ? `?${query}` : ''}`;
   }
 
   function pageHref(page: number) {
     const query = [
       page > 1 ? `page=${encodeURIComponent(String(page))}` : '',
+      domainQuery(),
       returnToQuery(),
       hasSearch
         ? `${STATS_SEARCH_PARAMS.field}=${encodeURIComponent(data.search.field)}`
@@ -124,7 +132,10 @@
   }
 
   function csvHref() {
-    return resolve(`/${data.link.code}/statistics.csv`);
+    const query = domainQuery();
+    return resolve(
+      `/${data.link.code}/statistics.csv${query ? `?${query}` : ''}`,
+    );
   }
 
   async function copyStatValue(value: string | null, key: string) {

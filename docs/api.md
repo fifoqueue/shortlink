@@ -33,6 +33,7 @@ API 링크 생성은 CAPTCHA를 요구하지 않습니다. 다만 링크 생성 
 {
   "id": 1,
   "code": "hello",
+  "domain": "go.example.com",
   "url": "https://example.com/path",
   "preview": {
     "title": "공유 제목",
@@ -59,11 +60,11 @@ API 링크 생성은 CAPTCHA를 요구하지 않습니다. 다만 링크 생성 
   "created_at": "2026-06-10T00:00:00.000Z",
   "clicks": 0,
   "last_clicked_at": null,
-  "short_url": "http://localhost:5173/hello"
+  "short_url": "https://go.example.com/hello"
 }
 ```
 
-`preview` 필드는 모두 선택값입니다. 빈 값은 빈 문자열로 저장됩니다.
+`preview` 필드는 모두 선택값입니다. 빈 값은 빈 문자열로 저장됩니다. `code`는 도메인별로 유니크합니다. 즉, 같은 `hello` slug라도 `domain`이 다르면 서로 다른 링크로 존재할 수 있습니다.
 
 | 필드          | 설명                                        |
 | ------------- | ------------------------------------------- |
@@ -93,6 +94,7 @@ curl http://localhost:5173/api/links \
     {
       "id": 1,
       "code": "hello",
+      "domain": "go.example.com",
       "url": "https://example.com/path",
       "preview": {
         "title": "",
@@ -103,7 +105,7 @@ curl http://localhost:5173/api/links \
       "created_at": "2026-06-10T00:00:00.000Z",
       "clicks": 0,
       "last_clicked_at": null,
-      "short_url": "http://localhost:5173/hello"
+      "short_url": "https://go.example.com/hello"
     }
   ]
 }
@@ -122,6 +124,7 @@ Content-Type: application/json
 {
   "url": "https://example.com/path",
   "code": "hello",
+  "domain": "go.example.com",
   "tags": "ads, blog",
   "utmSource": "newsletter",
   "utmMedium": "email",
@@ -137,7 +140,7 @@ Content-Type: application/json
 }
 ```
 
-`url`은 필수입니다. scheme이 없으면 `https://`가 붙습니다. `code`는 선택값이며 비우면 자동 생성됩니다. 관리자 패널에서 커스텀 코드가 비활성화된 경우 일반 사용자 토큰은 `code`를 지정할 수 없고, 관리자 토큰만 이 제한을 우회합니다.
+`url`은 필수입니다. scheme이 없으면 `https://`가 붙습니다. `code`는 선택값이며 비우면 자동 생성됩니다. `domain`은 사이트 설정에 등록되어 있고 토큰 권한으로 허용된 단축 링크 도메인 host 중 하나여야 합니다. scheme, 경로, 쿼리, 해시는 저장하지 않습니다. 생략하면 사이트 기본 도메인을 우선 사용하고, 기본 도메인을 사용할 권한이 없으면 허용된 첫 번째 도메인을 사용합니다. 등록된 도메인이 없으면 링크를 생성할 수 없습니다. 관리자 패널에서 커스텀 코드가 비활성화된 경우 일반 사용자 토큰은 `code`를 지정할 수 없고, 관리자 토큰만 이 제한을 우회합니다.
 
 미리보기 값은 중첩 `preview` 객체 또는 웹 폼과 같은 top-level 필드로 보낼 수 있습니다. 서버는 목적지 URL의 OpenGraph 데이터를 자동으로 가져와 채우지 않습니다.
 
@@ -180,6 +183,7 @@ curl -X POST http://localhost:5173/api/links \
   -d '{
     "url": "https://example.com/path",
     "code": "hello",
+    "domain": "go.example.com",
     "utmSource": "newsletter",
     "utmMedium": "email",
     "utmCampaign": "launch",
@@ -199,6 +203,7 @@ curl -X POST http://localhost:5173/api/links \
   "link": {
     "id": 1,
     "code": "hello",
+    "domain": "go.example.com",
     "url": "https://example.com/path?utm_source=newsletter&utm_medium=email&utm_campaign=launch",
     "preview": {
       "title": "Example",
@@ -209,7 +214,7 @@ curl -X POST http://localhost:5173/api/links \
     "created_at": "2026-06-10T00:00:00.000Z",
     "clicks": 0,
     "last_clicked_at": null,
-    "short_url": "http://localhost:5173/hello"
+    "short_url": "https://go.example.com/hello"
   }
 }
 ```
@@ -223,6 +228,8 @@ Content-Type: application/json
 ```
 
 일반 사용자 토큰은 본인이 만든 링크만 수정할 수 있습니다. 일반 사용자 토큰은 전역 API 설정 또는 적용된 권한 그룹의 API 수정 권한을 만족해야 합니다.
+
+같은 `code`가 여러 도메인에 존재할 수 있으므로, 필요하면 `?domain=go.example.com` 쿼리 또는 JSON body의 `domain` 필드로 수정할 링크의 도메인을 지정하세요. 생략하면 현재 요청 도메인 또는 사이트 기본 도메인 기준으로 조회합니다.
 
 `PUT`은 웹 편집 폼과 같은 전체 수정 요청입니다. `url`은 필수이고, 기존 미리보기, 태그, 만료일, 클릭 제한, 라우팅 값을 유지하려면 유지할 필드도 함께 보내야 합니다. 생략된 필드는 빈 폼 입력처럼 처리되어 해당 값을 비웁니다. UTM 필드는 값이 있을 때만 `url`에 합쳐집니다.
 
@@ -303,6 +310,8 @@ GET /api/links/{code}
 
 단축 코드의 클릭 통계를 반환합니다. 일반 사용자 토큰은 본인이 만든 링크의 통계만 볼 수 있고, 관리자 토큰은 전체 링크를 볼 수 있습니다.
 
+도메인별로 같은 `code`가 있을 수 있으므로 `GET /api/links/{code}?domain=go.example.com` 형식으로 조회할 도메인을 지정할 수 있습니다. 생략하면 현재 요청 도메인 또는 사이트 기본 도메인 기준으로 조회합니다.
+
 ```bash
 curl http://localhost:5173/api/links/hello \
   -H "Authorization: Bearer $TOKEN"
@@ -315,6 +324,7 @@ curl http://localhost:5173/api/links/hello \
   "link": {
     "id": 1,
     "code": "hello",
+    "domain": "go.example.com",
     "url": "https://example.com/path",
     "preview": {
       "title": "",
@@ -341,7 +351,7 @@ curl http://localhost:5173/api/links/hello \
       "totalItems": 2,
       "totalPages": 1
     },
-    "short_url": "http://localhost:5173/hello"
+    "short_url": "https://go.example.com/hello"
   }
 }
 ```
@@ -360,6 +370,8 @@ DELETE /api/links/{code}
 curl -X DELETE http://localhost:5173/api/links/hello \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+도메인별 slug를 구분해야 하면 `DELETE /api/links/hello?domain=go.example.com`처럼 `domain` query를 지정하세요.
 
 여러 링크 삭제:
 
@@ -384,6 +396,8 @@ bulk 삭제 본문은 다음 형태를 지원합니다.
 ```json
 { "singleCode": "hello" }
 ```
+
+bulk 삭제에서 모든 `codes`에 같은 도메인을 적용하려면 body 또는 query에 `domain`을 함께 보낼 수 있습니다. 웹 폼과 같은 `links`/`singleLink` 값도 지원하며, 이 값은 `"{domain}\t{code}"` 형식입니다.
 
 일반 사용자 토큰은 전역 API 설정 또는 적용된 권한 그룹에서 API 삭제가 허용되어 있어야 하며, 링크 삭제 정책도 통과해야 합니다. 즉, 사용자 본인 링크 삭제가 허용되어 있고 클릭 수 제한을 넘지 않은 본인 링크만 삭제할 수 있습니다. 관리자 토큰은 이 제한을 우회합니다.
 

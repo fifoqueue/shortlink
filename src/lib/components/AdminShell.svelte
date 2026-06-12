@@ -74,7 +74,7 @@
       href={resolve('/admin')}
       onclick={() => (menuOpen = false)}
     >
-      <div class="mark">
+      <div class={logoUrl ? 'mark has-logo' : 'mark'}>
         {#if logoUrl}
           <img src={logoUrl} alt="" />
         {:else}
@@ -242,7 +242,13 @@
     font-size: 1.45rem;
     font-weight: 700;
   }
+  .mark.has-logo {
+    overflow: hidden;
+    background: transparent;
+    color: inherit;
+  }
   .mark img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: contain;
