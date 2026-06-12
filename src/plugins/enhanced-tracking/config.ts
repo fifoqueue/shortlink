@@ -23,11 +23,11 @@ export interface EnhancedTrackingConfig extends Record<string, unknown> {
   asnOrganizationHeader: string;
   proxyHeadersEnabled: boolean;
   proxyHeaders: string;
-  showCountry: boolean;
+  collectCountry: boolean;
   exposeCountryToUsers: boolean;
-  showCity: boolean;
+  collectCity: boolean;
   exposeCityToUsers: boolean;
-  showAsn: boolean;
+  collectAsn: boolean;
   exposeAsnToUsers: boolean;
 }
 
@@ -51,11 +51,11 @@ export const defaultEnhancedTrackingConfig: EnhancedTrackingConfig = {
   asnOrganizationHeader: 'X-GeoIP-ASN-Organization',
   proxyHeadersEnabled: false,
   proxyHeaders: defaultProxyHeaders,
-  showCountry: true,
+  collectCountry: true,
   exposeCountryToUsers: false,
-  showCity: true,
+  collectCity: true,
   exposeCityToUsers: false,
-  showAsn: true,
+  collectAsn: true,
   exposeAsnToUsers: false,
 };
 
@@ -95,11 +95,11 @@ export function normalizeEnhancedTrackingConfig(
       defaultEnhancedTrackingConfig.asnOrganizationHeader,
     proxyHeadersEnabled: booleanConfig(config, 'proxyHeadersEnabled'),
     proxyHeaders: stringConfig(config, 'proxyHeaders') || defaultProxyHeaders,
-    showCountry: booleanConfig(config, 'showCountry', true),
+    collectCountry: booleanConfig(config, 'collectCountry', true),
     exposeCountryToUsers: booleanConfig(config, 'exposeCountryToUsers'),
-    showCity: booleanConfig(config, 'showCity', true),
+    collectCity: booleanConfig(config, 'collectCity', true),
     exposeCityToUsers: booleanConfig(config, 'exposeCityToUsers'),
-    showAsn: booleanConfig(config, 'showAsn', true),
+    collectAsn: booleanConfig(config, 'collectAsn', true),
     exposeAsnToUsers: booleanConfig(config, 'exposeAsnToUsers'),
   };
 }

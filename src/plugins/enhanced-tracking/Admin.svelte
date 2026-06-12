@@ -6,12 +6,16 @@
     PluginLocaleKey,
   } from '$lib/plugin-contracts';
   import { configString, fieldName } from '../utils';
-  import { defaultProxyHeaders } from './config';
+  import {
+    defaultProxyHeaders,
+    normalizeEnhancedTrackingConfig,
+  } from './config';
 
   let { config, strings = {} }: PluginComponentProps = $props();
+  const normalizedConfig = $derived(normalizeEnhancedTrackingConfig(config));
 
   function checked(field: string) {
-    return config[field] === true;
+    return normalizedConfig[field] === true;
   }
 
   function t(key: PluginLocaleKey) {
@@ -119,9 +123,9 @@
       <div>
         <strong>{t('admin.country')}</strong>
         <ToggleField
-          name={fieldName('enhanced-tracking', 'showCountry')}
-          label={t('admin.showToAdmins')}
-          checked={checked('showCountry')}
+          name={fieldName('enhanced-tracking', 'collectCountry')}
+          label={t('admin.collect')}
+          checked={checked('collectCountry')}
         />
         <ToggleField
           name={fieldName('enhanced-tracking', 'exposeCountryToUsers')}
@@ -132,9 +136,9 @@
       <div>
         <strong>{t('admin.city')}</strong>
         <ToggleField
-          name={fieldName('enhanced-tracking', 'showCity')}
-          label={t('admin.showToAdmins')}
-          checked={checked('showCity')}
+          name={fieldName('enhanced-tracking', 'collectCity')}
+          label={t('admin.collect')}
+          checked={checked('collectCity')}
         />
         <ToggleField
           name={fieldName('enhanced-tracking', 'exposeCityToUsers')}
@@ -145,9 +149,9 @@
       <div>
         <strong>{t('admin.asn')}</strong>
         <ToggleField
-          name={fieldName('enhanced-tracking', 'showAsn')}
-          label={t('admin.showToAdmins')}
-          checked={checked('showAsn')}
+          name={fieldName('enhanced-tracking', 'collectAsn')}
+          label={t('admin.collect')}
+          checked={checked('collectAsn')}
         />
         <ToggleField
           name={fieldName('enhanced-tracking', 'exposeAsnToUsers')}

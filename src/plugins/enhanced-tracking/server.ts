@@ -103,11 +103,17 @@ async function collectGeoip(ip: string, config: EnhancedTrackingConfig) {
   const normalizedIp = cleanIp(ip);
   if (!validate(normalizedIp)) return {};
 
-  const cityReader = await getReader<CityResponse>(config.cityDatabasePath);
-  const countryReader =
-    cityReader ||
-    (await getReader<CountryResponse>(config.countryDatabasePath));
-  const asnReader = await getReader<AsnResponse>(config.asnDatabasePath);
+  const collectsCountryOrCity = config.collectCountry || config.collectCity;
+  const cityReader = collectsCountryOrCity
+    ? await getReader<CityResponse>(config.cityDatabasePath)
+    : null;
+  const countryReader = collectsCountryOrCity
+    ? cityReader ||
+      (await getReader<CountryResponse>(config.countryDatabasePath))
+    : null;
+  const asnReader = config.collectAsn
+    ? await getReader<AsnResponse>(config.asnDatabasePath)
+    : null;
   const cityResponse = cityReader?.get(normalizedIp) ?? null;
   const countryResponse =
     cityResponse ?? countryReader?.get(normalizedIp) ?? null;
@@ -115,16 +121,16 @@ async function collectGeoip(ip: string, config: EnhancedTrackingConfig) {
   const metadata: EnhancedTrackingMetadata = {};
 
   const country = countryFromResponse(countryResponse);
-  if (country) metadata.country = country;
+  if (country && config.collectCountry) metadata.country = country;
 
-  if (cityResponse?.city?.names?.en) {
+  if (cityResponse?.city?.names?.en && config.collectCity) {
     metadata.city = {
       name: cityResponse.city.names.en,
       countryCode: cityResponse.country?.iso_code ?? country?.code ?? '',
     };
   }
 
-  if (asnResponse?.autonomous_system_number) {
+  if (asnResponse?.autonomous_system_number && config.collectAsn) {
     metadata.asn = {
       number: asnResponse.autonomous_system_number,
       organization: asnResponse.autonomous_system_organization,
@@ -147,21 +153,24 @@ function collectGeoipHeaders(request: Request, config: EnhancedTrackingConfig) {
   const asnOrganization = headerValue(request, config.asnOrganizationHeader);
   const metadata: EnhancedTrackingMetadata = {};
 
-  if (countryCode || countryName) {
+  if (config.collectCountry && (countryCode || countryName)) {
     metadata.country = {
       code: countryCode || countryName,
       name: countryName || countryCode,
     };
   }
 
-  if (cityName) {
+  if (config.collectCity && cityName) {
     metadata.city = {
       name: cityName,
       countryCode,
     };
   }
 
-  if ((rawAsnNumber && Number.isFinite(asnNumber)) || asnOrganization) {
+  if (
+    config.collectAsn &&
+    ((rawAsnNumber && Number.isFinite(asnNumber)) || asnOrganization)
+  ) {
     metadata.asn = {
       number: rawAsnNumber && Number.isFinite(asnNumber) ? asnNumber : 0,
       organization: asnOrganization,
@@ -184,17 +193,17 @@ function collectProxyHeaders(request: Request, config: EnhancedTrackingConfig) {
   return values.length > 0 ? values : undefined;
 }
 
-function canDisplay(
+function shouldCollectGeoip(config: EnhancedTrackingConfig) {
+  return config.collectCountry || config.collectCity || config.collectAsn;
+}
+
+function canDisplayToViewer(
   config: EnhancedTrackingConfig,
-  showField: keyof EnhancedTrackingConfig,
   exposeField: keyof EnhancedTrackingConfig,
   isAdmin: boolean,
   isOwner: boolean,
 ) {
-  return (
-    config[showField] === true &&
-    (isAdmin || (config[exposeField] === true && isOwner))
-  );
+  return isAdmin || (config[exposeField] === true && isOwner);
 }
 
 function canDisplayProxyHeader(
@@ -225,9 +234,9 @@ const serverPlugin = {
     const config = normalizeEnhancedTrackingConfig(state.config);
     const metadata: EnhancedTrackingMetadata = {};
 
-    if (config.geoipHeadersEnabled) {
+    if (shouldCollectGeoip(config) && config.geoipHeadersEnabled) {
       Object.assign(metadata, collectGeoipHeaders(request, config));
-    } else if (config.geoipEnabled) {
+    } else if (shouldCollectGeoip(config) && config.geoipEnabled) {
       Object.assign(metadata, await collectGeoip(ip, config));
     }
 
@@ -246,27 +255,21 @@ const serverPlugin = {
 
     if (
       value.country &&
-      canDisplay(
-        config,
-        'showCountry',
-        'exposeCountryToUsers',
-        isAdmin,
-        isOwner,
-      )
+      canDisplayToViewer(config, 'exposeCountryToUsers', isAdmin, isOwner)
     ) {
       entries.push({ label: 'Country', value: formatCountry(value.country) });
     }
 
     if (
       value.city &&
-      canDisplay(config, 'showCity', 'exposeCityToUsers', isAdmin, isOwner)
+      canDisplayToViewer(config, 'exposeCityToUsers', isAdmin, isOwner)
     ) {
       entries.push({ label: 'City', value: formatCity(value.city) });
     }
 
     if (
       value.asn &&
-      canDisplay(config, 'showAsn', 'exposeAsnToUsers', isAdmin, isOwner)
+      canDisplayToViewer(config, 'exposeAsnToUsers', isAdmin, isOwner)
     ) {
       const asnLabel =
         value.asn.number > 0
@@ -294,15 +297,7 @@ const serverPlugin = {
     const config = normalizeEnhancedTrackingConfig(state.config);
     const fields: ClickMetadataSearchField[] = [];
 
-    if (
-      canDisplay(
-        config,
-        'showCountry',
-        'exposeCountryToUsers',
-        isAdmin,
-        isOwner,
-      )
-    ) {
+    if (canDisplayToViewer(config, 'exposeCountryToUsers', isAdmin, isOwner)) {
       fields.push({
         id: 'country',
         label: 'Country',
@@ -313,7 +308,7 @@ const serverPlugin = {
       });
     }
 
-    if (canDisplay(config, 'showCity', 'exposeCityToUsers', isAdmin, isOwner)) {
+    if (canDisplayToViewer(config, 'exposeCityToUsers', isAdmin, isOwner)) {
       fields.push({
         id: 'city',
         label: 'City',
@@ -324,7 +319,7 @@ const serverPlugin = {
       });
     }
 
-    if (canDisplay(config, 'showAsn', 'exposeAsnToUsers', isAdmin, isOwner)) {
+    if (canDisplayToViewer(config, 'exposeAsnToUsers', isAdmin, isOwner)) {
       fields.push({
         id: 'asn',
         label: 'ASN',

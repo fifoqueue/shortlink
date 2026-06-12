@@ -405,6 +405,12 @@
                 `${index}:referer`,
               )}
             </div>
+            {@render copyMetadata(
+              text.stats.clickFields.user_agent,
+              click.user_agent,
+              `${index}:user_agent`,
+              text.stats.noUserAgent,
+            )}
             {#if click.details.length > 0}
               <details class="event-details">
                 <summary>
@@ -441,12 +447,6 @@
                 </dl>
               </details>
             {/if}
-            {@render copyMetadata(
-              text.stats.clickFields.user_agent,
-              click.user_agent,
-              `${index}:user_agent`,
-              text.stats.noUserAgent,
-            )}
           </article>
         {/each}
       </div>
@@ -813,10 +813,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    border: 0;
+    border: 1px solid var(--page-border);
     border-radius: 8px;
-    padding: 3px 0;
-    background: transparent;
+    padding: 7px 9px;
+    background: color-mix(in srgb, var(--page-bg) 52%, var(--page-surface));
     color: var(--page-text);
     font: inherit;
     font-size: 0.78rem;
@@ -829,6 +829,9 @@
     overflow: hidden;
     overflow-wrap: anywhere;
     text-align: left;
+  }
+  .copy-detail em {
+    flex: none;
   }
   @media (max-width: 720px) {
     header,
