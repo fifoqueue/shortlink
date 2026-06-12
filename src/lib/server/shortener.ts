@@ -203,6 +203,57 @@ const UTM_FIELDS = [
   ['utmTerm', 'utm_term'],
   ['utmContent', 'utm_content'],
 ] as const;
+type UtmField = (typeof UTM_FIELDS)[number][0];
+type UtmPermissions = Partial<Record<UtmField, boolean>>;
+
+interface UrlPolicyOptions {
+  isAdmin?: boolean;
+  utmPermissions?: UtmPermissions;
+}
+
+function utmFieldAllowed(field: UtmField, options: UrlPolicyOptions) {
+  if (options.isAdmin) return true;
+  if (!options.utmPermissions) return true;
+  return options.utmPermissions[field] === true;
+}
+
+function deleteSearchParamCaseInsensitive(parsed: URL, param: string) {
+  const normalizedParam = param.toLowerCase();
+  const matchingKeys = [
+    ...new Set(
+      [...parsed.searchParams.keys()].filter(
+        (key) => key.toLowerCase() === normalizedParam,
+      ),
+    ),
+  ];
+  for (const key of matchingKeys) parsed.searchParams.delete(key);
+}
+
+function stripDisallowedUtmParams(parsed: URL, options: UrlPolicyOptions) {
+  if (options.isAdmin || !options.utmPermissions) return;
+
+  for (const [field, param] of UTM_FIELDS) {
+    if (!utmFieldAllowed(field, options)) {
+      deleteSearchParamCaseInsensitive(parsed, param);
+    }
+  }
+}
+
+function utmPermissionsFromEditableFields(
+  fields: Set<LinkEditField>,
+): Record<UtmField, boolean> {
+  return Object.fromEntries(
+    UTM_FIELDS.map(([field]) => [field, fields.has(field)]),
+  ) as Record<UtmField, boolean>;
+}
+
+function utmPermissionsFromLinkOptions(
+  options: Partial<Record<LinkOptionKey, boolean>>,
+): Record<UtmField, boolean> {
+  return Object.fromEntries(
+    UTM_FIELDS.map(([field]) => [field, options[field] === true]),
+  ) as Record<UtmField, boolean>;
+}
 
 function normalizedTags(value: unknown) {
   const source = Array.isArray(value)
@@ -274,7 +325,7 @@ interface CreateLinkOptions {
 function normalizeUrl(
   raw: string,
   settings: SiteSettings['links'],
-  options: { isAdmin?: boolean },
+  options: UrlPolicyOptions,
 ) {
   const value = raw.trim();
   if (!value) throw new Error(serverMessage('enterUrl'));
@@ -303,6 +354,7 @@ function normalizeUrl(
   }
 
   if (settings.stripUrlHash) parsed.hash = '';
+  stripDisallowedUtmParams(parsed, options);
   return parsed.toString();
 }
 
@@ -310,10 +362,15 @@ function normalizeUtmValue(value: string | undefined) {
   return (value ?? '').trim().slice(0, 160);
 }
 
-function applyCreateUrlOptions(url: string, input: LinkOperationsInput = {}) {
+function applyCreateUrlOptions(
+  url: string,
+  input: LinkOperationsInput = {},
+  options: UrlPolicyOptions = {},
+) {
   const parsed = new URL(url);
 
   for (const [field, param] of UTM_FIELDS) {
+    if (!utmFieldAllowed(field, options)) continue;
     const value = normalizeUtmValue(input[field]);
     if (value) parsed.searchParams.set(param, value);
   }
@@ -575,8 +632,12 @@ function normalizeRedirectRulesForStorage(
   options: { isAdmin?: boolean },
   permissions: Partial<Record<LinkOptionKey, boolean>> = settings.options,
 ) {
+  const utmPermissions = utmPermissionsFromLinkOptions(permissions);
   const redirectRules = normalizeRedirectRules(value, (raw) =>
-    normalizeUrl(raw, settings, options),
+    normalizeUrl(raw, settings, {
+      isAdmin: options.isAdmin,
+      utmPermissions,
+    }),
   );
 
   if (redirectRules.length === 0 || options.isAdmin) return redirectRules;
@@ -602,6 +663,9 @@ function redirectRuleEditPermissions(
   };
   for (const key of redirectRuleConditionKeys) {
     permissions[key] = fields.has(key);
+  }
+  for (const [field] of UTM_FIELDS) {
+    permissions[field] = fields.has(field);
   }
   return permissions;
 }
@@ -1060,9 +1124,14 @@ export async function createLink(
 ) {
   await ensureDatabase();
   const settings = options.linkSettings ?? (await getSettings()).links;
+  const utmPermissions = utmPermissionsFromLinkOptions(settings.options);
   const url = applyCreateUrlOptions(
-    normalizeUrl(rawUrl, settings, options),
+    normalizeUrl(rawUrl, settings, {
+      isAdmin: options.isAdmin,
+      utmPermissions,
+    }),
     options.operations,
+    { isAdmin: options.isAdmin, utmPermissions },
   );
   const requestedCode = validateCode(rawCode, settings, options);
 
@@ -1129,6 +1198,7 @@ export async function updateLink(
   }
 
   const editableFields = editableFieldsSet(options.editableFields);
+  const utmPermissions = utmPermissionsFromEditableFields(editableFields);
   const updates: Record<string, unknown> = {};
   const partial = options.partial === true;
   const editableUtmFields = UTM_FIELDS.map(([field]) => field).filter(
@@ -1148,8 +1218,12 @@ export async function updateLink(
       editableUtmFields.map((field) => [field, input.operations?.[field]]),
     ) as LinkOperationsInput;
     updates.url = applyCreateUrlOptions(
-      normalizeUrl(baseUrl, settings, { isAdmin: options.isAdmin }),
+      normalizeUrl(baseUrl, settings, {
+        isAdmin: options.isAdmin,
+        utmPermissions,
+      }),
       operations,
+      { isAdmin: options.isAdmin, utmPermissions },
     );
   }
   const hasEditablePreviewField =
