@@ -98,9 +98,27 @@ function merge<T>(defaults: T, value: unknown): T {
 }
 
 function siteSettingsValue(settings: SiteSettings) {
-  const site: Record<string, unknown> = { ...settings };
-  delete site.plugins;
-  return clone(site);
+  return clone({
+    access: settings.access,
+    network: settings.network,
+    general: {
+      logoUrl: settings.general.logoUrl,
+      faviconUrl: settings.general.faviconUrl,
+      defaultDomain: settings.general.defaultDomain,
+      domains: settings.general.domains,
+      domainSchemes: settings.general.domainSchemes,
+    },
+    seo: {
+      ogImageUrl: settings.seo.ogImageUrl,
+      indexable: settings.seo.indexable,
+      robotsTxt: settings.seo.robotsTxt,
+    },
+    i18n: settings.i18n,
+    links: settings.links,
+    api: settings.api,
+    auth: settings.auth,
+    theme: settings.theme,
+  });
 }
 
 function normalizeLinkSettings(settings: SiteSettings) {
@@ -198,16 +216,8 @@ function normalizeDefaultLocale(value: unknown): SiteLocale {
   return siteLocaleSet.has(locale) ? (locale as SiteLocale) : defaultSiteLocale;
 }
 
-function normalizeI18nSettings(settings: SiteSettings, siteValue: unknown) {
-  const storedI18n = isRecord(siteValue)
-    ? (siteValue as Record<string, unknown>).i18n
-    : undefined;
-  const hasStoredI18n = isRecord(storedI18n);
-  const defaultLocale = hasStoredI18n
-    ? normalizeDefaultLocale(
-        (storedI18n as Record<string, unknown>).defaultLocale,
-      )
-    : normalizeDefaultLocale(settings.i18n.defaultLocale);
+function normalizeI18nSettings(settings: SiteSettings) {
+  const defaultLocale = normalizeDefaultLocale(settings.i18n.defaultLocale);
   const locales = Object.fromEntries(
     siteLocaleKeys.map((locale) => [
       locale,
@@ -266,7 +276,7 @@ function normalizeSettings(
 ): SiteSettings {
   const settings = merge(defaultSettings, siteValue);
   normalizeGeneralSettings(settings);
-  normalizeI18nSettings(settings, siteValue);
+  normalizeI18nSettings(settings);
   normalizeLinkSettings(settings);
   settings.plugins = normalizePluginStates(pluginValues);
   return settings;
