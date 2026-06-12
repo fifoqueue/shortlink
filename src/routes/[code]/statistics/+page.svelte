@@ -190,7 +190,7 @@
   label: string,
   value: string | null,
   key: string,
-  emptyLabel = text.common.none,
+  emptyLabel = '',
 )}
   <button
     class="copy-meta"
@@ -200,7 +200,7 @@
     onclick={() => copyStatValue(value, key)}
   >
     <span>{label}</span>
-    <strong>{value?.trim() || emptyLabel}</strong>
+    <strong>{value?.trim() || emptyLabel || text.common.none}</strong>
     {#if value?.trim()}
       <em>{copiedKey === key ? text.common.copied : text.common.copy}</em>
     {/if}
