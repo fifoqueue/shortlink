@@ -105,7 +105,7 @@ export const GET: RequestHandler = async ({
     ...clicks.map((click, index) => clickRow(click, clickDetails[index] ?? [])),
   ]);
 
-  return new Response(csv, {
+  return new Response(`\uFEFF${csv}`, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       'content-disposition': `attachment; filename="${safeFilename(code)}"`,
