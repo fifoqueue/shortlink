@@ -10,6 +10,7 @@
 
 - `$lib/plugin-contracts`
 - `$lib/i18n/plugin`
+- `$lib/server/outbound-http` (`server.ts` 전용)
 - `src/plugins/utils.ts`
 - 이 문서에 명시된 파일명과 route
 
@@ -425,6 +426,10 @@ export default server;
 - `collectClickMetadata`
 - `formatClickMetadata`
 - `getClickMetadataSearchFields`
+- `outboundProxyProtocols`
+- `resolveOutboundProxy`
+- `handleOutboundProxyRequest`
+- `handleOutboundProxyConnect`
 
 enabled 상태가 아닌 플러그인은 대부분의 서버 훅이 실행되지 않는다. 예외적으로 활성화 가능 여부를 판단하는 `canEnable`/`canDisable`과 설정 저장 검증 흐름은 플러그인 상태 변경 시 호출될 수 있다.
 
@@ -490,6 +495,7 @@ async handleAdminAction({
   locale,
   fallbackLocale,
   strings,
+  settings,
 }) {
   const t = (key) => pluginText(strings, key);
   if (action !== 'save') {
@@ -671,6 +677,99 @@ handleRequest({ event, state, user, isAdmin, ip }) {
 ```
 
 요청마다 실행되므로 느린 DB 작업이나 외부 API 호출을 넣지 않는다. 이 훅에서 body를 읽으면 route handler가 body를 다시 읽지 못할 수 있다.
+
+### 서버 외부 요청과 아웃바운드 프록시
+
+서버에서 외부 HTTP 요청을 보내는 플러그인은 `server.ts`에서 `$lib/server/outbound-http`의 `outboundFetch()`를 사용한다. `fetch()`를 직접 호출하면 사이트의 아웃바운드 프록시 설정과 플러그인 프록시 resolver를 우회한다.
+
+```ts
+import { outboundFetch } from '$lib/server/outbound-http';
+
+async verifyFormSubmission({ state, settings }) {
+  const response = await outboundFetch('https://api.example.test/check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled: state.enabled }),
+    settings,
+    purpose: 'example-check',
+    timeoutMs: 10_000,
+  });
+
+  return { allowed: response.ok };
+}
+```
+
+HTTP가 아닌 raw TCP/TLS 연결이 필요하면 `outboundConnect()`를 사용한다. 이 함수도 같은 프록시 설정을 따른다.
+
+```ts
+import { outboundConnect } from '$lib/server/outbound-http';
+
+const socket = await outboundConnect({
+  host: 'service.example.test',
+  port: 443,
+  secure: true,
+  settings,
+  purpose: 'example-socket',
+});
+```
+
+플러그인이 아웃바운드 프록시 프로토콜 자체를 추가하려면 `server.ts`에서 다음 훅을 제공한다.
+
+```ts
+const server: Partial<PluginDefinition> = {
+  outboundProxyProtocols: [
+    {
+      protocol: 'example-proxy',
+      defaultPort: 9000,
+    },
+  ],
+
+  async handleOutboundProxyRequest({
+    url,
+    method,
+    headers,
+    body,
+    proxy,
+    timeoutMs,
+  }) {
+    // proxy.protocol === 'example-proxy'
+    // body는 Uint8Array다. 반환 body는 string이어야 한다.
+    return {
+      url: url.toString(),
+      status: 200,
+      headers: {},
+      body: '',
+    };
+  },
+
+  async handleOutboundProxyConnect({ host, port, secure, proxy, timeoutMs }) {
+    // SMTP처럼 raw socket이 필요한 호출에서 사용된다.
+    // net.Socket 또는 tls.TLSSocket을 반환한다.
+    throw new Error('Not implemented');
+  },
+};
+```
+
+`outboundProxyProtocols`는 URL scheme을 등록한다. 관리자가 `example-proxy://host:port`를 사이트 아웃바운드 프록시 URL로 저장하면 코어는 이 registry를 보고 검증한다.
+
+`handleOutboundProxyRequest()`는 HTTP 요청용이다. health check, HTTP 이메일, CAPTCHA 검증, OIDC discovery/token/userinfo처럼 Fetch API 형태의 요청이 이 경로를 탄다.
+
+`handleOutboundProxyConnect()`는 raw socket용이다. SMTP처럼 HTTP가 아닌 프로토콜은 이 훅이 있어야 해당 프록시 프로토콜을 사용할 수 있다. 플러그인이 새 프록시 프로토콜을 등록하면서 이 훅을 제공하지 않으면 raw socket 요청은 실패한다.
+
+요청별로 사용할 프록시를 동적으로 선택해야 하면 `resolveOutboundProxy()`를 제공한다.
+
+```ts
+resolveOutboundProxy({ url, purpose, state }) {
+  if (purpose !== 'captcha-verify') return null;
+  return {
+    protocol: 'socks5h',
+    host: '127.0.0.1',
+    port: 1080,
+  };
+}
+```
+
+resolver가 `null`을 반환하면 다음 플러그인 resolver를 확인하고, 마지막에는 사이트 전역 아웃바운드 프록시 설정을 사용한다. 반환한 `protocol`은 코어 내장 프로토콜(`http`, `https`, `socks5`, `socks5h`)이거나 `outboundProxyProtocols`로 등록된 프로토콜이어야 한다.
 
 ### 클릭 메타데이터
 

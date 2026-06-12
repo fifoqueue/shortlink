@@ -1,5 +1,7 @@
 import type { PluginDefinition } from '$lib/plugin-contracts';
 import { pluginText } from '$lib/i18n/plugin';
+import type { SiteSettings } from '$lib/config';
+import { outboundFetch } from '$lib/server/outbound-http';
 import {
   captchaTokenField,
   isActionProtected,
@@ -86,8 +88,9 @@ async function verifyCaptcha(input: {
   config: CaptchaConfig;
   token: string;
   ip: string;
+  settings: SiteSettings;
 }) {
-  const { config, token, ip } = input;
+  const { config, token, ip, settings } = input;
   const endpoint = verificationEndpointForProvider(config);
   const payload = buildVerificationPayload(config, token, ip);
   const headers: Record<string, string> =
@@ -95,7 +98,7 @@ async function verifyCaptcha(input: {
       ? parseCaptchaHeaderRecord(config.customHeaders)
       : {};
   let fetchUrl = endpoint;
-  let body: BodyInit | undefined;
+  let body: string | URLSearchParams | undefined;
 
   if (config.provider === 'custom' && config.customVerifyMethod === 'GET') {
     const url = new URL(endpoint);
@@ -115,11 +118,13 @@ async function verifyCaptcha(input: {
     body = new URLSearchParams(payload);
   }
 
-  const response = await fetch(fetchUrl, {
+  const response = await outboundFetch(fetchUrl, {
     method: config.provider === 'custom' ? config.customVerifyMethod : 'POST',
     headers,
     body,
-    signal: AbortSignal.timeout(verifyTimeoutMs(config)),
+    settings,
+    purpose: 'captcha-verify',
+    timeoutMs: verifyTimeoutMs(config),
   });
 
   if (!response.ok) return false;
@@ -146,7 +151,15 @@ const server: Partial<PluginDefinition> = {
       hasSecretKey: Boolean(config.secretKey),
     };
   },
-  async verifyFormSubmission({ action, form, state, ip, isAdmin, strings }) {
+  async verifyFormSubmission({
+    action,
+    form,
+    state,
+    ip,
+    isAdmin,
+    strings,
+    settings,
+  }) {
     if (isAdmin) return { allowed: true };
 
     const config = normalizeCaptchaConfig(state.config);
@@ -161,7 +174,7 @@ const server: Partial<PluginDefinition> = {
     }
 
     try {
-      const ok = await verifyCaptcha({ config, token, ip });
+      const ok = await verifyCaptcha({ config, token, ip, settings });
       return ok
         ? { allowed: true }
         : {

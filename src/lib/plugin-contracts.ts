@@ -1,4 +1,6 @@
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
+import type { Socket } from 'node:net';
+import type { TLSSocket } from 'node:tls';
 import type { Component } from 'svelte';
 import type { SiteLocale, SiteSettings } from '$lib/config';
 
@@ -354,6 +356,7 @@ export interface PluginDefinition {
     locale: SiteLocale;
     fallbackLocale: SiteLocale;
     strings: PluginLocaleStrings;
+    settings: SiteSettings;
   }) => PluginGuardResult | Promise<PluginGuardResult>;
   handleRequest?: (input: {
     event: RequestEvent;
@@ -396,15 +399,30 @@ export interface PluginDefinition {
     | Promise<PluginOutboundProxyConfig | null | undefined>;
   handleOutboundProxyRequest?: (input: {
     url: URL;
-    method: 'HEAD' | 'GET';
+    method: string;
+    headers: Record<string, string>;
+    body: Uint8Array;
     proxy: PluginOutboundProxyConfig;
     purpose: string;
+    signal?: AbortSignal;
     timeoutMs: number;
     state: PluginState;
     settings: SiteSettings;
   }) =>
     | PluginOutboundProxyRequestResult
     | Promise<PluginOutboundProxyRequestResult>;
+  handleOutboundProxyConnect?: (input: {
+    host: string;
+    port: number;
+    secure: boolean;
+    servername?: string;
+    proxy: PluginOutboundProxyConfig;
+    purpose: string;
+    signal?: AbortSignal;
+    timeoutMs: number;
+    state: PluginState;
+    settings: SiteSettings;
+  }) => Socket | TLSSocket | Promise<Socket | TLSSocket>;
   publicConfig?: (config: PluginConfig) => PluginConfig;
   transformCreateUrl?: (url: URL, form: FormData, config: PluginConfig) => URL;
 }

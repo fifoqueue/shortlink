@@ -1,7 +1,9 @@
 import nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { parseHeaderRecord, parseSingleHeaderLine } from '$lib/delimited';
 import type { SiteSettings } from '$lib/config';
 import { formatText, serverMessage, uiText } from '$lib/i18n/ui-text';
+import { outboundConnect, outboundFetch } from './outbound-http';
 
 type EmailMessage = {
   to: string;
@@ -77,14 +79,38 @@ async function sendSmtp(settings: SiteSettings, message: EmailMessage) {
   if (!config.smtp.host.trim())
     throw new Error(serverMessage('smtpHostRequired'));
   const timeout = emailTimeoutMs(settings);
+  const host = config.smtp.host.trim();
 
   const transport = nodemailer.createTransport({
-    host: config.smtp.host.trim(),
+    host,
     port: config.smtp.port,
     secure: config.smtp.secure,
     connectionTimeout: timeout,
     greetingTimeout: timeout,
     socketTimeout: timeout,
+    getSocket(
+      _options: SMTPTransport.Options,
+      callback: (error: Error | null, socketOptions?: unknown) => void,
+    ) {
+      outboundConnect({
+        host,
+        port: config.smtp.port,
+        secure: config.smtp.secure,
+        servername: host,
+        settings,
+        purpose: 'smtp-email',
+        timeoutMs: timeout,
+      })
+        .then((connection) => {
+          callback(null, {
+            connection,
+            secured: config.smtp.secure,
+          });
+        })
+        .catch((cause) => {
+          callback(cause instanceof Error ? cause : new Error(String(cause)));
+        });
+    },
     auth: config.smtp.username
       ? {
           user: config.smtp.username,
@@ -114,10 +140,12 @@ async function sendHttp(settings: SiteSettings, message: EmailMessage) {
     ...httpAuthHeaders(settings),
   };
 
-  const response = await fetch(config.http.endpoint, {
+  const response = await outboundFetch(config.http.endpoint, {
     method: config.http.method,
     headers,
-    signal: AbortSignal.timeout(emailTimeoutMs(settings)),
+    timeoutMs: emailTimeoutMs(settings),
+    settings,
+    purpose: 'http-email',
     body: JSON.stringify({
       from: sender(settings),
       to: message.to,

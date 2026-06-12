@@ -22,7 +22,26 @@ export interface OutboundRequestResult {
   body: string;
 }
 
-export type OutboundRequestMethod = 'HEAD' | 'GET';
+export type OutboundRequestMethod =
+  | 'DELETE'
+  | 'GET'
+  | 'HEAD'
+  | 'PATCH'
+  | 'POST'
+  | 'PUT'
+  | (string & {});
+
+type OutboundRequestBody =
+  | ArrayBuffer
+  | Blob
+  | Buffer
+  | FormData
+  | ReadableStream
+  | URLSearchParams
+  | Uint8Array
+  | string
+  | null
+  | undefined;
 
 export interface OutboundProxyProtocolDefinition {
   protocol: string;
@@ -30,11 +49,25 @@ export interface OutboundProxyProtocolDefinition {
   request: (input: {
     url: URL;
     method: OutboundRequestMethod;
+    headers: Record<string, string>;
+    body: Buffer;
     proxy: OutboundProxyConfig;
     purpose: string;
+    signal?: AbortSignal;
     settings: SiteSettings;
     timeoutMs: number;
   }) => Promise<OutboundRequestResult>;
+  connect?: (input: {
+    host: string;
+    port: number;
+    secure: boolean;
+    servername?: string;
+    proxy: OutboundProxyConfig;
+    purpose: string;
+    signal?: AbortSignal;
+    settings: SiteSettings;
+    timeoutMs: number;
+  }) => Promise<net.Socket | tls.TLSSocket>;
 }
 
 type OutboundProxyResolver = (input: {
@@ -167,16 +200,29 @@ function withSocketTimeout<T>(
   socket: net.Socket | tls.TLSSocket,
   timeoutMs: number,
   run: () => Promise<T>,
+  signal?: AbortSignal,
 ) {
   return new Promise<T>((resolve, reject) => {
+    if (signal?.aborted) {
+      socket.destroy();
+      reject(signal.reason ?? new Error('Outbound request aborted.'));
+      return;
+    }
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new Error('Outbound request timed out.'));
     }, timeoutMs);
     timer.unref?.();
-    run()
-      .then(resolve, reject)
-      .finally(() => clearTimeout(timer));
+    const abort = () => {
+      socket.destroy();
+      reject(signal?.reason ?? new Error('Outbound request aborted.'));
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    };
+    run().then(resolve, reject).finally(cleanup);
   });
 }
 
@@ -271,147 +317,217 @@ function targetPort(url: URL) {
 }
 
 function proxyAuthorization(proxy: OutboundProxyConfig) {
+  const value = proxyAuthorizationValue(proxy);
+  return value ? `Proxy-Authorization: ${value}\r\n` : '';
+}
+
+function proxyAuthorizationValue(proxy: OutboundProxyConfig) {
   if (!proxy.username && !proxy.password) return '';
   const token = Buffer.from(`${proxy.username}:${proxy.password}`).toString(
     'base64',
   );
-  return `Proxy-Authorization: Basic ${token}\r\n`;
+  return `Basic ${token}`;
 }
 
-async function connectTcp(host: string, port: number, timeoutMs: number) {
-  const socket = net.connect({ host, port });
-  await withSocketTimeout(socket, timeoutMs, () =>
-    waitForEvent(socket, 'connect'),
-  );
-  return socket;
-}
-
-async function connectTls(host: string, port: number, timeoutMs: number) {
-  const socket = tls.connect({ host, port, servername: host });
-  await withSocketTimeout(socket, timeoutMs, () =>
-    waitForEvent(socket, 'secureConnect'),
-  );
-  return socket;
-}
-
-async function connectHttpProxy(
-  proxy: OutboundProxyConfig,
-  url: URL,
+async function connectTcp(
+  host: string,
+  port: number,
   timeoutMs: number,
+  signal?: AbortSignal,
 ) {
+  const socket = net.connect({ host, port });
+  await withSocketTimeout(
+    socket,
+    timeoutMs,
+    () => waitForEvent(socket, 'connect'),
+    signal,
+  );
+  return socket;
+}
+
+async function connectTls(
+  host: string,
+  port: number,
+  timeoutMs: number,
+  signal?: AbortSignal,
+  servername: string = host,
+) {
+  const socket = tls.connect({ host, port, servername });
+  await withSocketTimeout(
+    socket,
+    timeoutMs,
+    () => waitForEvent(socket, 'secureConnect'),
+    signal,
+  );
+  return socket;
+}
+
+async function connectHttpProxyTarget(input: {
+  proxy: OutboundProxyConfig;
+  host: string;
+  port: number;
+  secure: boolean;
+  servername?: string;
+  timeoutMs: number;
+  signal?: AbortSignal;
+}) {
+  const { proxy } = input;
   const proxySocket =
     proxy.protocol === 'https'
-      ? await connectTls(proxy.host, proxy.port, timeoutMs)
-      : await connectTcp(proxy.host, proxy.port, timeoutMs);
+      ? await connectTls(proxy.host, proxy.port, input.timeoutMs, input.signal)
+      : await connectTcp(proxy.host, proxy.port, input.timeoutMs, input.signal);
 
-  return withSocketTimeout(proxySocket, timeoutMs, async () => {
-    const reader = new SocketReader(proxySocket);
-    const host = `${url.hostname}:${targetPort(url)}`;
-    proxySocket.write(
-      `CONNECT ${host} HTTP/1.1\r\nHost: ${host}\r\n${proxyAuthorization(
-        proxy,
-      )}Connection: close\r\n\r\n`,
-    );
-    const header = (await reader.readUntil(Buffer.from('\r\n\r\n'), 32_000))
-      .toString('latin1')
-      .split('\r\n')[0];
-    const status = Number(header.split(/\s+/)[1] ?? 0);
-    if (status < 200 || status >= 300) {
-      proxySocket.destroy();
-      throw new Error(
-        `Proxy CONNECT failed with status ${status || 'unknown'}.`,
+  return withSocketTimeout(
+    proxySocket,
+    input.timeoutMs,
+    async () => {
+      const reader = new SocketReader(proxySocket);
+      const host = `${input.host}:${input.port}`;
+      proxySocket.write(
+        `CONNECT ${host} HTTP/1.1\r\nHost: ${host}\r\n${proxyAuthorization(
+          proxy,
+        )}Connection: close\r\n\r\n`,
       );
-    }
+      const header = (await reader.readUntil(Buffer.from('\r\n\r\n'), 32_000))
+        .toString('latin1')
+        .split('\r\n')[0];
+      const status = Number(header.split(/\s+/)[1] ?? 0);
+      if (status < 200 || status >= 300) {
+        proxySocket.destroy();
+        throw new Error(
+          `Proxy CONNECT failed with status ${status || 'unknown'}.`,
+        );
+      }
 
-    if (url.protocol !== 'https:') return proxySocket;
-    const secureSocket = tls.connect({
-      socket: proxySocket,
-      servername: url.hostname,
-    });
-    await waitForEvent(secureSocket, 'secureConnect');
-    return secureSocket;
-  });
+      if (!input.secure) return proxySocket;
+      const secureSocket = tls.connect({
+        socket: proxySocket,
+        servername: input.servername ?? input.host,
+      });
+      await waitForEvent(secureSocket, 'secureConnect');
+      return secureSocket;
+    },
+    input.signal,
+  );
 }
 
 async function connectForwardProxy(
   proxy: OutboundProxyConfig,
   timeoutMs: number,
+  signal?: AbortSignal,
 ) {
   return proxy.protocol === 'https'
-    ? connectTls(proxy.host, proxy.port, timeoutMs)
-    : connectTcp(proxy.host, proxy.port, timeoutMs);
+    ? connectTls(proxy.host, proxy.port, timeoutMs, signal)
+    : connectTcp(proxy.host, proxy.port, timeoutMs, signal);
 }
 
-async function connectSocks5Proxy(
-  proxy: OutboundProxyConfig,
-  url: URL,
-  timeoutMs: number,
-) {
-  const socket = await connectTcp(proxy.host, proxy.port, timeoutMs);
-  return withSocketTimeout(socket, timeoutMs, async () => {
-    const reader = new SocketReader(socket);
-    const hasAuth = Boolean(proxy.username || proxy.password);
-    socket.write(Buffer.from(hasAuth ? [5, 2, 0, 2] : [5, 1, 0]));
-    const methodResponse = await reader.readBytes(2);
-    if (methodResponse[0] !== 5 || methodResponse[1] === 0xff) {
-      throw new Error('SOCKS5 proxy rejected authentication methods.');
-    }
-    if (methodResponse[1] === 2) {
-      const username = Buffer.from(proxy.username);
-      const password = Buffer.from(proxy.password);
-      if (username.length > 255 || password.length > 255) {
-        throw new Error('SOCKS5 credentials are too long.');
+async function connectSocks5ProxyTarget(input: {
+  proxy: OutboundProxyConfig;
+  host: string;
+  port: number;
+  secure: boolean;
+  servername?: string;
+  timeoutMs: number;
+  signal?: AbortSignal;
+}) {
+  const socket = await connectTcp(
+    input.proxy.host,
+    input.proxy.port,
+    input.timeoutMs,
+    input.signal,
+  );
+  return withSocketTimeout(
+    socket,
+    input.timeoutMs,
+    async () => {
+      const reader = new SocketReader(socket);
+      const hasAuth = Boolean(input.proxy.username || input.proxy.password);
+      socket.write(Buffer.from(hasAuth ? [5, 2, 0, 2] : [5, 1, 0]));
+      const methodResponse = await reader.readBytes(2);
+      if (methodResponse[0] !== 5 || methodResponse[1] === 0xff) {
+        throw new Error('SOCKS5 proxy rejected authentication methods.');
       }
+      if (methodResponse[1] === 2) {
+        const username = Buffer.from(input.proxy.username);
+        const password = Buffer.from(input.proxy.password);
+        if (username.length > 255 || password.length > 255) {
+          throw new Error('SOCKS5 credentials are too long.');
+        }
+        socket.write(
+          Buffer.concat([
+            Buffer.from([1, username.length]),
+            username,
+            Buffer.from([password.length]),
+            password,
+          ]),
+        );
+        const authResponse = await reader.readBytes(2);
+        if (authResponse[1] !== 0) {
+          throw new Error('SOCKS5 proxy authentication failed.');
+        }
+      }
+
+      const host = Buffer.from(input.host);
+      if (host.length > 255) throw new Error('Target host is too long.');
       socket.write(
         Buffer.concat([
-          Buffer.from([1, username.length]),
-          username,
-          Buffer.from([password.length]),
-          password,
+          Buffer.from([5, 1, 0, 3, host.length]),
+          host,
+          Buffer.from([(input.port >> 8) & 0xff, input.port & 0xff]),
         ]),
       );
-      const authResponse = await reader.readBytes(2);
-      if (authResponse[1] !== 0) {
-        throw new Error('SOCKS5 proxy authentication failed.');
-      }
-    }
+      const head = await reader.readBytes(4);
+      if (head[1] !== 0)
+        throw new Error(`SOCKS5 proxy failed with code ${head[1]}.`);
+      const addressLength =
+        head[3] === 1 ? 4 : head[3] === 4 ? 16 : (await reader.readBytes(1))[0];
+      await reader.readBytes(addressLength + 2);
 
-    const host = Buffer.from(url.hostname);
-    if (host.length > 255) throw new Error('Target host is too long.');
-    const port = targetPort(url);
-    socket.write(
-      Buffer.concat([
-        Buffer.from([5, 1, 0, 3, host.length]),
-        host,
-        Buffer.from([(port >> 8) & 0xff, port & 0xff]),
-      ]),
-    );
-    const head = await reader.readBytes(4);
-    if (head[1] !== 0)
-      throw new Error(`SOCKS5 proxy failed with code ${head[1]}.`);
-    const addressLength =
-      head[3] === 1 ? 4 : head[3] === 4 ? 16 : (await reader.readBytes(1))[0];
-    await reader.readBytes(addressLength + 2);
-
-    if (url.protocol !== 'https:') return socket;
-    const secureSocket = tls.connect({ socket, servername: url.hostname });
-    await waitForEvent(secureSocket, 'secureConnect');
-    return secureSocket;
-  });
+      if (!input.secure) return socket;
+      const secureSocket = tls.connect({
+        socket,
+        servername: input.servername ?? input.host,
+      });
+      await waitForEvent(secureSocket, 'secureConnect');
+      return secureSocket;
+    },
+    input.signal,
+  );
 }
 
 async function connectViaProxy(
   proxy: OutboundProxyConfig,
   url: URL,
   timeoutMs: number,
+  signal?: AbortSignal,
 ) {
   return proxy.protocol === 'socks5' || proxy.protocol === 'socks5h'
-    ? connectSocks5Proxy(proxy, url, timeoutMs)
-    : connectHttpProxy(proxy, url, timeoutMs);
+    ? connectSocks5ProxyTarget({
+        proxy,
+        host: url.hostname,
+        port: targetPort(url),
+        secure: url.protocol === 'https:',
+        servername: url.hostname,
+        timeoutMs,
+        signal,
+      })
+    : connectHttpProxyTarget({
+        proxy,
+        host: url.hostname,
+        port: targetPort(url),
+        secure: url.protocol === 'https:',
+        servername: url.hostname,
+        timeoutMs,
+        signal,
+      });
 }
 
 function requestPath(url: URL) {
   return `${url.pathname || '/'}${url.search}`;
+}
+
+function urlHost(host: string) {
+  return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 }
 
 function parseHeaders(raw: string) {
@@ -455,10 +571,88 @@ function decodeBody(body: Buffer, headers: Record<string, string>) {
   return decoded.toString('utf8');
 }
 
+type OutboundFetchInit = Omit<RequestInit, 'body'> & {
+  body?: OutboundRequestBody;
+  settings: SiteSettings;
+  purpose?: string;
+  timeoutMs?: number;
+  maxRedirects?: number;
+};
+
+function headersFromInit(headers: HeadersInit | undefined) {
+  const result: Record<string, string> = {};
+  new Headers(headers).forEach((value, key) => {
+    result[key.toLowerCase()] = value;
+  });
+  return result;
+}
+
+function hasHeader(headers: Record<string, string>, key: string) {
+  return Object.hasOwn(headers, key.toLowerCase());
+}
+
+async function bodyBuffer(body: OutboundRequestBody) {
+  if (body === null || body === undefined) return Buffer.alloc(0);
+  if (Buffer.isBuffer(body)) return body;
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body.buffer, body.byteOffset, body.byteLength);
+  }
+  if (body instanceof ArrayBuffer) return Buffer.from(body);
+  return Buffer.from(await new Response(body).arrayBuffer());
+}
+
+function defaultBodyContentType(body: OutboundRequestBody) {
+  if (body instanceof URLSearchParams) {
+    return 'application/x-www-form-urlencoded;charset=UTF-8';
+  }
+  if (body instanceof Blob && body.type) return body.type;
+  if (typeof body === 'string') return 'text/plain;charset=UTF-8';
+  return '';
+}
+
+function requestHeaders(input: {
+  headers: Record<string, string>;
+  body: Buffer;
+  sourceBody: OutboundRequestBody;
+}) {
+  const headers = { ...input.headers };
+  if (!hasHeader(headers, 'user-agent')) {
+    headers['user-agent'] = 'ShortlinkOutbound/1.0';
+  }
+  if (!hasHeader(headers, 'accept')) headers.accept = '*/*';
+  if (!hasHeader(headers, 'accept-encoding')) {
+    headers['accept-encoding'] = 'identity';
+  }
+  if (input.body.length > 0 && !hasHeader(headers, 'content-length')) {
+    headers['content-length'] = String(input.body.length);
+  }
+  const contentType = defaultBodyContentType(input.sourceBody);
+  if (contentType && !hasHeader(headers, 'content-type')) {
+    headers['content-type'] = contentType;
+  }
+  delete headers.host;
+  delete headers.connection;
+  delete headers['proxy-authorization'];
+  return headers;
+}
+
+function serializeHeaders(headers: Record<string, string>) {
+  return Object.entries(headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\r\n');
+}
+
+function bufferArrayBuffer(buffer: Buffer) {
+  return Uint8Array.from(buffer).buffer;
+}
+
 async function proxiedRequest(input: {
   url: URL;
   method: OutboundRequestMethod;
+  headers: Record<string, string>;
+  body: Buffer;
   proxy: OutboundProxyConfig;
+  signal?: AbortSignal;
   timeoutMs: number;
 }) {
   const usesTunnel =
@@ -466,63 +660,90 @@ async function proxiedRequest(input: {
     input.proxy.protocol === 'socks5h' ||
     input.url.protocol === 'https:';
   const socket = usesTunnel
-    ? await connectViaProxy(input.proxy, input.url, input.timeoutMs)
-    : await connectForwardProxy(input.proxy, input.timeoutMs);
-  return withSocketTimeout(socket, input.timeoutMs, async () => {
-    const reader = new SocketReader(socket);
-    const requestTarget = usesTunnel ? requestPath(input.url) : input.url.href;
-    const proxyAuth = usesTunnel ? '' : proxyAuthorization(input.proxy);
-    socket.write(
-      `${input.method} ${requestTarget} HTTP/1.1\r\n` +
-        `Host: ${input.url.host}\r\n` +
-        proxyAuth +
-        'User-Agent: ShortlinkHealthCheck/1.0\r\n' +
-        'Accept: text/plain,text/html,*/*\r\n' +
-        'Accept-Encoding: identity\r\n' +
-        'Connection: close\r\n\r\n',
-    );
+    ? await connectViaProxy(
+        input.proxy,
+        input.url,
+        input.timeoutMs,
+        input.signal,
+      )
+    : await connectForwardProxy(input.proxy, input.timeoutMs, input.signal);
+  return withSocketTimeout(
+    socket,
+    input.timeoutMs,
+    async () => {
+      const reader = new SocketReader(socket);
+      const requestTarget = usesTunnel
+        ? requestPath(input.url)
+        : input.url.href;
+      const headers = {
+        ...input.headers,
+        host: input.url.host,
+        ...(usesTunnel
+          ? {}
+          : { 'proxy-authorization': proxyAuthorizationValue(input.proxy) }),
+        connection: 'close',
+      };
+      if (!headers['proxy-authorization'])
+        delete headers['proxy-authorization'];
+      socket.write(
+        `${input.method} ${requestTarget} HTTP/1.1\r\n${serializeHeaders(
+          headers,
+        )}\r\n\r\n`,
+      );
+      if (input.body.length > 0) socket.write(input.body);
 
-    const headerBuffer = await reader.readUntil(
-      Buffer.from('\r\n\r\n'),
-      64_000,
-    );
-    const headerText = headerBuffer.toString('latin1');
-    const statusLine = headerText.split('\r\n')[0] ?? '';
-    const statusMatch = statusLine.match(
-      /^HTTP\/\d(?:\.\d)?\s+(\d{3})\s*(.*)$/i,
-    );
-    const headers = parseHeaders(headerText);
-    const body = await reader.readRemaining(MAX_RESPONSE_BYTES);
-    socket.destroy();
+      const headerBuffer = await reader.readUntil(
+        Buffer.from('\r\n\r\n'),
+        64_000,
+      );
+      const headerText = headerBuffer.toString('latin1');
+      const statusLine = headerText.split('\r\n')[0] ?? '';
+      const statusMatch = statusLine.match(
+        /^HTTP\/\d(?:\.\d)?\s+(\d{3})\s*(.*)$/i,
+      );
+      const responseHeaders = parseHeaders(headerText);
+      const body = await reader.readRemaining(MAX_RESPONSE_BYTES);
+      socket.destroy();
 
-    return {
-      url: input.url.toString(),
-      status: Number(statusMatch?.[1] ?? 0),
-      statusText: statusMatch?.[2]?.trim() ?? '',
-      headers,
-      body: decodeBody(body, headers),
-    };
-  });
+      return {
+        url: input.url.toString(),
+        status: Number(statusMatch?.[1] ?? 0),
+        statusText: statusMatch?.[2]?.trim() ?? '',
+        headers: responseHeaders,
+        body: decodeBody(body, responseHeaders),
+      };
+    },
+    input.signal,
+  );
 }
 
 async function directRequest(input: {
   url: URL;
   method: OutboundRequestMethod;
+  headers: Record<string, string>;
+  body: Buffer;
+  signal?: AbortSignal;
   timeoutMs: number;
 }) {
   const controller = new AbortController();
+  if (input.signal?.aborted) {
+    throw input.signal.reason ?? new Error('Outbound request aborted.');
+  }
   const timer = setTimeout(() => controller.abort(), input.timeoutMs);
   timer.unref?.();
+  const abort = () => controller.abort(input.signal?.reason);
+  input.signal?.addEventListener('abort', abort, { once: true });
   try {
     const response = await fetch(input.url, {
       method: input.method,
       redirect: 'manual',
       signal: controller.signal,
-      headers: {
-        accept: 'text/plain,text/html,*/*',
-        'accept-encoding': 'identity',
-        'user-agent': 'ShortlinkHealthCheck/1.0',
-      },
+      headers: input.headers,
+      body:
+        input.method.toUpperCase() === 'GET' ||
+        input.method.toUpperCase() === 'HEAD'
+          ? undefined
+          : bufferArrayBuffer(input.body),
     });
     const headers = Object.fromEntries(response.headers.entries());
     return {
@@ -537,6 +758,7 @@ async function directRequest(input: {
     };
   } finally {
     clearTimeout(timer);
+    input.signal?.removeEventListener('abort', abort);
   }
 }
 
@@ -551,29 +773,72 @@ registerOutboundProxyProtocol({
   protocol: 'http',
   defaultPort: 80,
   request: proxiedRequest,
+  connect: (input) =>
+    connectHttpProxyTarget({
+      proxy: input.proxy,
+      host: input.host,
+      port: input.port,
+      secure: input.secure,
+      servername: input.servername,
+      timeoutMs: input.timeoutMs,
+      signal: input.signal,
+    }),
 });
 
 registerOutboundProxyProtocol({
   protocol: 'https',
   defaultPort: 443,
   request: proxiedRequest,
+  connect: (input) =>
+    connectHttpProxyTarget({
+      proxy: input.proxy,
+      host: input.host,
+      port: input.port,
+      secure: input.secure,
+      servername: input.servername,
+      timeoutMs: input.timeoutMs,
+      signal: input.signal,
+    }),
 });
 
 registerOutboundProxyProtocol({
   protocol: 'socks5',
   defaultPort: 1080,
   request: proxiedRequest,
+  connect: (input) =>
+    connectSocks5ProxyTarget({
+      proxy: input.proxy,
+      host: input.host,
+      port: input.port,
+      secure: input.secure,
+      servername: input.servername,
+      timeoutMs: input.timeoutMs,
+      signal: input.signal,
+    }),
 });
 
 registerOutboundProxyProtocol({
   protocol: 'socks5h',
   defaultPort: 1080,
   request: proxiedRequest,
+  connect: (input) =>
+    connectSocks5ProxyTarget({
+      proxy: input.proxy,
+      host: input.host,
+      port: input.port,
+      secure: input.secure,
+      servername: input.servername,
+      timeoutMs: input.timeoutMs,
+      signal: input.signal,
+    }),
 });
 
 export async function outboundRequest(input: {
   url: string;
   method: OutboundRequestMethod;
+  headers?: HeadersInit;
+  body?: OutboundRequestBody;
+  signal?: AbortSignal;
   settings: SiteSettings;
   purpose?: string;
   timeoutMs?: number;
@@ -583,6 +848,16 @@ export async function outboundRequest(input: {
   const timeoutMs = input.timeoutMs ?? 8_000;
   const maxRedirects = input.maxRedirects ?? MAX_REDIRECTS;
   const purpose = input.purpose ?? 'generic';
+  const method = input.method.toUpperCase();
+  const body =
+    method === 'GET' || method === 'HEAD'
+      ? Buffer.alloc(0)
+      : await bodyBuffer(input.body);
+  const headers = requestHeaders({
+    headers: headersFromInit(input.headers),
+    body,
+    sourceBody: input.body,
+  });
 
   for (
     let redirectCount = 0;
@@ -603,13 +878,23 @@ export async function outboundRequest(input: {
       result = await protocol.request({
         url,
         method: input.method,
+        headers,
+        body,
         proxy,
         purpose,
+        signal: input.signal,
         settings: input.settings,
         timeoutMs,
       });
     } else {
-      result = await directRequest({ url, method: input.method, timeoutMs });
+      result = await directRequest({
+        url,
+        method: input.method,
+        headers,
+        body,
+        signal: input.signal,
+        timeoutMs,
+      });
     }
     const nextUrl = redirectUrl(url, result);
     if (!nextUrl) return result;
@@ -617,4 +902,88 @@ export async function outboundRequest(input: {
   }
 
   throw new Error('Too many redirects.');
+}
+
+export async function outboundFetch(
+  resource: RequestInfo | URL,
+  init: OutboundFetchInit,
+) {
+  const request = new Request(resource, init as RequestInit);
+  const method = request.method.toUpperCase();
+  const requestBody =
+    method === 'GET' || method === 'HEAD' || request.body === null
+      ? undefined
+      : Buffer.from(await request.arrayBuffer());
+  const result = await outboundRequest({
+    url: request.url,
+    method: request.method,
+    headers: request.headers,
+    body: requestBody,
+    signal: init.signal ?? request.signal,
+    settings: init.settings,
+    purpose: init.purpose,
+    timeoutMs: init.timeoutMs,
+    maxRedirects:
+      init.maxRedirects ?? (init.redirect === 'manual' ? 0 : undefined),
+  });
+  const status = result.status || 502;
+  const responseBody =
+    request.method.toUpperCase() === 'HEAD' || status === 204 || status === 304
+      ? null
+      : result.body;
+  return new Response(responseBody, {
+    status,
+    statusText: result.statusText,
+    headers: result.headers,
+  });
+}
+
+export async function outboundConnect(input: {
+  host: string;
+  port: number;
+  secure?: boolean;
+  servername?: string;
+  settings: SiteSettings;
+  purpose?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}) {
+  const secure = input.secure === true;
+  const purpose = input.purpose ?? 'generic';
+  const timeoutMs = input.timeoutMs ?? 8_000;
+  const url = new URL(
+    `${secure ? 'tls' : 'tcp'}://${urlHost(input.host)}:${input.port}`,
+  );
+  const proxy = await proxyForRequest({
+    url,
+    purpose,
+    settings: input.settings,
+  });
+  if (!proxy) {
+    return secure
+      ? connectTls(
+          input.host,
+          input.port,
+          timeoutMs,
+          input.signal,
+          input.servername ?? input.host,
+        )
+      : connectTcp(input.host, input.port, timeoutMs, input.signal);
+  }
+
+  const protocol = proxyProtocolDefinition(proxy.protocol);
+  if (!protocol?.connect) {
+    throw new Error(serverMessage('outboundProxySchemeInvalid'));
+  }
+  return protocol.connect({
+    host: input.host,
+    port: input.port,
+    secure,
+    servername: input.servername,
+    proxy,
+    purpose,
+    signal: input.signal,
+    settings: input.settings,
+    timeoutMs,
+  });
 }

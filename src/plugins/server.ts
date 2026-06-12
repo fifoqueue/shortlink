@@ -35,6 +35,7 @@ type ServerPluginModule = {
       | 'getClickMetadataSearchFields'
       | 'outboundProxyProtocols'
       | 'handleOutboundProxyRequest'
+      | 'handleOutboundProxyConnect'
       | 'loadAccountData'
       | 'loadAdminData'
       | 'loadAdminSubpage'
@@ -89,6 +90,12 @@ for (const definition of pluginDefinitions) {
         const result = await definition.handleOutboundProxyRequest({
           url: input.url,
           method: input.method,
+          headers: input.headers,
+          body: new Uint8Array(
+            input.body.buffer,
+            input.body.byteOffset,
+            input.body.byteLength,
+          ),
           proxy: {
             protocol: input.proxy.protocol,
             host: input.proxy.host,
@@ -99,6 +106,7 @@ for (const definition of pluginDefinitions) {
             searchParams: input.proxy.searchParams,
           },
           purpose: input.purpose,
+          signal: input.signal,
           timeoutMs: input.timeoutMs,
           state,
           settings: input.settings,
@@ -111,6 +119,35 @@ for (const definition of pluginDefinitions) {
           headers: result.headers ?? {},
           body: result.body ?? '',
         };
+      },
+      connect: async (input) => {
+        const state = input.settings.plugins[definition.meta.id];
+        if (!state?.enabled || !definition.handleOutboundProxyConnect) {
+          throw new Error(
+            `Outbound proxy protocol "${protocol.protocol}" cannot open raw sockets.`,
+          );
+        }
+
+        return definition.handleOutboundProxyConnect({
+          host: input.host,
+          port: input.port,
+          secure: input.secure,
+          servername: input.servername,
+          proxy: {
+            protocol: input.proxy.protocol,
+            host: input.proxy.host,
+            port: input.proxy.port,
+            username: input.proxy.username,
+            password: input.proxy.password,
+            rawUrl: input.proxy.rawUrl,
+            searchParams: input.proxy.searchParams,
+          },
+          purpose: input.purpose,
+          signal: input.signal,
+          timeoutMs: input.timeoutMs,
+          state,
+          settings: input.settings,
+        });
       },
     });
   }
@@ -254,6 +291,7 @@ export async function verifyFormSubmissionPlugins(input: {
   ip: string;
   locale: SiteLocale;
   fallbackLocale: SiteLocale;
+  settings: import('$lib/config').SiteSettings;
 }): Promise<PluginGuardResult> {
   if (input.isAdmin) return { allowed: true };
 
@@ -272,6 +310,7 @@ export async function verifyFormSubmissionPlugins(input: {
       ip: input.ip,
       locale: input.locale,
       fallbackLocale: input.fallbackLocale,
+      settings: input.settings,
       strings: pluginLocaleStrings(
         definition,
         input.locale,

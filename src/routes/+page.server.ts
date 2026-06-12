@@ -240,6 +240,7 @@ export const actions: Actions = {
       ip: clientIp,
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
+      settings,
     });
     if (!verification.allowed) {
       return fail(400, {

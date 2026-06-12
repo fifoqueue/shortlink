@@ -9,6 +9,8 @@ import type {
 } from '$lib/plugin-contracts';
 import { formatText } from '$lib/i18n/ui-text';
 import { pluginText } from '$lib/i18n/plugin';
+import { getSettings } from '$lib/server/settings';
+import { outboundFetch } from '$lib/server/outbound-http';
 import {
   authCookieOptions,
   clearUserSession,
@@ -65,6 +67,15 @@ function getClientAuthentication(
     : oidc.ClientSecretBasic(clientSecret);
 }
 
+const oidcOutboundFetch: oidc.CustomFetch = async (url, options) => {
+  const settings = await getSettings();
+  return outboundFetch(url, {
+    ...options,
+    settings,
+    purpose: 'oidc',
+  });
+};
+
 async function getConfiguration(
   provider: OidcProvider,
   context?: PluginLocaleContext,
@@ -86,6 +97,9 @@ async function getConfiguration(
         clientId,
         undefined,
         getClientAuthentication(provider, context),
+        {
+          [oidc.customFetch]: oidcOutboundFetch,
+        },
       )
       .catch((cause) => {
         configurationCache.delete(cacheKey);
