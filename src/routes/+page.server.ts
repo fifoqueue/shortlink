@@ -23,6 +23,7 @@ import {
   assertCreateOptionsAllowed,
   effectivePermissions,
   linkSettingsForPermissions,
+  publicPermissionGroupReasons,
   type EffectivePermissions,
 } from '$lib/server/permissions';
 import type { SiteSettings } from '$lib/config';
@@ -165,6 +166,7 @@ export const load: PageServerLoad = async ({
     links,
     settings: publicSettings,
     permissions,
+    permissionGroups: publicPermissionGroupReasons(permissions),
     canCreate,
     createDenied: canCreate
       ? null

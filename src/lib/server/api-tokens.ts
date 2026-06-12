@@ -4,7 +4,10 @@ import type { SiteSettings } from '$lib/config';
 import type { AuthenticatedUser } from '$lib/plugin-contracts';
 import { uiText } from '$lib/i18n/ui-text';
 import { ApiTokenModel, ensureDatabase, UserModel } from './database';
-import type { EffectivePermissions } from './permissions';
+import {
+  publicPermissionGroupReasons,
+  type EffectivePermissions,
+} from './permissions';
 
 export type ApiCapability = 'create' | 'list' | 'stats' | 'delete' | 'update';
 
@@ -141,6 +144,15 @@ function apiCapabilityEnabled(
   return true;
 }
 
+function apiErrorBody(message: string, permissions?: EffectivePermissions) {
+  return {
+    message,
+    ...(permissions
+      ? { permission_groups: publicPermissionGroupReasons(permissions) }
+      : {}),
+  };
+}
+
 export async function requireApiPrincipal(
   request: Request,
   settings: SiteSettings,
@@ -168,7 +180,9 @@ export async function requireApiPrincipal(
 
   if (permissions ? !permissions.api.enabled : !settings.api.enabled) {
     return {
-      error: json({ message: text.apiAccessDisabled }, { status: 403 }),
+      error: json(apiErrorBody(text.apiAccessDisabled, permissions), {
+        status: 403,
+      }),
     };
   }
 
@@ -177,7 +191,9 @@ export async function requireApiPrincipal(
     : apiCapabilityEnabled(settings, capability);
   if (!capabilityAllowed) {
     return {
-      error: json({ message: text.apiCapabilityDisabled }, { status: 403 }),
+      error: json(apiErrorBody(text.apiCapabilityDisabled, permissions), {
+        status: 403,
+      }),
     };
   }
 

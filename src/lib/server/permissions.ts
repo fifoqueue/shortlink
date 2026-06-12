@@ -102,6 +102,19 @@ interface NormalizedPermissionGroupInput extends PermissionGroupInput {
   cidrs: NormalizedCidr[];
 }
 
+interface PermissionGroupUserMembership {
+  userId: number;
+  expiresAt: string | null;
+  reason: string;
+  reasonPublic: boolean;
+}
+
+export interface PublicPermissionGroupReason {
+  id: number;
+  name: string;
+  reason: string;
+}
+
 export interface PublicPermissionGroup {
   id: number;
   name: string;
@@ -110,7 +123,7 @@ export interface PublicPermissionGroup {
   enabled: boolean;
   userIds: number[];
   ipRules: string[];
-  userMemberships: Array<{ userId: number; expiresAt: string | null }>;
+  userMemberships: PermissionGroupUserMembership[];
   cidrRules: Array<{ cidr: string; expiresAt: string | null }>;
   rules: PermissionRules;
   createdAt: string;
@@ -136,6 +149,8 @@ export interface PermissionGroupUserSearchItem {
   isAdmin: boolean;
   enabled: boolean;
   expiresAt: string | null;
+  reason: string;
+  reasonPublic: boolean;
 }
 
 export interface PermissionGroupUserSearchResult {
@@ -158,7 +173,7 @@ export interface PermissionGroupCidrSearchResult {
 
 export interface EffectivePermissions {
   isAdmin: boolean;
-  matchedGroups: Array<{ id: number; name: string }>;
+  matchedGroups: Array<{ id: number; name: string; reason?: string }>;
   links: {
     canCreate: boolean;
     options: Record<LinkOptionKey, boolean>;
@@ -563,7 +578,7 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
 
 function publicGroup(
   group: PermissionGroupModel,
-  userMemberships: Array<{ userId: number; expiresAt: string | null }> = [],
+  userMemberships: PermissionGroupUserMembership[] = [],
   cidrRules: Array<{ cidr: string; expiresAt: string | null }> = [],
 ): PublicPermissionGroup {
   const userIds = userMemberships.map((membership) => membership.userId);
@@ -588,7 +603,7 @@ function publicGroup(
 async function loadGroupRelations(groupIds: number[]) {
   const userMembershipsByGroup = new Map<
     number,
-    Array<{ userId: number; expiresAt: string | null }>
+    PermissionGroupUserMembership[]
   >();
   const cidrRulesByGroup = new Map<
     number,
@@ -620,6 +635,8 @@ async function loadGroupRelations(groupIds: number[]) {
     list.push({
       userId: membership.user_id,
       expiresAt: membership.expires_at?.toISOString() ?? null,
+      reason: membership.reason,
+      reasonPublic: membership.reason_public === true,
     });
     userMembershipsByGroup.set(membership.group_id, list);
   }
@@ -783,9 +800,19 @@ export async function searchPermissionGroupUsers(input: {
     is_admin: boolean;
     enabled: boolean;
     expires_at: Date | string | null;
+    reason: string | null;
+    reason_public: boolean | null;
   }>(
     `
-      SELECT u.id, u.email, u.name, u.is_admin, u.enabled, pgu.expires_at
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.is_admin,
+        u.enabled,
+        pgu.expires_at,
+        pgu.reason,
+        pgu.reason_public
       FROM permission_group_users pgu
       JOIN users u ON u.id = pgu.user_id
       WHERE ${whereSql}
@@ -815,6 +842,8 @@ export async function searchPermissionGroupUsers(input: {
       isAdmin: row.is_admin === true,
       enabled: row.enabled === true,
       expiresAt: assignmentExpiresAt(row.expires_at),
+      reason: (row.reason ?? '').trim(),
+      reasonPublic: row.reason_public === true,
     })),
   };
 }
@@ -987,7 +1016,12 @@ export async function createPermissionGroup(input: PermissionGroupInput) {
     await replaceGroupAssignments(group.id, normalized, transaction);
     return publicGroup(
       group,
-      normalized.userIds.map((userId) => ({ userId, expiresAt: null })),
+      normalized.userIds.map((userId) => ({
+        userId,
+        expiresAt: null,
+        reason: '',
+        reasonPublic: false,
+      })),
       normalized.ipRules.map((cidr) => ({ cidr, expiresAt: null })),
     );
   });
@@ -1016,7 +1050,12 @@ export async function updatePermissionGroup(
     await replaceGroupAssignments(group.id, normalized, transaction);
     return publicGroup(
       group,
-      normalized.userIds.map((userId) => ({ userId, expiresAt: null })),
+      normalized.userIds.map((userId) => ({
+        userId,
+        expiresAt: null,
+        reason: '',
+        reasonPublic: false,
+      })),
       normalized.ipRules.map((cidr) => ({ cidr, expiresAt: null })),
     );
   });
@@ -1075,6 +1114,7 @@ export async function addPermissionGroupUser(
   groupId: number,
   userId: number,
   expiresAt: Date | null = null,
+  options: { reason?: string; reasonPublic?: boolean } = {},
 ) {
   await ensureDatabase();
   if (!Number.isSafeInteger(groupId) || groupId <= 0) {
@@ -1090,18 +1130,29 @@ export async function addPermissionGroupUser(
     ]);
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     if (!user) throw new Error(serverMessage('userNotFound'));
+    const reason = (options.reason ?? '').trim().slice(0, 1000);
+    const reasonPublic = reason ? options.reasonPublic === true : false;
     const [membership, created] = await PermissionGroupUserModel.findOrCreate({
       where: { group_id: groupId, user_id: userId },
       defaults: {
         group_id: groupId,
         user_id: userId,
         expires_at: expiresAt,
+        reason,
+        reason_public: reasonPublic,
         created_at: new Date(),
       },
       transaction,
     });
     if (!created)
-      await membership.update({ expires_at: expiresAt }, { transaction });
+      await membership.update(
+        {
+          expires_at: expiresAt,
+          reason,
+          reason_public: reasonPublic,
+        },
+        { transaction },
+      );
   });
 }
 
@@ -1224,23 +1275,39 @@ function isActiveAssignment(expiresAt: string | null) {
   return !expiresAt || new Date(expiresAt).getTime() > Date.now();
 }
 
-function groupMatches(
+function activeUserMembership(
+  group: PublicPermissionGroup,
+  user: AuthenticatedUser | null,
+) {
+  if (!user) return undefined;
+  return group.userMemberships.find(
+    (membership) =>
+      membership.userId === user.id && isActiveAssignment(membership.expiresAt),
+  );
+}
+
+function activeCidrRule(group: PublicPermissionGroup, ip: string) {
+  return group.cidrRules.find(
+    (rule) =>
+      isActiveAssignment(rule.expiresAt) && ipMatchesCidr(ip, rule.cidr),
+  );
+}
+
+function matchedGroupSummary(
   group: PublicPermissionGroup,
   user: AuthenticatedUser | null,
   ip: string,
 ) {
-  return (
-    (user &&
-      group.userMemberships.some(
-        (membership) =>
-          membership.userId === user.id &&
-          isActiveAssignment(membership.expiresAt),
-      )) ||
-    group.cidrRules.some(
-      (rule) =>
-        isActiveAssignment(rule.expiresAt) && ipMatchesCidr(ip, rule.cidr),
-    )
-  );
+  const membership = activeUserMembership(group, user);
+  const cidr = membership ? undefined : activeCidrRule(group, ip);
+  if (!membership && !cidr) return null;
+  const reason =
+    membership?.reasonPublic === true ? membership.reason.trim() : '';
+  return {
+    id: group.id,
+    name: group.name,
+    ...(reason ? { reason } : {}),
+  };
 }
 
 function basePermissions(
@@ -1333,9 +1400,10 @@ function adminPermissions(settings: SiteSettings): EffectivePermissions {
 function applyGroupRules(
   permissions: EffectivePermissions,
   group: PublicPermissionGroup,
+  matchedGroup: EffectivePermissions['matchedGroups'][number],
 ) {
   const rules = group.rules;
-  permissions.matchedGroups.push({ id: group.id, name: group.name });
+  permissions.matchedGroups.push(matchedGroup);
 
   if (rules.links.create !== null) {
     permissions.links.canCreate = rules.links.create;
@@ -1431,15 +1499,35 @@ export async function effectivePermissions(input: {
 }) {
   if (input.isAdmin) return adminPermissions(input.settings);
   const permissions = basePermissions(input.settings, input.user);
-  const groups = (await listPermissionGroups()).filter(
-    (group) => group.enabled && groupMatches(group, input.user, input.ip),
-  );
+  const groups = (await listPermissionGroups())
+    .filter((group) => group.enabled)
+    .map((group) => ({
+      group,
+      matchedGroup: matchedGroupSummary(group, input.user, input.ip),
+    }))
+    .filter(
+      (
+        value,
+      ): value is {
+        group: PublicPermissionGroup;
+        matchedGroup: EffectivePermissions['matchedGroups'][number];
+      } => value.matchedGroup !== null,
+    );
 
-  for (const group of groups) {
-    applyGroupRules(permissions, group);
+  for (const { group, matchedGroup } of groups) {
+    applyGroupRules(permissions, group, matchedGroup);
   }
 
   return normalizeEffectiveLinks(permissions);
+}
+
+export function publicPermissionGroupReasons(
+  permissions: EffectivePermissions,
+): PublicPermissionGroupReason[] {
+  return permissions.matchedGroups.flatMap((group) => {
+    const reason = group.reason?.trim();
+    return reason ? [{ id: group.id, name: group.name, reason }] : [];
+  });
 }
 
 export async function effectivePermissionsForEvent(
@@ -1493,7 +1581,7 @@ export function assertCreateOptionsAllowed(
     ['utmCampaign', 'utmCampaign', ['utmCampaign']],
     ['utmTerm', 'utmTerm', ['utmTerm']],
     ['utmContent', 'utmContent', ['utmContent']],
-    ['expiresAt', 'expiresAt', ['expiresAt', 'expiresAtDate', 'expiresAtTime']],
+    ['expiresAt', 'expiresAt', ['expiresAt']],
     ['maxClicks', 'maxClicks', ['maxClicks']],
     ['password', 'password', ['password', 'clearPassword']],
     ['tags', 'tags', ['tags']],
@@ -1573,21 +1661,7 @@ export function permissionAssignmentExpiresAtFromForm(
     return date;
   }
 
-  const dateValue = stringValue(form, 'expiresAtDate');
-  const timeValue = stringValue(form, 'expiresAtTime');
-  if (!dateValue && !timeValue) return null;
-  if (!dateValue) {
-    throw new Error(serverMessage('expirationTimeNeedsDate'));
-  }
-
-  const date = new Date(`${dateValue}T${timeValue || '23:59'}`);
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(serverMessage('expirationDateInvalid'));
-  }
-  if (date.getTime() <= Date.now()) {
-    throw new Error(serverMessage('expirationDateFuture'));
-  }
-  return date;
+  return null;
 }
 
 export function permissionGroupInputFromForm(

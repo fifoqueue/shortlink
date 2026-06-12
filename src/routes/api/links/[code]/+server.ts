@@ -14,7 +14,10 @@ import {
   linkOperationsFromForm,
   linkPreviewFromForm,
 } from '$lib/server/link-form';
-import { linkSettingsForPermissions } from '$lib/server/permissions';
+import {
+  linkSettingsForPermissions,
+  publicPermissionGroupReasons,
+} from '$lib/server/permissions';
 import { requireApiPermissionContext } from '$lib/server/api-permissions';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import { formatClickMetadataListPlugins } from '../../../../plugins/server';
@@ -46,7 +49,13 @@ export const GET: RequestHandler = async ({
   });
   if (!access.link) error(404, text.linkNotFound);
   if (!access.allowed) {
-    return json({ message: text.statsViewDenied }, { status: 403 });
+    return json(
+      {
+        message: text.statsViewDenied,
+        permission_groups: publicPermissionGroupReasons(permissions),
+      },
+      { status: 403 },
+    );
   }
 
   const stats = await getStatsForLink(access.link, {
@@ -77,6 +86,7 @@ export const GET: RequestHandler = async ({
       click_events: clickEvents,
       short_url: shortUrl(url.origin, stats.code),
     },
+    permission_groups: publicPermissionGroupReasons(permissions),
   });
 };
 
@@ -101,7 +111,13 @@ async function updateApiLink(
     permissions.links.editableFields.length === 0 ||
     (!permissions.links.editAll && !permissions.links.editOwn)
   ) {
-    return json({ message: text.editOwnOnly }, { status: 403 });
+    return json(
+      {
+        message: text.editOwnOnly,
+        permission_groups: publicPermissionGroupReasons(permissions),
+      },
+      { status: 403 },
+    );
   }
 
   try {
@@ -124,10 +140,22 @@ async function updateApiLink(
     );
 
     if (result.status === 'not_found') {
-      return json({ message: text.linkNotFound }, { status: 404 });
+      return json(
+        {
+          message: text.linkNotFound,
+          permission_groups: publicPermissionGroupReasons(permissions),
+        },
+        { status: 404 },
+      );
     }
     if (result.status === 'denied') {
-      return json({ message: text.editOwnOnly }, { status: 403 });
+      return json(
+        {
+          message: text.editOwnOnly,
+          permission_groups: publicPermissionGroupReasons(permissions),
+        },
+        { status: 403 },
+      );
     }
 
     return json({
@@ -135,6 +163,7 @@ async function updateApiLink(
         ...result.link,
         short_url: shortUrl(url.origin, result.link.code),
       },
+      permission_groups: publicPermissionGroupReasons(permissions),
     });
   } catch (cause) {
     return json(
@@ -147,6 +176,7 @@ async function updateApiLink(
                 settings.i18n.defaultLocale,
               )
             : text.editFailed,
+        permission_groups: publicPermissionGroupReasons(permissions),
       },
       { status: 400 },
     );
@@ -193,7 +223,13 @@ export const POST: RequestHandler = async ({
 
   const body = recordValue(await request.json().catch(() => ({})));
   if (String(body.action ?? '') !== 'check-health') {
-    return json({ message: text.unsupportedAction }, { status: 400 });
+    return json(
+      {
+        message: text.unsupportedAction,
+        permission_groups: publicPermissionGroupReasons(permissions),
+      },
+      { status: 400 },
+    );
   }
 
   const result = await checkLinkHealth(code, {
@@ -202,10 +238,22 @@ export const POST: RequestHandler = async ({
     owner: { userId: api.principal.id },
   });
   if (result.status === 'not_found') {
-    return json({ message: text.linkNotFound }, { status: 404 });
+    return json(
+      {
+        message: text.linkNotFound,
+        permission_groups: publicPermissionGroupReasons(permissions),
+      },
+      { status: 404 },
+    );
   }
   if (result.status === 'denied') {
-    return json({ message: text.healthOwnOnly }, { status: 403 });
+    return json(
+      {
+        message: text.healthOwnOnly,
+        permission_groups: publicPermissionGroupReasons(permissions),
+      },
+      { status: 403 },
+    );
   }
 
   return json({
@@ -213,6 +261,7 @@ export const POST: RequestHandler = async ({
       ...result.link,
       short_url: shortUrl(url.origin, result.link.code),
     },
+    permission_groups: publicPermissionGroupReasons(permissions),
   });
 };
 
@@ -250,10 +299,16 @@ export const DELETE: RequestHandler = async ({
         ok: false,
         message: message || text.deleteNoLinks,
         result,
+        permission_groups: publicPermissionGroupReasons(permissions),
       },
       { status: 403 },
     );
   }
 
-  return json({ ok: true, message, result });
+  return json({
+    ok: true,
+    message,
+    result,
+    permission_groups: publicPermissionGroupReasons(permissions),
+  });
 };

@@ -74,6 +74,7 @@
         access: boolean;
       };
     };
+    permissionGroups: Array<{ id: number; name: string; reason: string }>;
     canCreate: boolean;
     createDenied: {
       title: string;
@@ -328,6 +329,23 @@
       <h1>{data.settings.general.headline}</h1>
       <p class="subtitle">{data.settings.general.description}</p>
     </section>
+
+    {#if data.permissionGroups.length > 0}
+      <section class="permission-reasons">
+        <div>
+          <p class="eyebrow">{text.home.permissionReasonsTitle}</p>
+          <h2>{text.home.permissionReasonsDescription}</h2>
+        </div>
+        <div class="permission-reason-list">
+          {#each data.permissionGroups as group (group.id)}
+            <article>
+              <strong>{group.name}</strong>
+              <p>{group.reason}</p>
+            </article>
+          {/each}
+        </div>
+      </section>
+    {/if}
 
     {#if data.canCreate}
       <section class="composer">
@@ -732,6 +750,7 @@
     line-height: 1.75;
   }
   .composer,
+  .permission-reasons,
   .empty {
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -740,6 +759,43 @@
   }
   .composer {
     padding: 12px;
+  }
+  .permission-reasons {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 18px;
+  }
+  .permission-reasons h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 750;
+    line-height: 1.5;
+  }
+  .permission-reason-list {
+    display: grid;
+    gap: 10px;
+  }
+  .permission-reason-list article {
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 0.45);
+    padding: 12px;
+    background: color-mix(in srgb, var(--surface) 88%, var(--primary));
+  }
+  .permission-reason-list strong,
+  .permission-reason-list p {
+    display: block;
+    margin: 0;
+  }
+  .permission-reason-list strong {
+    font-size: 0.82rem;
+  }
+  .permission-reason-list p {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.6;
   }
   .access-locked {
     display: flex;

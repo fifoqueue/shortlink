@@ -6,8 +6,6 @@ import type {
   LinkPreviewInput,
 } from './shortener';
 
-export const EXPIRES_AT_REQUIRES_DATE = '__expires_at_requires_date__';
-
 export function linkCodesFromForm(form: FormData) {
   const singleCode = stringValue(form, 'singleCode');
   if (singleCode) return [singleCode];
@@ -27,14 +25,7 @@ export function linkPreviewFromForm(form: FormData): LinkPreviewInput {
 }
 
 function expiresAtFromForm(form: FormData) {
-  const directValue = stringValue(form, 'expiresAt');
-  if (directValue) return directValue;
-
-  const date = stringValue(form, 'expiresAtDate');
-  const time = stringValue(form, 'expiresAtTime');
-  if (!date) return time ? EXPIRES_AT_REQUIRES_DATE : '';
-
-  return `${date}T${time || '23:59'}`;
+  return stringValue(form, 'expiresAt');
 }
 
 export function linkOperationsFromForm(form: FormData): LinkOperationsInput {

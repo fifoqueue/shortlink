@@ -323,6 +323,9 @@ const ko = {
     createDeniedTitle: '링크 생성 권한이 없습니다.',
     createDeniedDetail:
       '현재 계정 또는 접속 환경에서는 링크 생성이 허용되지 않습니다.',
+    permissionReasonsTitle: '적용된 권한 안내',
+    permissionReasonsDescription:
+      '관리자가 현재 작업 권한에 대해 공개한 사유입니다.',
     myLinksKicker: 'MY LINKS',
     myLinksTitle: '내가 생성한 링크',
     showingCount: '{total}개 중 {shown}개 표시 · {pageSize}개씩',
@@ -437,8 +440,7 @@ const ko = {
     previewImageUrl: '공유 이미지 URL',
     themeColor: '테마 컬러',
     previewDescription: '공유 설명',
-    expiresAtDate: '만료일',
-    expiresAtTime: '만료 시각',
+    expiresAt: '만료일시',
     maxClicks: '최대 클릭 수',
     unlimitedZero: '0은 무제한',
     newPassword: '새 비밀번호',
@@ -562,8 +564,6 @@ const ko = {
     previewImageUrlInvalid:
       '공유 이미지 URL은 http 또는 https URL이어야 합니다.',
     themeColorFormat: '테마 컬러는 #RRGGBB 형식으로 입력해주세요.',
-    expirationTimeNeedsDate:
-      '만료 시각을 지정하려면 만료일도 함께 입력해주세요.',
     expirationDateInvalid: '만료일 형식이 올바르지 않습니다.',
     expirationDateFuture: '만료일은 현재 시각보다 이후로 입력해주세요.',
     customCodesDisabled: '커스텀 코드는 현재 사용할 수 없습니다.',
@@ -1019,6 +1019,9 @@ const en: typeof ko = {
     createDeniedTitle: 'You do not have permission to create links.',
     createDeniedDetail:
       'Link creation is not allowed for your account or connection.',
+    permissionReasonsTitle: 'Applied permission notices',
+    permissionReasonsDescription:
+      'Reasons the administrator made public for your current work permissions.',
     myLinksKicker: 'MY LINKS',
     myLinksTitle: 'Links I created',
     showingCount: 'Showing {shown} of {total} · {pageSize} per page',
@@ -1135,8 +1138,7 @@ const en: typeof ko = {
     previewImageUrl: 'Preview image URL',
     themeColor: 'Theme color',
     previewDescription: 'Preview description',
-    expiresAtDate: 'Expiration date',
-    expiresAtTime: 'Expiration time',
+    expiresAt: 'Expiration date and time',
     maxClicks: 'Max clicks',
     unlimitedZero: '0 means unlimited',
     newPassword: 'New password',
@@ -1259,8 +1261,6 @@ const en: typeof ko = {
     domainBlocked: 'This domain is blocked.',
     previewImageUrlInvalid: 'Preview image URL must be an http or https URL.',
     themeColorFormat: 'Theme color must use #RRGGBB format.',
-    expirationTimeNeedsDate:
-      'Enter an expiration date when setting an expiration time.',
     expirationDateInvalid: 'Expiration date format is invalid.',
     expirationDateFuture: 'Expiration date must be in the future.',
     customCodesDisabled: 'Custom codes are currently disabled.',

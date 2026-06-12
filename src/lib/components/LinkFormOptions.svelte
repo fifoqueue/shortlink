@@ -110,9 +110,7 @@
     mode === 'edit' && Boolean(values?.passwordProtected),
   );
   let clearPassword = $state(false);
-  const initialExpiresAtParts = datetimeLocalParts();
-  let expiresAtDate = $state(initialExpiresAtParts.date);
-  let expiresAtTime = $state(initialExpiresAtParts.time);
+  let expiresAt = $derived(datetimeLocalValue());
   const passwordPlaceholder = $derived(
     hasExistingPassword
       ? clearPassword
@@ -127,12 +125,6 @@
 
   $effect(() => {
     if (!tabAllowed(activeTab)) activeTab = visibleTabs[0]?.id ?? 'preview';
-  });
-
-  $effect(() => {
-    const parts = datetimeLocalParts();
-    expiresAtDate = parts.date;
-    expiresAtTime = parts.time;
   });
 
   function textValue(value: unknown) {
@@ -170,13 +162,6 @@
     if (Number.isNaN(date.getTime())) return '';
     const offset = date.getTimezoneOffset() * 60_000;
     return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-  }
-
-  function datetimeLocalParts() {
-    const value = datetimeLocalValue();
-    if (!value) return { date: '', time: '' };
-    const [date = '', time = ''] = value.split('T');
-    return { date, time };
   }
 
   function hasOptionValues() {
@@ -365,32 +350,18 @@
       hidden={activeTab !== 'security'}
     >
       {#if optionAllowed('expiresAt')}
-        <div class="datetime-field-group">
-          <label>
-            <span
-              >{text.linkOptions.expiresAtDate}
-              <em>{text.common.optional}</em></span
-            >
-            <input
-              name="expiresAtDate"
-              type="date"
-              bind:value={expiresAtDate}
-              required={Boolean(expiresAtTime)}
-            />
-          </label>
-          <label>
-            <span
-              >{text.linkOptions.expiresAtTime}
-              <em>{text.common.optional}</em></span
-            >
-            <input
-              name="expiresAtTime"
-              type="time"
-              step="60"
-              bind:value={expiresAtTime}
-            />
-          </label>
-        </div>
+        <label class="wide">
+          <span
+            >{text.linkOptions.expiresAt}
+            <em>{text.common.optional}</em></span
+          >
+          <input
+            name="expiresAt"
+            type="datetime-local"
+            step="60"
+            bind:value={expiresAt}
+          />
+        </label>
       {/if}
       {#if optionAllowed('maxClicks')}
         <label>
@@ -668,13 +639,6 @@
     display: none;
   }
 
-  .datetime-field-group {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
   label,
   .password-field {
     display: grid;
@@ -778,7 +742,7 @@
     padding: 0 12px;
   }
 
-  input:is([type='date'], [type='time']) {
+  input[type='datetime-local'] {
     -webkit-appearance: none;
     appearance: none;
     box-sizing: border-box;
@@ -790,7 +754,7 @@
     padding-bottom: 0;
   }
 
-  input:is([type='date'], [type='time'])::-webkit-date-and-time-value {
+  input[type='datetime-local']::-webkit-date-and-time-value {
     display: flex;
     min-height: 42px;
     align-items: center;
@@ -799,19 +763,19 @@
     text-align: left;
   }
 
-  input:is([type='date'], [type='time'])::-webkit-datetime-edit {
+  input[type='datetime-local']::-webkit-datetime-edit {
     display: flex;
     min-height: 42px;
     align-items: center;
     padding: 0;
   }
 
-  input:is([type='date'], [type='time'])::-webkit-datetime-edit-fields-wrapper {
+  input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
     display: flex;
     align-items: center;
   }
 
-  input:is([type='date'], [type='time'])::-webkit-calendar-picker-indicator {
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
     margin-inline-start: auto;
   }
 
@@ -845,10 +809,6 @@
 
     .wide {
       grid-column: auto;
-    }
-
-    .datetime-field-group {
-      grid-template-columns: 1fr;
     }
   }
 

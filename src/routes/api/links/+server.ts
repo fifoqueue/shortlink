@@ -16,6 +16,7 @@ import { formDataFromJson, recordValue } from '$lib/server/api-link-input';
 import {
   assertCreateOptionsAllowed,
   linkSettingsForPermissions,
+  publicPermissionGroupReasons,
 } from '$lib/server/permissions';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import { applyCreateUrlPlugins } from '../../../plugins/server';
@@ -43,7 +44,10 @@ export const GET: RequestHandler = async ({
     short_url: shortUrl(url.origin, link.code),
   }));
 
-  return json({ links });
+  return json({
+    links,
+    permission_groups: publicPermissionGroupReasons(permissions),
+  });
 };
 
 export const POST: RequestHandler = async ({
@@ -93,6 +97,7 @@ export const POST: RequestHandler = async ({
           ...link,
           short_url: shortUrl(url.origin, link.code),
         },
+        permission_groups: publicPermissionGroupReasons(permissions),
       },
       { status: 201 },
     );
@@ -107,6 +112,7 @@ export const POST: RequestHandler = async ({
                 settings.i18n.defaultLocale,
               )
             : text.createFailed,
+        permission_groups: publicPermissionGroupReasons(permissions),
       },
       { status: 400 },
     );
@@ -132,7 +138,13 @@ export const DELETE: RequestHandler = async ({
   const body = recordValue(await request.json().catch(() => ({})));
   const codes = linkCodesFromForm(formDataFromJson(body));
   if (codes.length === 0) {
-    return json({ message: text.deleteNeedsSelection }, { status: 400 });
+    return json(
+      {
+        message: text.deleteNeedsSelection,
+        permission_groups: publicPermissionGroupReasons(permissions),
+      },
+      { status: 400 },
+    );
   }
 
   const result = await deleteShortLinks(codes, {
@@ -150,10 +162,16 @@ export const DELETE: RequestHandler = async ({
         ok: false,
         message: message || text.deleteNoLinks,
         result,
+        permission_groups: publicPermissionGroupReasons(permissions),
       },
       { status: 403 },
     );
   }
 
-  return json({ ok: true, message, result });
+  return json({
+    ok: true,
+    message,
+    result,
+    permission_groups: publicPermissionGroupReasons(permissions),
+  });
 };

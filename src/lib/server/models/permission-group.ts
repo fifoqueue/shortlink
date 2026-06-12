@@ -29,6 +29,8 @@ export class PermissionGroupUserModel extends Model<
   declare group_id: number;
   declare user_id: number;
   declare expires_at: Date | null;
+  declare reason: CreationOptional<string>;
+  declare reason_public: CreationOptional<boolean>;
   declare created_at: CreationOptional<Date>;
 }
 
@@ -119,6 +121,16 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
       expires_at: {
         type: DataTypes.DATE,
         allowNull: true,
+      },
+      reason: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+        defaultValue: '',
+      },
+      reason_public: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
       created_at: {
         type: DataTypes.DATE,

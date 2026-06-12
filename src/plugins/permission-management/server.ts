@@ -144,6 +144,8 @@ function memberSearchPayload(
       isAdmin: user.isAdmin,
       enabled: user.enabled,
       expiresAt: user.expiresAt,
+      reason: user.reason,
+      reasonPublic: user.reasonPublic,
     })),
   };
 }
@@ -371,6 +373,10 @@ const serverPlugin = {
           groupId,
           Number(form.get('userId')),
           permissionAssignmentExpiresAtFromForm(form),
+          {
+            reason: stringValue(form, 'reason'),
+            reasonPublic: parseBoolean(form, 'reasonPublic'),
+          },
         );
         return { message: t(strings, 'server.groupUserAdded') };
       }

@@ -15,7 +15,6 @@ import {
   ShortLinkModel,
   UserModel,
 } from './database';
-import { EXPIRES_AT_REQUIRES_DATE } from './link-form';
 import { getSettings } from './settings';
 import { linkEditFieldKeys, type SiteSettings } from '$lib/config';
 import type { LinkOwner } from './link-owner';
@@ -420,9 +419,6 @@ function normalizePreviewForCreate(input: LinkPreviewInput = {}) {
 
 function normalizeDate(value: LinkOperationsInput['expiresAt']) {
   if (!value) return null;
-  if (value === EXPIRES_AT_REQUIRES_DATE) {
-    throw new Error(serverMessage('expirationTimeNeedsDate'));
-  }
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     throw new Error(serverMessage('expirationDateInvalid'));

@@ -160,7 +160,7 @@ const plugin: PluginDefinition = {
         'admin.savePermissionGroup': '권한 그룹 저장',
         'admin.cidrManagement': 'CIDR 관리',
         'admin.searchCidr': 'CIDR 검색',
-        'admin.expirationTime': '만료 시각',
+        'admin.expirationDateTime': '만료일시',
         'admin.addCidr': 'CIDR 추가',
         'admin.registeredCidrs': '등록 CIDR',
         'admin.deleteSelectedCidrsTitle': '선택한 CIDR 규칙을 삭제할까요?',
@@ -188,6 +188,17 @@ const plugin: PluginDefinition = {
         'admin.emptyGroupMembers': '그룹에 포함된 사용자가 없습니다.',
         'admin.groupMemberPage': '그룹 멤버 페이지',
         'admin.add': '추가',
+        'admin.cancel': '취소',
+        'admin.addUserToGroup': '그룹에 사용자 추가',
+        'admin.addUserToGroupDescription':
+          '{name} 사용자를 이 권한 그룹에 추가합니다.',
+        'admin.assignmentReason': '사유',
+        'admin.assignmentReasonPlaceholder':
+          '사용자에게 이 권한 그룹을 적용하는 이유',
+        'admin.assignmentReasonPublicCheckbox':
+          '이 사유를 사용자와 API 응답에 공개',
+        'admin.assignmentReasonPublic': '사유 공개',
+        'admin.assignmentReasonPrivate': '사유 비공개',
         'admin.emptyAddableUsers': '추가할 수 있는 사용자가 없습니다.',
         'admin.searchUsersByNameEmailId':
           '이름, 이메일, ID로 사용자를 검색하세요.',
@@ -381,7 +392,7 @@ const plugin: PluginDefinition = {
         'admin.savePermissionGroup': 'Save permission group',
         'admin.cidrManagement': 'CIDR management',
         'admin.searchCidr': 'Search CIDR',
-        'admin.expirationTime': 'Expiration time',
+        'admin.expirationDateTime': 'Expiration date and time',
         'admin.addCidr': 'Add CIDR',
         'admin.registeredCidrs': 'Registered CIDRs',
         'admin.deleteSelectedCidrsTitle': 'Delete selected CIDR rules?',
@@ -409,6 +420,17 @@ const plugin: PluginDefinition = {
         'admin.emptyGroupMembers': 'No users are in this group.',
         'admin.groupMemberPage': 'Group member page',
         'admin.add': 'Add',
+        'admin.cancel': 'Cancel',
+        'admin.addUserToGroup': 'Add user to group',
+        'admin.addUserToGroupDescription':
+          'Add {name} to this permission group.',
+        'admin.assignmentReason': 'Reason',
+        'admin.assignmentReasonPlaceholder':
+          'Why this permission group is being applied to the user',
+        'admin.assignmentReasonPublicCheckbox':
+          'Show this reason to the user and API responses',
+        'admin.assignmentReasonPublic': 'Reason public',
+        'admin.assignmentReasonPrivate': 'Reason private',
         'admin.emptyAddableUsers': 'No users can be added.',
         'admin.searchUsersByNameEmailId': 'Search users by name, email, or ID.',
         'admin.addableUsersPage': 'Users to add page',

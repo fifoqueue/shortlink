@@ -45,6 +45,8 @@
     isAdmin: boolean;
     enabled: boolean;
     expiresAt?: string | null;
+    reason?: string;
+    reasonPublic?: boolean;
   };
 
   type CidrRule = {
@@ -61,7 +63,12 @@
     enabled: boolean;
     userIds: number[];
     ipRules: string[];
-    userMemberships: Array<{ userId: number; expiresAt: string | null }>;
+    userMemberships: Array<{
+      userId: number;
+      expiresAt: string | null;
+      reason: string;
+      reasonPublic: boolean;
+    }>;
     cidrRules: CidrRule[];
     rules: {
       links: {
@@ -189,6 +196,7 @@
 
   let selectedCidrKeys = $state<string[]>([]);
   let selectedMemberIds = $state<string[]>([]);
+  let addUserTarget = $state<GroupUser | null>(null);
 
   let activeTab = $state<Tab>('links');
 
@@ -426,6 +434,22 @@
     selectedMemberIds = selectAll(selectableMemberIds, checked);
   }
 
+  function openAddUserModal(user: GroupUser) {
+    addUserTarget = user;
+  }
+
+  function closeAddUserModal() {
+    addUserTarget = null;
+  }
+
+  function closeAddUserModalOnEscape(event: KeyboardEvent) {
+    if (addUserTarget && event.key === 'Escape') closeAddUserModal();
+  }
+
+  function closeAddUserModalOnBackdrop(event: MouseEvent) {
+    if (event.target === event.currentTarget) closeAddUserModal();
+  }
+
   function expiresAtLabel(expiresAt?: string | null) {
     if (!expiresAt) return t('admin.noExpiration');
     const date = new Date(expiresAt);
@@ -443,6 +467,8 @@
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale);
   }
 </script>
+
+<svelte:window onkeydown={closeAddUserModalOnEscape} />
 
 <div class="plugin-i18n-root" use:translateContent={strings}>
   {#if user}
@@ -947,16 +973,10 @@
           CIDR
           <input name="cidr" placeholder="203.0.113.0/24" required />
         </label>
-        <div class="expires-grid">
-          <label>
-            {t('admin.expirationDate')}
-            <input name="expiresAtDate" type="date" />
-          </label>
-          <label>
-            {t('admin.expirationTime')}
-            <input name="expiresAtTime" type="time" step="60" />
-          </label>
-        </div>
+        <label class="expires-field">
+          {t('admin.expirationDateTime')}
+          <input name="expiresAt" type="datetime-local" step="60" />
+        </label>
         <button type="submit">{t('admin.addCidr')}</button>
       </form>
       {#if cidrs?.cidrs?.length}
@@ -1152,6 +1172,16 @@
                   <em class="assignment-meta"
                     >{expiresAtLabel(member.expiresAt)}</em
                   >
+                  {#if member.reason}
+                    <em class="assignment-meta"
+                      >{t('admin.assignmentReason')}: {member.reason}</em
+                    >
+                    <em class="assignment-meta">
+                      {member.reasonPublic
+                        ? t('admin.assignmentReasonPublic')
+                        : t('admin.assignmentReasonPrivate')}
+                    </em>
+                  {/if}
                 </a>
                 <form
                   class="inline-form"
@@ -1187,18 +1217,7 @@
           <div class="user-list">
             {#if addableUsers?.query}
               {#each addableUsers.users as candidate (candidate.id)}
-                <form
-                  class="user-row add-user-row"
-                  method="POST"
-                  action="?/pluginAction"
-                  use:enhance={keepFormValues}
-                >
-                  <input
-                    type="hidden"
-                    name="pluginAction"
-                    value="addGroupUser"
-                  />
-                  <input type="hidden" name="userId" value={candidate.id} />
+                <article class="user-row add-user-row">
                   <a
                     href={resolve(
                       `/admin/plugins/permission-management/${candidate.item}`,
@@ -1211,18 +1230,12 @@
                         : ''}</span
                     >
                   </a>
-                  <div class="expires-grid">
-                    <label>
-                      {t('admin.expirationDate')}
-                      <input name="expiresAtDate" type="date" />
-                    </label>
-                    <label>
-                      {t('admin.expirationTime')}
-                      <input name="expiresAtTime" type="time" step="60" />
-                    </label>
-                  </div>
-                  <button type="submit">{t('admin.add')}</button>
-                </form>
+                  <button
+                    type="button"
+                    onclick={() => openAddUserModal(candidate)}
+                    >{t('admin.add')}</button
+                  >
+                </article>
               {/each}
               {#if !addableUsers.users.length}
                 <p class="empty">{t('admin.emptyAddableUsers')}</p>
@@ -1241,6 +1254,64 @@
         </div>
       </div>
     </section>
+
+    {#if addUserTarget}
+      <div
+        class="modal-backdrop"
+        role="presentation"
+        onclick={closeAddUserModalOnBackdrop}
+      >
+        <div
+          class="assignment-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-user-modal-title"
+          tabindex="-1"
+        >
+          <div>
+            <h2 id="add-user-modal-title">{t('admin.addUserToGroup')}</h2>
+            <p class="muted">
+              {formatText('admin.addUserToGroupDescription', {
+                name: addUserTarget.name,
+              })}
+            </p>
+          </div>
+          <form
+            method="POST"
+            action="?/pluginAction"
+            use:enhance={keepFormValues}
+          >
+            <input type="hidden" name="pluginAction" value="addGroupUser" />
+            <input type="hidden" name="userId" value={addUserTarget.id} />
+            <label>
+              {t('admin.expirationDateTime')}
+              <input name="expiresAt" type="datetime-local" step="60" />
+            </label>
+            <label>
+              {t('admin.assignmentReason')}
+              <textarea
+                name="reason"
+                rows="4"
+                maxlength="1000"
+                placeholder={t('admin.assignmentReasonPlaceholder')}
+              ></textarea>
+            </label>
+            <label class="checkbox-row">
+              <input name="reasonPublic" type="checkbox" />
+              <span>{t('admin.assignmentReasonPublicCheckbox')}</span>
+            </label>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="secondary"
+                onclick={closeAddUserModal}>{t('admin.cancel')}</button
+              >
+              <button type="submit">{t('admin.add')}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    {/if}
 
     <section class="danger">
       <h2>{t('admin.dangerZone')}</h2>
@@ -1324,7 +1395,7 @@
     color: var(--admin-text);
     font: inherit;
   }
-  input:is([type='date'], [type='time']) {
+  input[type='datetime-local'] {
     -webkit-appearance: none;
     appearance: none;
     box-sizing: border-box;
@@ -1335,7 +1406,7 @@
     padding-top: 0;
     padding-bottom: 0;
   }
-  input:is([type='date'], [type='time'])::-webkit-date-and-time-value {
+  input[type='datetime-local']::-webkit-date-and-time-value {
     display: flex;
     min-height: calc(var(--form-control-height) - 2px);
     align-items: center;
@@ -1343,17 +1414,17 @@
     line-height: 1.2;
     text-align: left;
   }
-  input:is([type='date'], [type='time'])::-webkit-datetime-edit {
+  input[type='datetime-local']::-webkit-datetime-edit {
     display: flex;
     min-height: calc(var(--form-control-height) - 2px);
     align-items: center;
     padding: 0;
   }
-  input:is([type='date'], [type='time'])::-webkit-datetime-edit-fields-wrapper {
+  input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
     display: flex;
     align-items: center;
   }
-  input:is([type='date'], [type='time'])::-webkit-calendar-picker-indicator {
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
     margin-inline-start: auto;
   }
   select {
@@ -1472,12 +1543,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(280px, auto) auto;
     align-items: end;
   }
-  .expires-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .expires-grid label {
+  .expires-field {
     min-width: 0;
     font-size: 0.76rem;
   }
@@ -1606,7 +1672,7 @@
     grid-template-columns: 18px minmax(0, 1fr) auto;
   }
   .add-user-row {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, auto) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .inline-form {
     display: contents;
@@ -1635,6 +1701,55 @@
   .empty {
     margin: 0;
     padding: 16px;
+  }
+  .modal-backdrop {
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: color-mix(in srgb, var(--admin-text) 34%, transparent);
+  }
+  .assignment-modal {
+    display: grid;
+    width: min(560px, 100%);
+    max-height: calc(100vh - 36px);
+    gap: 16px;
+    overflow: auto;
+    border: 1px solid var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.75);
+    padding: 18px;
+    background: var(--admin-surface);
+    color: var(--admin-text);
+    box-shadow: 0 28px 80px var(--admin-shadow);
+  }
+  .assignment-modal form {
+    display: grid;
+    gap: 14px;
+  }
+  .assignment-modal textarea {
+    min-height: 110px;
+  }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .checkbox-row input {
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  button.secondary {
+    border: 1px solid var(--admin-border);
+    background: var(--admin-surface);
+    color: var(--admin-muted);
   }
   section,
   .toggles {
@@ -1684,9 +1799,6 @@
     .list-heading {
       align-items: stretch;
       flex-direction: column;
-    }
-    .expires-grid {
-      grid-template-columns: 1fr;
     }
   }
 </style>
