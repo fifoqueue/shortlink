@@ -10,7 +10,10 @@ import {
   type LinkOptionKey as ConfigLinkOptionKey,
   type SiteSettings,
 } from '$lib/config';
-import type { AuthenticatedUser } from '$lib/plugin-contracts';
+import type {
+  AdminPluginAccessPermission,
+  AuthenticatedUser,
+} from '$lib/plugin-contracts';
 import { serverMessage } from '$lib/i18n/ui-text';
 import { pageOffset, paginationMeta } from './pagination';
 import {
@@ -23,8 +26,6 @@ import {
 } from './database';
 import { getClientIp } from './client-ip';
 import { parseBoolean, stringValue } from './settings';
-
-export const PERMISSION_PLUGIN_ID = 'permission-management';
 
 export const LINK_OPTION_KEYS = linkOptionKeys;
 export type LinkOptionKey = ConfigLinkOptionKey;
@@ -82,11 +83,23 @@ export interface PermissionRules {
   api: Record<ApiPermissionKey, boolean | null>;
 }
 
+export interface PermissionGroupAutoAssign {
+  enabled: boolean;
+  conditions: PermissionGroupAutoAssignCondition[];
+  revokeWhenUnmatched: boolean;
+}
+
+export interface PermissionGroupAutoAssignCondition {
+  type: string;
+  config: Record<string, unknown>;
+}
+
 export interface PermissionGroupInput {
   name: string;
   description: string;
   priority: number;
   enabled: boolean;
+  autoAssign: PermissionGroupAutoAssign;
   userIds: number[];
   ipRules: string[];
   rules: PermissionRules;
@@ -108,7 +121,10 @@ interface PermissionGroupUserMembership {
   expiresAt: string | null;
   reason: string;
   reasonPublic: boolean;
+  assignmentSource: PermissionGroupAssignmentSource;
 }
+
+type PermissionGroupAssignmentSource = 'manual' | 'automatic';
 
 export interface PublicPermissionGroupReason {
   id: number;
@@ -122,6 +138,7 @@ export interface PublicPermissionGroup {
   description: string;
   priority: number;
   enabled: boolean;
+  autoAssign: PermissionGroupAutoAssign;
   userIds: number[];
   ipRules: string[];
   userMemberships: PermissionGroupUserMembership[];
@@ -143,6 +160,15 @@ export interface PublicPermissionGroupSummary {
   updatedAt: string;
 }
 
+export interface UserPermissionGroup {
+  id: number;
+  name: string;
+  description: string;
+  priority: number;
+  expiresAt: string | null;
+  assignmentSource: PermissionGroupAssignmentSource;
+}
+
 export interface PermissionGroupUserSearchItem {
   id: number;
   email: string;
@@ -152,6 +178,7 @@ export interface PermissionGroupUserSearchItem {
   expiresAt: string | null;
   reason: string;
   reasonPublic: boolean;
+  assignmentSource: PermissionGroupAssignmentSource;
 }
 
 export interface PermissionGroupUserSearchResult {
@@ -247,6 +274,28 @@ const emptyRules: PermissionRules = {
     API_PERMISSION_KEYS.map((key) => [key, null]),
   ) as Record<ApiPermissionKey, null>,
 };
+
+const emptyAutoAssign: PermissionGroupAutoAssign = {
+  enabled: false,
+  conditions: [],
+  revokeWhenUnmatched: false,
+};
+
+type PermissionGroupAutoAssignMatcher = (input: {
+  user: UserModel;
+  condition: PermissionGroupAutoAssignCondition;
+}) => boolean | Promise<boolean>;
+
+const autoAssignMatchers = new Map<string, PermissionGroupAutoAssignMatcher>();
+
+export function registerPermissionGroupAutoAssignMatcher(
+  type: string,
+  matcher: PermissionGroupAutoAssignMatcher,
+) {
+  const normalized = type.trim();
+  if (!normalized) return;
+  autoAssignMatchers.set(normalized, matcher);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -360,6 +409,32 @@ function stringList(value: unknown, limit = 200) {
         .slice(0, limit),
     ),
   ];
+}
+
+function normalizePermissionGroupAutoAssign(
+  value: unknown,
+): PermissionGroupAutoAssign {
+  const raw = isRecord(value) ? value : {};
+  const conditions = Array.isArray(raw.conditions)
+    ? raw.conditions
+        .map((condition): PermissionGroupAutoAssignCondition | null => {
+          if (!isRecord(condition)) return null;
+          const type = String(condition.type ?? '').trim();
+          const config = isRecord(condition.config) ? condition.config : {};
+          return type ? { type, config: clone(config) } : null;
+        })
+        .filter(
+          (condition): condition is PermissionGroupAutoAssignCondition =>
+            condition !== null,
+        )
+        .slice(0, 100)
+    : [];
+  return {
+    ...emptyAutoAssign,
+    enabled: raw.enabled === true && conditions.length > 0,
+    conditions,
+    revokeWhenUnmatched: raw.revokeWhenUnmatched === true,
+  };
 }
 
 function userIdList(value: unknown) {
@@ -594,6 +669,7 @@ function publicGroup(
     description: group.description,
     priority: group.priority,
     enabled: group.enabled,
+    autoAssign: normalizePermissionGroupAutoAssign(group.auto_assign),
     userIds,
     ipRules,
     userMemberships,
@@ -641,6 +717,8 @@ async function loadGroupRelations(groupIds: number[]) {
       expiresAt: membership.expires_at?.toISOString() ?? null,
       reason: membership.reason,
       reasonPublic: membership.reason_public === true,
+      assignmentSource:
+        membership.assignment_source === 'automatic' ? 'automatic' : 'manual',
     });
     userMembershipsByGroup.set(membership.group_id, list);
   }
@@ -806,6 +884,7 @@ export async function searchPermissionGroupUsers(input: {
     expires_at: Date | string | null;
     reason: string | null;
     reason_public: boolean | null;
+    assignment_source: string | null;
   }>(
     `
       SELECT
@@ -816,7 +895,8 @@ export async function searchPermissionGroupUsers(input: {
         u.enabled,
         pgu.expires_at,
         pgu.reason,
-        pgu.reason_public
+        pgu.reason_public,
+        pgu.assignment_source
       FROM permission_group_users pgu
       JOIN users u ON u.id = pgu.user_id
       WHERE ${whereSql}
@@ -848,6 +928,8 @@ export async function searchPermissionGroupUsers(input: {
       expiresAt: assignmentExpiresAt(row.expires_at),
       reason: (row.reason ?? '').trim(),
       reasonPublic: row.reason_public === true,
+      assignmentSource:
+        row.assignment_source === 'automatic' ? 'automatic' : 'manual',
     })),
   };
 }
@@ -896,6 +978,51 @@ export async function searchPermissionGroupCidrs(input: {
   };
 }
 
+export async function listUserPermissionGroups(
+  userId: number,
+): Promise<UserPermissionGroup[]> {
+  await ensureDatabase();
+  if (!Number.isSafeInteger(userId) || userId <= 0) return [];
+  const rows = await getDatabase().query<{
+    id: number;
+    name: string;
+    description: string;
+    priority: number;
+    expires_at: Date | string | null;
+    assignment_source: string | null;
+  }>(
+    `
+      SELECT
+        pg.id,
+        pg.name,
+        pg.description,
+        pg.priority,
+        pgu.expires_at,
+        pgu.assignment_source
+      FROM permission_group_users pgu
+      JOIN permission_groups pg ON pg.id = pgu.group_id
+      WHERE pgu.user_id = :userId
+        AND pg.enabled = true
+        AND (pgu.expires_at IS NULL OR pgu.expires_at > now())
+      ORDER BY pg.priority ASC, pg.id ASC
+    `,
+    {
+      replacements: { userId },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    priority: row.priority,
+    expiresAt: assignmentExpiresAt(row.expires_at),
+    assignmentSource:
+      row.assignment_source === 'automatic' ? 'automatic' : 'manual',
+  }));
+}
+
 function normalizeGroupInput(
   input: PermissionGroupInput,
 ): NormalizedPermissionGroupInput {
@@ -903,6 +1030,7 @@ function normalizeGroupInput(
   const maxLength = input.rules.links.codeMaxLength;
   const generatedLength = input.rules.links.generatedCodeLength;
   const rules = normalizePermissionRules(input.rules);
+  const autoAssign = normalizePermissionGroupAutoAssign(input.autoAssign);
   const cidrs = normalizeCidrs(input.ipRules, 200);
 
   if (minLength !== null && maxLength !== null && minLength > maxLength) {
@@ -928,6 +1056,7 @@ function normalizeGroupInput(
     description: input.description.trim().slice(0, 1000),
     priority: Math.max(0, Math.min(10_000, Math.round(input.priority))),
     enabled: input.enabled,
+    autoAssign,
     userIds: userIdList(input.userIds),
     ipRules: cidrs.map((cidr) => cidr.cidr),
     cidrs,
@@ -978,6 +1107,7 @@ async function replaceGroupAssignments(
             group_id: groupId,
             user_id: userId,
             expires_at: null,
+            assignment_source: 'manual',
             created_at: createdAt,
           })),
           { transaction },
@@ -1003,7 +1133,7 @@ async function replaceGroupAssignments(
 export async function createPermissionGroup(input: PermissionGroupInput) {
   await ensureDatabase();
   const normalized = normalizeGroupInput(input);
-  return getDatabase().transaction(async (transaction) => {
+  const groupId = await getDatabase().transaction(async (transaction) => {
     const now = new Date();
     const group = await PermissionGroupModel.create(
       {
@@ -1012,23 +1142,22 @@ export async function createPermissionGroup(input: PermissionGroupInput) {
         priority: normalized.priority,
         enabled: normalized.enabled,
         rules: normalized.rules as unknown as Record<string, unknown>,
+        auto_assign: normalized.autoAssign as unknown as Record<
+          string,
+          unknown
+        >,
         created_at: now,
         updated_at: now,
       },
       { transaction },
     );
     await replaceGroupAssignments(group.id, normalized, transaction);
-    return publicGroup(
-      group,
-      normalized.userIds.map((userId) => ({
-        userId,
-        expiresAt: null,
-        reason: '',
-        reasonPublic: false,
-      })),
-      normalized.ipRules.map((cidr) => ({ cidr, expiresAt: null })),
-    );
+    return group.id;
   });
+  await syncAutomaticPermissionGroupMembershipsForGroup(groupId);
+  const group = await getPermissionGroup(groupId);
+  if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
+  return group;
 }
 
 export async function updatePermissionGroup(
@@ -1037,7 +1166,7 @@ export async function updatePermissionGroup(
 ) {
   await ensureDatabase();
   const normalized = normalizeGroupInput(input);
-  return getDatabase().transaction(async (transaction) => {
+  await getDatabase().transaction(async (transaction) => {
     const group = await PermissionGroupModel.findByPk(id, { transaction });
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     await group.update(
@@ -1047,22 +1176,20 @@ export async function updatePermissionGroup(
         priority: normalized.priority,
         enabled: normalized.enabled,
         rules: normalized.rules as unknown as Record<string, unknown>,
+        auto_assign: normalized.autoAssign as unknown as Record<
+          string,
+          unknown
+        >,
         updated_at: new Date(),
       },
       { transaction },
     );
     await replaceGroupAssignments(group.id, normalized, transaction);
-    return publicGroup(
-      group,
-      normalized.userIds.map((userId) => ({
-        userId,
-        expiresAt: null,
-        reason: '',
-        reasonPublic: false,
-      })),
-      normalized.ipRules.map((cidr) => ({ cidr, expiresAt: null })),
-    );
   });
+  await syncAutomaticPermissionGroupMembershipsForGroup(id);
+  const group = await getPermissionGroup(id);
+  if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
+  return group;
 }
 
 export async function updatePermissionGroupSettings(
@@ -1075,7 +1202,7 @@ export async function updatePermissionGroupSettings(
     userIds: [],
     ipRules: [],
   });
-  return getDatabase().transaction(async (transaction) => {
+  await getDatabase().transaction(async (transaction) => {
     const group = await PermissionGroupModel.findByPk(id, { transaction });
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     await group.update(
@@ -1085,17 +1212,19 @@ export async function updatePermissionGroupSettings(
         priority: normalized.priority,
         enabled: normalized.enabled,
         rules: normalized.rules as unknown as Record<string, unknown>,
+        auto_assign: normalized.autoAssign as unknown as Record<
+          string,
+          unknown
+        >,
         updated_at: new Date(),
       },
       { transaction },
     );
-    const relations = await loadGroupRelations([group.id]);
-    return publicGroup(
-      group,
-      relations.userMembershipsByGroup.get(group.id) ?? [],
-      relations.cidrRulesByGroup.get(group.id) ?? [],
-    );
   });
+  await syncAutomaticPermissionGroupMembershipsForGroup(id);
+  const group = await getPermissionGroup(id);
+  if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
+  return group;
 }
 
 export async function deletePermissionGroup(id: number) {
@@ -1144,6 +1273,7 @@ export async function addPermissionGroupUser(
         expires_at: expiresAt,
         reason,
         reason_public: reasonPublic,
+        assignment_source: 'manual',
         created_at: new Date(),
       },
       transaction,
@@ -1154,6 +1284,7 @@ export async function addPermissionGroupUser(
           expires_at: expiresAt,
           reason,
           reason_public: reasonPublic,
+          assignment_source: 'manual',
         },
         { transaction },
       );
@@ -1189,6 +1320,113 @@ export async function removePermissionGroupUsers(
   return PermissionGroupUserModel.destroy({
     where: { group_id: groupId, user_id: { [Op.in]: uniqueIds } },
   });
+}
+
+async function userMatchesAutoAssign(
+  user: UserModel,
+  autoAssign: PermissionGroupAutoAssign,
+) {
+  if (!autoAssign.enabled) return false;
+  if (autoAssign.conditions.length === 0) return false;
+  for (const condition of autoAssign.conditions) {
+    const matcher = autoAssignMatchers.get(condition.type);
+    if (!matcher) return false;
+    if (!(await matcher({ user, condition }))) return false;
+  }
+  return true;
+}
+
+async function upsertAutomaticMembership(groupId: number, userId: number) {
+  const [membership, created] = await PermissionGroupUserModel.findOrCreate({
+    where: { group_id: groupId, user_id: userId },
+    defaults: {
+      group_id: groupId,
+      user_id: userId,
+      expires_at: null,
+      reason: '',
+      reason_public: false,
+      assignment_source: 'automatic',
+      created_at: new Date(),
+    },
+  });
+
+  if (!created && membership.assignment_source === 'automatic') {
+    await membership.update({
+      expires_at: null,
+      reason: '',
+      reason_public: false,
+    });
+  }
+}
+
+export async function syncAutomaticPermissionGroupMembershipsForUser(
+  userId: number,
+) {
+  await ensureDatabase();
+  if (!Number.isSafeInteger(userId) || userId <= 0) return;
+  const user = await UserModel.findByPk(userId);
+  if (!user) return;
+  const groups = await PermissionGroupModel.findAll();
+
+  for (const group of groups) {
+    const autoAssign = normalizePermissionGroupAutoAssign(group.auto_assign);
+    if (await userMatchesAutoAssign(user, autoAssign)) {
+      await upsertAutomaticMembership(group.id, user.id);
+      continue;
+    }
+    if (autoAssign.revokeWhenUnmatched) {
+      await PermissionGroupUserModel.destroy({
+        where: {
+          group_id: group.id,
+          user_id: user.id,
+          assignment_source: 'automatic',
+        },
+      });
+    }
+  }
+}
+
+export async function syncAutomaticPermissionGroupMembershipsForGroup(
+  groupId: number,
+) {
+  await ensureDatabase();
+  groupIdCondition(groupId);
+  const group = await PermissionGroupModel.findByPk(groupId);
+  if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
+  const autoAssign = normalizePermissionGroupAutoAssign(group.auto_assign);
+
+  if (!autoAssign.enabled) {
+    if (autoAssign.revokeWhenUnmatched) {
+      await PermissionGroupUserModel.destroy({
+        where: { group_id: group.id, assignment_source: 'automatic' },
+      });
+    }
+    return;
+  }
+
+  const users = await UserModel.findAll({
+    attributes: ['id', 'email'],
+  });
+  const matchedUserIds: number[] = [];
+  for (const user of users) {
+    if (await userMatchesAutoAssign(user, autoAssign)) {
+      matchedUserIds.push(user.id);
+    }
+  }
+
+  for (const userId of matchedUserIds) {
+    await upsertAutomaticMembership(group.id, userId);
+  }
+
+  if (!autoAssign.revokeWhenUnmatched) return;
+  const where: WhereOptions<PermissionGroupUserModel> = {
+    group_id: group.id,
+    assignment_source: 'automatic',
+  };
+  if (matchedUserIds.length > 0) {
+    where.user_id = { [Op.notIn]: matchedUserIds };
+  }
+  await PermissionGroupUserModel.destroy({ where });
 }
 
 export async function addPermissionGroupCidr(
@@ -1635,15 +1873,17 @@ export function canManageAdminSection(
 export function canAccessAdminPlugin(
   permissions: EffectivePermissions,
   pluginId: string,
+  accessPermissions: readonly AdminPluginAccessPermission[] = [],
 ) {
+  const hasPluginAccess =
+    permissions.admin.plugins.includes('*') ||
+    permissions.admin.plugins.includes(pluginId);
+  const hasDeclaredPermission = accessPermissions.some(
+    (permission) => permissions.admin[permission],
+  );
   return (
     permissions.isAdmin ||
-    (permissions.admin.access &&
-      (permissions.admin.plugins.includes('*') ||
-        permissions.admin.plugins.includes(pluginId) ||
-        (pluginId === PERMISSION_PLUGIN_ID &&
-          (permissions.admin.manageUsers ||
-            permissions.admin.managePermissions))))
+    (permissions.admin.access && (hasPluginAccess || hasDeclaredPermission))
   );
 }
 
@@ -1674,6 +1914,7 @@ export function permissionAssignmentExpiresAtFromForm(
 
 export function permissionGroupInputFromForm(
   form: FormData,
+  input: { autoAssign?: PermissionGroupAutoAssign } = {},
 ): PermissionGroupInput {
   const rules: PermissionRules = clone(emptyRules);
   for (const key of LINK_OPTION_KEYS) {
@@ -1757,6 +1998,7 @@ export function permissionGroupInputFromForm(
     description: stringValue(form, 'description'),
     priority: boundedNumber(form.get('priority'), 0, 10_000) ?? 100,
     enabled: parseBoolean(form, 'enabled'),
+    autoAssign: normalizePermissionGroupAutoAssign(input.autoAssign),
     userIds: userIdList(
       form.getAll('userIds').length > 0
         ? form.getAll('userIds')

@@ -1,14 +1,21 @@
-import type { PluginDefinition } from '$lib/plugin-contracts';
+import type {
+  PluginDefinition,
+  PluginLocaleKey,
+  PluginLocaleStrings,
+} from '$lib/plugin-contracts';
 import {
   defaultSiteLocale,
   siteLocaleKeys,
   type SiteLocale,
 } from '$lib/config';
+import { pluginText } from '$lib/i18n/plugin';
+import { formatText } from '$lib/i18n/ui-text';
 import { fieldName, pluginString } from '../utils';
 import {
   defaultRateLimitConfig,
   normalizeRateLimitConfig,
   validateRateLimitConfig,
+  type RateLimitConfigMessageKey,
 } from './config';
 
 function parseLocalizedMessages(
@@ -34,12 +41,20 @@ function firstLocalizedMessage(messages: Record<string, string>) {
   return siteLocaleKeys.map((locale) => messages[locale]).find(Boolean) ?? '';
 }
 
-function parseRules(value: string) {
+function messageFromStrings(
+  strings: PluginLocaleStrings | undefined,
+  key: PluginLocaleKey,
+  values: Record<string, string | number> = {},
+) {
+  return formatText(pluginText(strings, key), values);
+}
+
+function parseRules(value: string, strings: PluginLocaleStrings | undefined) {
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    throw new Error('Rate limit rules JSON is invalid.');
+    throw new Error(messageFromStrings(strings, 'server.rulesJsonInvalid'));
   }
 }
 
@@ -70,6 +85,12 @@ const plugin: PluginDefinition = {
           'pathMode는 exact, prefix, glob, regex를 지원합니다. scope는 global, ip, user, apiToken, method, path, route, header:name, query:name, cookie:name을 조합할 수 있습니다.',
         'admin.conditionsHelp':
           'requireAuthenticated, requireAdmin, requireApiToken, requireAdminApiToken은 true, false, null 중 하나를 사용합니다. requireAdminApiToken은 유효한 관리자 API 토큰인지 검사합니다. headers, query, cookies 값에는 * 와일드카드를 사용할 수 있습니다. 여러 규칙에 동시에 매칭되면 모든 규칙을 통과해야 요청이 처리됩니다.',
+        'server.rulesJsonInvalid': 'Rate limit 규칙 JSON이 올바르지 않습니다.',
+        'server.ruleDuplicate': 'Rate limit 규칙 ID "{id}"가 중복되었습니다.',
+        'server.ruleIdInvalid':
+          'Rate limit 규칙 ID "{id}"가 올바르지 않습니다.',
+        'server.regexInvalid':
+          'Rate limit 규칙 "{name}"의 regex path가 올바르지 않습니다.',
       },
     },
     en: {
@@ -88,6 +109,11 @@ const plugin: PluginDefinition = {
           'pathMode supports exact, prefix, glob, and regex. scope can combine global, ip, user, apiToken, method, path, route, header:name, query:name, and cookie:name.',
         'admin.conditionsHelp':
           'requireAuthenticated, requireAdmin, requireApiToken, and requireAdminApiToken accept true, false, or null. requireAdminApiToken checks for a valid admin API token. headers, query, and cookies values support the * wildcard. If multiple rules match, every rule must pass for the request to continue.',
+        'server.rulesJsonInvalid': 'Rate limit rules JSON is invalid.',
+        'server.ruleDuplicate': 'Rate limit rule ID "{id}" is duplicated.',
+        'server.ruleIdInvalid': 'Rate limit rule ID "{id}" is invalid.',
+        'server.regexInvalid':
+          'Regex path for rate limit rule "{name}" is invalid.',
       },
     },
   },
@@ -99,7 +125,10 @@ const plugin: PluginDefinition = {
     const rawRules =
       form.get(fieldName('rate-limit', 'rulesJson')) === null
         ? normalized.rules
-        : parseRules(pluginString(form, 'rate-limit', 'rulesJson'));
+        : parseRules(
+            pluginString(form, 'rate-limit', 'rulesJson'),
+            input?.strings,
+          );
 
     return normalizeRateLimitConfig(
       {
@@ -112,8 +141,12 @@ const plugin: PluginDefinition = {
       fallbackLocale,
     );
   },
-  validateConfig(config) {
-    validateRateLimitConfig(normalizeRateLimitConfig(config));
+  validateConfig(config, context) {
+    validateRateLimitConfig(
+      normalizeRateLimitConfig(config),
+      (key: RateLimitConfigMessageKey, values) =>
+        messageFromStrings(context?.strings, key, values),
+    );
   },
 };
 

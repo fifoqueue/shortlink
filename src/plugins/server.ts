@@ -17,6 +17,8 @@ type ServerPluginModule = {
   default: Partial<
     Pick<
       PluginDefinition,
+      | 'canAccessAdminAction'
+      | 'canAccessAdminSubpage'
       | 'canDisable'
       | 'canEnable'
       | 'handleAdminAction'
@@ -137,7 +139,12 @@ export function parsePluginStates(
       enabled:
         isRequiredPlugin(definition) ||
         form.get(`plugin.${definition.meta.id}.enabled`) === 'on',
-      config: definition.parseConfig(form, existing.config, { defaultLocale }),
+      config: definition.parseConfig(form, existing.config, {
+        defaultLocale,
+        locale: defaultLocale,
+        fallbackLocale: defaultLocale,
+        strings: pluginLocaleStrings(definition, defaultLocale, defaultLocale),
+      }),
     };
   }
   return next;

@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { pluginText } from '$lib/i18n/plugin';
+  import { pluginLocaleStrings, pluginText } from '$lib/i18n/plugin';
   import { translateContent } from '$lib/i18n/translate-content';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
@@ -27,6 +27,7 @@
     toggleSelection,
   } from '$lib/selection';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
+  import { userAdminPluginRegistry } from '../user-admin-registry';
 
   type User = {
     id: number;
@@ -47,6 +48,7 @@
     expiresAt?: string | null;
     reason?: string;
     reasonPublic?: boolean;
+    assignmentSource?: 'manual' | 'automatic';
   };
 
   type CidrRule = {
@@ -61,6 +63,14 @@
     description: string;
     priority: number;
     enabled: boolean;
+    autoAssign: {
+      enabled: boolean;
+      conditions: Array<{
+        type: string;
+        config: Record<string, unknown>;
+      }>;
+      revokeWhenUnmatched: boolean;
+    };
     userIds: number[];
     ipRules: string[];
     userMemberships: Array<{
@@ -118,19 +128,6 @@
     cidrs: CidrRule[];
   };
 
-  type OidcConnection = {
-    id: number;
-    provider: string;
-    providerName: string;
-    subject: string;
-    email: string | null;
-    createdAt: string;
-  };
-
-  type OidcData = {
-    connections: OidcConnection[];
-  };
-
   type ApiToken = {
     id: number;
     name: string;
@@ -174,6 +171,7 @@
     integrations,
     item,
     locale = defaultSiteLocale,
+    fallbackLocale = locale,
     strings = {},
   }: PluginComponentProps = $props();
   const data = $derived((adminData ?? {}) as Partial<AdminData>);
@@ -185,9 +183,20 @@
   const addableUsers = $derived(
     data.kind === 'group' ? data.addableUsers : undefined,
   );
-  const oidc = $derived(
-    integrations?.find((integration) => integration.pluginId === 'oidc-sso')
-      ?.data as OidcData | undefined,
+  const userAdminIntegrations = $derived(
+    (integrations ?? []).flatMap((integration) => {
+      const registered = userAdminPluginRegistry.find(
+        (plugin) => plugin.definition.meta.id === integration.pluginId,
+      );
+      if (!registered?.userAdmin) return [];
+      return [
+        {
+          component: registered.userAdmin,
+          definition: registered.definition,
+          integration,
+        },
+      ];
+    }),
   );
   const selectableCidrKeys = $derived(
     (cidrs?.cidrs ?? []).map((rule) => rule.cidr),
@@ -469,6 +478,16 @@
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale);
   }
+
+  function emailDomainCondition(group: Group) {
+    const condition = group.autoAssign.conditions.find(
+      (item) => item.type === 'email-domain',
+    );
+    const domains = condition?.config.domains;
+    return Array.isArray(domains)
+      ? domains.map((domain) => String(domain)).join('\n')
+      : '';
+  }
 </script>
 
 <svelte:window onkeydown={closeAddUserModalOnEscape} />
@@ -520,61 +539,20 @@
         </form>
       </section>
 
-      <section>
-        <h2>{t('admin.oidcConnections')}</h2>
-        {#if oidc?.connections?.length}
-          <div class="connections">
-            {#each oidc.connections as connection (connection.id)}
-              <article>
-                <div>
-                  <strong>{connection.providerName}</strong>
-                  <span>
-                    {connection.email ?? connection.subject} · {connection.subject}
-                  </span>
-                </div>
-                <form
-                  method="POST"
-                  action="?/integrationAction"
-                  use:enhance={keepFormValues}
-                >
-                  <input
-                    type="hidden"
-                    name="integrationPlugin"
-                    value="oidc-sso"
-                  />
-                  <input
-                    type="hidden"
-                    name="integrationAction"
-                    value="unlink"
-                  />
-                  <input
-                    type="hidden"
-                    name="identityId"
-                    value={connection.id}
-                  />
-                  <input
-                    type="hidden"
-                    name="provider"
-                    value={connection.provider}
-                  />
-                  <DangerConfirmButton
-                    label={t('admin.forceUnlink')}
-                    {locale}
-                    title={t('admin.forceUnlinkTitle')}
-                    message={t('admin.forceUnlinkMessage')}
-                    details={[
-                      `${connection.providerName}: ${connection.email ?? connection.subject}`,
-                    ]}
-                    confirmLabel={t('admin.forceUnlink')}
-                  />
-                </form>
-              </article>
-            {/each}
-          </div>
-        {:else}
-          <p class="muted">{t('admin.emptyOidcConnections')}</p>
-        {/if}
-      </section>
+      {#each userAdminIntegrations as integration (integration.integration.pluginId)}
+        {@const UserAdmin = integration.component}
+        <UserAdmin
+          config={{}}
+          integrationData={integration.integration.data}
+          {locale}
+          {fallbackLocale}
+          strings={pluginLocaleStrings(
+            integration.definition,
+            locale,
+            fallbackLocale,
+          )}
+        />
+      {/each}
 
       <section>
         <h2>{t('admin.apiTokens')}</h2>
@@ -676,6 +654,35 @@
               label={t('admin.enableGroup')}
               checked={group.enabled}
             />
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>{t('admin.automaticAssignment')}</h2>
+        <p class="muted">{t('admin.automaticAssignmentDescription')}</p>
+        <div class="grid form-grid balanced auto-assignment-grid">
+          <div class="wide">
+            <ToggleField
+              name="autoAssign.enabled"
+              label={t('admin.enableAutomaticAssignment')}
+              checked={group.autoAssign.enabled}
+            />
+          </div>
+          <label class="wide">
+            {t('admin.emailDomains')}
+            <small>{t('admin.emailDomainsHelp')}</small>
+            <textarea name="autoAssign.emailDomains" rows="4"
+              >{emailDomainCondition(group)}</textarea
+            >
+          </label>
+          <div class="wide">
+            <ToggleField
+              name="autoAssign.revokeWhenUnmatched"
+              label={t('admin.revokeWhenUnmatched')}
+              checked={group.autoAssign.revokeWhenUnmatched}
+            />
+            <p class="muted">{t('admin.revokeWhenUnmatchedHelp')}</p>
           </div>
         </div>
       </section>
@@ -1175,6 +1182,11 @@
                   <em class="assignment-meta"
                     >{expiresAtLabel(member.expiresAt)}</em
                   >
+                  <em class="assignment-meta">
+                    {member.assignmentSource === 'automatic'
+                      ? t('admin.automaticAssignmentBadge')
+                      : t('admin.manualAssignmentBadge')}
+                  </em>
                   {#if member.reason}
                     <em class="assignment-meta"
                       >{t('admin.assignmentReason')}: {member.reason}</em

@@ -19,12 +19,13 @@ import {
 } from '../../../../plugins/server';
 import { localizedPluginMeta, pluginLocaleStrings } from '$lib/i18n/plugin';
 import type {
+  PluginAdminPermissionContext,
   PluginActivationStatus,
   PluginDefinition,
   PluginState,
 } from '$lib/plugin-contracts';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
-import { defaultSiteLocale, type SiteLocale } from '$lib/config';
+import type { SiteLocale } from '$lib/config';
 
 function definitionFor(id: string) {
   return pluginDefinitions.find((definition) => definition.meta.id === id);
@@ -51,29 +52,26 @@ async function permissionsFor(input: {
 
 function requirePluginAccess(
   permissions: EffectivePermissions,
-  pluginId: string,
+  definition: PluginDefinition,
 ) {
-  if (!canAccessAdminPlugin(permissions, pluginId)) redirect(303, '/admin');
+  if (
+    !canAccessAdminPlugin(
+      permissions,
+      definition.meta.id,
+      definition.meta.adminAccessPermissions,
+    )
+  ) {
+    redirect(303, '/admin');
+  }
 }
 
-function requirePermissionManagementAction(
+function pluginAdminPermissionContext(
   permissions: EffectivePermissions,
-  pluginId: string,
-  action: string,
-  locale: App.Locals['locale'] = defaultSiteLocale,
-  fallbackLocale: SiteLocale = locale,
-) {
-  const text = uiText(locale, fallbackLocale).admin.messages;
-  if (pluginId !== 'permission-management' || permissions.isAdmin) return;
-  if (action === 'createUser' && !permissions.admin.manageUsers) {
-    throw new Error(text.permissionActionDenied);
-  }
-  if (
-    (action === 'createGroup' || action === 'deleteGroups') &&
-    !permissions.admin.managePermissions
-  ) {
-    throw new Error(text.permissionActionDenied);
-  }
+): PluginAdminPermissionContext {
+  return {
+    isAdmin: permissions.isAdmin,
+    admin: permissions.admin,
+  };
 }
 
 async function activationStatus(
@@ -138,7 +136,15 @@ async function applyPluginStateChange(input: {
     }
   }
 
-  await definition.validateConfig?.(next.config);
+  await definition.validateConfig?.(next.config, {
+    locale: input.locale,
+    fallbackLocale: input.fallbackLocale,
+    strings: pluginLocaleStrings(
+      definition,
+      input.locale,
+      input.fallbackLocale,
+    ),
+  });
   return next;
 }
 
@@ -156,7 +162,7 @@ export const load: PageServerLoad = async ({
     request,
     getClientAddress,
   });
-  requirePluginAccess(permissions, definition.meta.id);
+  requirePluginAccess(permissions, definition);
   const settings = await getSettings();
   const storedState = settings.plugins[definition.meta.id];
   const state = {
@@ -218,7 +224,7 @@ export const actions: Actions = {
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, definition.meta.id);
+    requirePluginAccess(permissions, definition);
     const settings = await getSettings();
     const current = settings.plugins[definition.meta.id];
     const form = await request.formData();
@@ -233,6 +239,13 @@ export const actions: Actions = {
           enabled: parseBoolean(form, 'enabled'),
           config: definition.parseConfig(form, current.config, {
             defaultLocale: settings.i18n.defaultLocale,
+            locale: locals.locale,
+            fallbackLocale: settings.i18n.defaultLocale,
+            strings: pluginLocaleStrings(
+              definition,
+              locals.locale,
+              settings.i18n.defaultLocale,
+            ),
           }),
         },
       });
@@ -265,7 +278,7 @@ export const actions: Actions = {
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, definition.meta.id);
+    requirePluginAccess(permissions, definition);
     const settings = await getSettings();
     const state = settings.plugins[definition.meta.id];
     if (!state.enabled) {
@@ -280,18 +293,22 @@ export const actions: Actions = {
         message: text.pluginActionMissing,
       });
     }
-    try {
-      requirePermissionManagementAction(
-        permissions,
-        definition.meta.id,
-        action,
-        locals.locale,
-        locals.settings.i18n.defaultLocale,
-      );
-    } catch (cause) {
+    const fallbackLocale = settings.i18n.defaultLocale;
+    const strings = pluginLocaleStrings(
+      definition,
+      locals.locale,
+      fallbackLocale,
+    );
+    const access = await (definition.canAccessAdminAction?.({
+      action,
+      permissions: pluginAdminPermissionContext(permissions),
+      locale: locals.locale,
+      fallbackLocale,
+      strings,
+    }) ?? { allowed: true });
+    if (!access.allowed) {
       return fail(403, {
-        message:
-          cause instanceof Error ? cause.message : text.permissionActionDenied,
+        message: access.reason ?? text.permissionActionDenied,
       });
     }
     try {
@@ -303,19 +320,15 @@ export const actions: Actions = {
         user: locals.user,
         isAdmin: locals.isAdmin,
         locale: locals.locale,
-        fallbackLocale: settings.i18n.defaultLocale,
-        strings: pluginLocaleStrings(
-          definition,
-          locals.locale,
-          settings.i18n.defaultLocale,
-        ),
+        fallbackLocale,
+        strings,
       });
       settings.plugins[definition.meta.id] = await applyPluginStateChange({
         definition,
         current: state,
         url,
         locale: locals.locale,
-        fallbackLocale: settings.i18n.defaultLocale,
+        fallbackLocale,
         next: {
           enabled: result.enabled ?? state.enabled,
           config: result.config ?? state.config,

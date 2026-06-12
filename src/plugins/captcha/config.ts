@@ -1,5 +1,4 @@
 import type { PluginConfig } from '$lib/plugin-contracts';
-import { serverMessage } from '$lib/i18n/ui-text';
 import { isHttpHeaderName, parseDelimitedLines } from '../utils';
 
 export type CaptchaProvider =
@@ -37,6 +36,50 @@ export interface CaptchaConfig extends Record<string, unknown> {
   customSuccessPath: string;
   customScorePath: string;
   verifyTimeoutMs: number;
+}
+
+export type CaptchaConfigMessageKey =
+  | 'server.httpHeadersDescription'
+  | 'server.extraBodyDescription'
+  | 'server.headerInvalid'
+  | 'server.protectedRequiresProvider'
+  | 'server.settingsIncomplete'
+  | 'server.customEndpointRequired'
+  | 'server.customSuccessPathRequired'
+  | 'server.tokenFieldRequired'
+  | 'server.siteKeyRequired'
+  | 'server.secretKeyRequired';
+
+export type CaptchaConfigMessage = (
+  key: CaptchaConfigMessageKey,
+  values?: Record<string, string | number>,
+) => string;
+
+const fallbackMessages: Record<CaptchaConfigMessageKey, string> = {
+  'server.httpHeadersDescription': 'CAPTCHA HTTP headers',
+  'server.extraBodyDescription': 'CAPTCHA extra body',
+  'server.headerInvalid':
+    'CAPTCHA HTTP header "{header}" is not a valid header name.',
+  'server.protectedRequiresProvider':
+    'Protected actions cannot be enabled while CAPTCHA is disabled.',
+  'server.settingsIncomplete':
+    'Complete CAPTCHA settings before enabling protected actions.',
+  'server.customEndpointRequired':
+    'Enter the custom CAPTCHA verification endpoint.',
+  'server.customSuccessPathRequired':
+    'Enter the custom CAPTCHA success JSON path.',
+  'server.tokenFieldRequired': 'Enter the custom CAPTCHA token field name.',
+  'server.siteKeyRequired': 'Enter the CAPTCHA site key.',
+  'server.secretKeyRequired': 'Enter the CAPTCHA secret key.',
+};
+
+function fallbackMessage(
+  key: CaptchaConfigMessageKey,
+  values: Record<string, string | number> = {},
+) {
+  return fallbackMessages[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+    String(values[name] ?? ''),
+  );
 }
 
 export const captchaTokenField = 'captchaToken';
@@ -242,61 +285,74 @@ export function parseCaptchaPairs(value: string, description: string) {
   );
 }
 
-export function parseCaptchaHeaderRecord(value: string) {
+export function parseCaptchaHeaderRecord(
+  value: string,
+  message: CaptchaConfigMessage = fallbackMessage,
+) {
   const headers: Record<string, string> = {};
-  for (const pair of parseCaptchaPairs(value, 'CAPTCHA HTTP headers')) {
+  for (const pair of parseCaptchaPairs(
+    value,
+    message('server.httpHeadersDescription'),
+  )) {
     if (!isHttpHeaderName(pair.key)) {
-      throw new Error(
-        serverMessage('captchaHeaderInvalid', { header: pair.key }),
-      );
+      throw new Error(message('server.headerInvalid', { header: pair.key }));
     }
     headers[pair.key] = pair.value;
   }
   return headers;
 }
 
-export function parseCaptchaBodyRecord(value: string) {
+export function parseCaptchaBodyRecord(
+  value: string,
+  message: CaptchaConfigMessage = fallbackMessage,
+) {
   const body: Record<string, string> = {};
-  for (const pair of parseCaptchaPairs(value, 'CAPTCHA extra body')) {
+  for (const pair of parseCaptchaPairs(
+    value,
+    message('server.extraBodyDescription'),
+  )) {
     body[pair.key] = pair.value;
   }
   return body;
 }
 
-export function validateCaptchaConfig(config: CaptchaConfig) {
+export function validateCaptchaConfig(
+  config: CaptchaConfig,
+  message: CaptchaConfigMessage = fallbackMessage,
+) {
   const enabled =
     config.loginEnabled || config.signupEnabled || config.linkCreateEnabled;
 
   if (config.provider === 'custom') {
-    parseCaptchaHeaderRecord(config.customHeaders);
-    parseCaptchaBodyRecord(config.customExtraBody);
+    parseCaptchaHeaderRecord(config.customHeaders, message);
+    parseCaptchaBodyRecord(config.customExtraBody, message);
   }
   if (!enabled) return;
 
   if (config.provider === 'none') {
-    throw new Error(serverMessage('captchaProtectedRequiresProvider'));
+    throw new Error(message('server.protectedRequiresProvider'));
   }
 
   if (!isCaptchaConfigured(config)) {
-    throw new Error(serverMessage('captchaSettingsIncomplete'));
+    throw new Error(message('server.settingsIncomplete'));
   }
 
   if (config.provider === 'custom') {
     if (!config.customVerifyEndpoint) {
-      throw new Error(serverMessage('captchaCustomEndpointRequired'));
+      throw new Error(message('server.customEndpointRequired'));
     }
     new URL(config.customVerifyEndpoint);
     if (!config.customSuccessPath) {
-      throw new Error(serverMessage('captchaCustomSuccessPathRequired'));
+      throw new Error(message('server.customSuccessPathRequired'));
     }
     if (!config.tokenFieldName) {
-      throw new Error(serverMessage('captchaTokenFieldRequired'));
+      throw new Error(message('server.tokenFieldRequired'));
     }
     return;
   }
 
-  if (!config.siteKey) throw new Error(serverMessage('captchaSiteKeyRequired'));
+  if (!config.siteKey) throw new Error(message('server.siteKeyRequired'));
   if (!config.secretKey) {
-    throw new Error(serverMessage('captchaSecretKeyRequired'));
+    throw new Error(message('server.secretKeyRequired'));
   }
 }

@@ -68,6 +68,20 @@ const plugin: PluginDefinition = {
         'admin.callbackUrls': 'Callback URLs',
         'admin.loginCallback': '로그인',
         'admin.accountLinkCallback': '계정 연결',
+        'admin.oidcConnections': 'OIDC 연결',
+        'admin.forceUnlink': '강제 해제',
+        'admin.forceUnlinkTitle': 'OIDC 연결을 강제로 해제할까요?',
+        'admin.forceUnlinkMessage':
+          '이 사용자는 다시 연결하기 전까지 해당 OIDC 계정으로 로그인할 수 없습니다.',
+        'admin.emptyOidcConnections': '연결된 OIDC 계정이 없습니다.',
+        'account.oidcConnections': 'OIDC 연결',
+        'account.connected': '연결됨',
+        'account.disconnected': '연결되지 않음',
+        'account.unlink': '연결 해제',
+        'account.unlinkTitle': '{provider} 연결을 해제할까요?',
+        'account.unlinkMessage':
+          '이 SSO 연결을 제거하면 다시 연결하기 전까지 해당 프로바이더로 계정에 접근할 수 없습니다.',
+        'account.connect': '연결',
         'auth.clientSecretRequired': 'OIDC Client Secret이 필요합니다.',
         'auth.issuerAndClientIdRequired':
           'OIDC Issuer URL과 Client ID를 설정해야 합니다.',
@@ -176,6 +190,20 @@ const plugin: PluginDefinition = {
         'admin.callbackUrls': 'Callback URLs',
         'admin.loginCallback': 'Login',
         'admin.accountLinkCallback': 'Account link',
+        'admin.oidcConnections': 'OIDC connections',
+        'admin.forceUnlink': 'Force unlink',
+        'admin.forceUnlinkTitle': 'Force unlink OIDC connection?',
+        'admin.forceUnlinkMessage':
+          'This user cannot log in with that OIDC account until it is linked again.',
+        'admin.emptyOidcConnections': 'No OIDC accounts are linked.',
+        'account.oidcConnections': 'OIDC connections',
+        'account.connected': 'Connected',
+        'account.disconnected': 'Disconnected',
+        'account.unlink': 'Unlink',
+        'account.unlinkTitle': 'Unlink {provider}?',
+        'account.unlinkMessage':
+          'Removing this SSO connection prevents account access through that provider until it is linked again.',
+        'account.connect': 'Connect',
         'auth.clientSecretRequired': 'OIDC client secret is required.',
         'auth.issuerAndClientIdRequired':
           'OIDC issuer URL and client ID must be configured.',

@@ -4,7 +4,6 @@ import {
   siteLocaleKeys,
   type SiteLocale,
 } from '$lib/config';
-import { serverMessage } from '$lib/i18n/ui-text';
 
 export type RateLimitPathMode = 'exact' | 'prefix' | 'glob' | 'regex';
 
@@ -43,6 +42,31 @@ export interface RateLimitConfig extends Record<string, unknown> {
   responseMessage: string;
   responseMessages: Record<string, string>;
   rules: RateLimitRule[];
+}
+
+export type RateLimitConfigMessageKey =
+  | 'server.ruleDuplicate'
+  | 'server.ruleIdInvalid'
+  | 'server.regexInvalid';
+
+export type RateLimitConfigMessage = (
+  key: RateLimitConfigMessageKey,
+  values?: Record<string, string | number>,
+) => string;
+
+const fallbackMessages: Record<RateLimitConfigMessageKey, string> = {
+  'server.ruleDuplicate': 'Rate limit rule ID "{id}" is duplicated.',
+  'server.ruleIdInvalid': 'Rate limit rule ID "{id}" is invalid.',
+  'server.regexInvalid': 'Regex path for rate limit rule "{name}" is invalid.',
+};
+
+function fallbackMessage(
+  key: RateLimitConfigMessageKey,
+  values: Record<string, string | number> = {},
+) {
+  return fallbackMessages[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+    String(values[name] ?? ''),
+  );
 }
 
 const methodNames = [
@@ -270,26 +294,27 @@ export function normalizeRateLimitConfig(
   };
 }
 
-export function validateRateLimitConfig(config: RateLimitConfig) {
+export function validateRateLimitConfig(
+  config: RateLimitConfig,
+  message: RateLimitConfigMessage = fallbackMessage,
+) {
   const ids = new Set<string>();
 
   for (const rule of config.rules) {
     if (ids.has(rule.id)) {
-      throw new Error(serverMessage('rateLimitRuleDuplicate', { id: rule.id }));
+      throw new Error(message('server.ruleDuplicate', { id: rule.id }));
     }
     ids.add(rule.id);
 
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(rule.id)) {
-      throw new Error(serverMessage('rateLimitRuleIdInvalid', { id: rule.id }));
+      throw new Error(message('server.ruleIdInvalid', { id: rule.id }));
     }
 
     if (rule.pathMode === 'regex') {
       try {
         new RegExp(rule.path);
       } catch {
-        throw new Error(
-          serverMessage('rateLimitRegexInvalid', { name: rule.name }),
-        );
+        throw new Error(message('server.regexInvalid', { name: rule.name }));
       }
     }
   }

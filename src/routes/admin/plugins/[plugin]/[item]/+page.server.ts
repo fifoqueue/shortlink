@@ -12,7 +12,12 @@ import { pluginDefinitions } from '../../../../../plugins/server';
 import { clearPluginSessions } from '../../../../../plugins/auth-registry';
 import { localizedPluginMeta, pluginLocaleStrings } from '$lib/i18n/plugin';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
-import { defaultSiteLocale, type SiteLocale } from '$lib/config';
+import type { SiteLocale } from '$lib/config';
+import type {
+  PluginAdminAccessStatus,
+  PluginAdminPermissionContext,
+  PluginDefinition,
+} from '$lib/plugin-contracts';
 
 function definitionFor(id: string) {
   return pluginDefinitions.find((definition) => definition.meta.id === id);
@@ -39,26 +44,48 @@ async function permissionsFor(input: {
 
 function requirePluginAccess(
   permissions: EffectivePermissions,
-  pluginId: string,
+  definition: PluginDefinition,
 ) {
-  if (!canAccessAdminPlugin(permissions, pluginId)) redirect(303, '/admin');
+  if (
+    !canAccessAdminPlugin(
+      permissions,
+      definition.meta.id,
+      definition.meta.adminAccessPermissions,
+    )
+  ) {
+    redirect(303, '/admin');
+  }
 }
 
-function requirePermissionManagementItem(
+function pluginAdminPermissionContext(
   permissions: EffectivePermissions,
-  pluginId: string,
-  item: string,
-  locale: App.Locals['locale'] = defaultSiteLocale,
-  fallbackLocale: SiteLocale = locale,
-) {
-  const text = uiText(locale, fallbackLocale).admin.messages;
-  if (pluginId !== 'permission-management' || permissions.isAdmin) return;
-  if (item.startsWith('user-') && !permissions.admin.manageUsers) {
-    throw new Error(text.permissionActionDenied);
-  }
-  if (item.startsWith('group-') && !permissions.admin.managePermissions) {
-    throw new Error(text.permissionActionDenied);
-  }
+): PluginAdminPermissionContext {
+  return {
+    isAdmin: permissions.isAdmin,
+    admin: permissions.admin,
+  };
+}
+
+async function pluginSubpageAccessStatus(input: {
+  definition: PluginDefinition;
+  permissions: EffectivePermissions;
+  item: string;
+  locale: App.Locals['locale'];
+  fallbackLocale: SiteLocale;
+}): Promise<PluginAdminAccessStatus> {
+  return (
+    (await input.definition.canAccessAdminSubpage?.({
+      item: input.item,
+      permissions: pluginAdminPermissionContext(input.permissions),
+      locale: input.locale,
+      fallbackLocale: input.fallbackLocale,
+      strings: pluginLocaleStrings(
+        input.definition,
+        input.locale,
+        input.fallbackLocale,
+      ),
+    })) ?? { allowed: true }
+  );
 }
 
 async function loadIntegrations(
@@ -106,17 +133,16 @@ export const load: PageServerLoad = async ({
     request,
     getClientAddress,
   });
-  requirePluginAccess(permissions, definition.meta.id);
-  try {
-    requirePermissionManagementItem(
-      permissions,
-      definition.meta.id,
-      params.item,
-      locals.locale,
-      locals.settings.i18n.defaultLocale,
-    );
-  } catch {
-    redirect(303, `/admin/plugins/${params.plugin}`);
+  requirePluginAccess(permissions, definition);
+  const access = await pluginSubpageAccessStatus({
+    definition,
+    permissions,
+    item: params.item,
+    locale: locals.locale,
+    fallbackLocale: locals.settings.i18n.defaultLocale,
+  });
+  if (!access.allowed) {
+    redirect(303, access.redirectTo ?? `/admin/plugins/${params.plugin}`);
   }
   if (!definition.loadAdminSubpage)
     redirect(303, `/admin/plugins/${params.plugin}`);
@@ -197,19 +223,17 @@ export const actions: Actions = {
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, definition.meta.id);
-    try {
-      requirePermissionManagementItem(
-        permissions,
-        definition.meta.id,
-        params.item,
-        locals.locale,
-        locals.settings.i18n.defaultLocale,
-      );
-    } catch (cause) {
+    requirePluginAccess(permissions, definition);
+    const access = await pluginSubpageAccessStatus({
+      definition,
+      permissions,
+      item: params.item,
+      locale: locals.locale,
+      fallbackLocale: locals.settings.i18n.defaultLocale,
+    });
+    if (!access.allowed) {
       return fail(403, {
-        message:
-          cause instanceof Error ? cause.message : text.permissionActionDenied,
+        message: access.reason ?? text.permissionActionDenied,
       });
     }
     const settings = await getSettings();
@@ -278,19 +302,21 @@ export const actions: Actions = {
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, params.plugin);
-    try {
-      requirePermissionManagementItem(
-        permissions,
-        params.plugin,
-        params.item,
-        locals.locale,
-        locals.settings.i18n.defaultLocale,
-      );
-    } catch (cause) {
+    const parentDefinition = definitionFor(params.plugin);
+    if (!parentDefinition) {
+      return fail(404, { message: text.pluginNotFound });
+    }
+    requirePluginAccess(permissions, parentDefinition);
+    const access = await pluginSubpageAccessStatus({
+      definition: parentDefinition,
+      permissions,
+      item: params.item,
+      locale: locals.locale,
+      fallbackLocale: locals.settings.i18n.defaultLocale,
+    });
+    if (!access.allowed) {
       return fail(403, {
-        message:
-          cause instanceof Error ? cause.message : text.integrationActionDenied,
+        message: access.reason ?? text.integrationActionDenied,
       });
     }
     const userId = Number(

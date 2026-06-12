@@ -229,7 +229,7 @@ export const actions: Actions = {
       });
     }
 
-    const captcha = await verifyFormSubmissionPlugins({
+    const verification = await verifyFormSubmissionPlugins({
       action: 'link-create',
       form: formData,
       request,
@@ -241,17 +241,17 @@ export const actions: Actions = {
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
     });
-    if (!captcha.allowed) {
+    if (!verification.allowed) {
       return fail(400, {
         ok: false,
         action: 'create',
-        message: captcha.message
+        message: verification.message
           ? localizeServerMessage(
               locals.locale,
-              captcha.message,
+              verification.message,
               settings.i18n.defaultLocale,
             )
-          : text.messages.captchaFailed,
+          : text.messages.formVerificationFailed,
         values,
       });
     }

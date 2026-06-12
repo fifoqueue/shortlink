@@ -378,6 +378,13 @@ const ko = {
     description: '{name} 계정 정보를 관리합니다.',
     profile: '프로필',
     pendingEmail: '인증 대기 중: {email}',
+    permissionGroups: '현재 권한 그룹',
+    permissionGroupsDescription: '현재 계정에 적용 중인 권한 그룹입니다.',
+    automaticPermissionGroup: '자동 적용',
+    manualPermissionGroup: '수동 적용',
+    permissionGroupExpires: '만료 {value}',
+    noGroupDescription: '설명 없음',
+    emptyPermissionGroups: '현재 적용 중인 권한 그룹이 없습니다.',
     password: '비밀번호',
     currentPassword: '현재 비밀번호',
     nextPassword: '새 비밀번호',
@@ -386,14 +393,6 @@ const ko = {
     sessionsDescription:
       '현재 로그인한 기기는 유지하고 다른 모든 기기에서 로그아웃합니다.',
     logoutOtherSessions: '다른 기기에서 로그아웃',
-    oidcConnections: 'OIDC 연결',
-    connected: '연결됨',
-    disconnected: '연결되지 않음',
-    unlink: '연결 해제',
-    unlinkTitle: '{provider} 연결을 해제할까요?',
-    unlinkMessage:
-      '이 SSO 연결을 제거하면 다시 연결하기 전까지 해당 프로바이더로 계정에 접근할 수 없습니다.',
-    connect: '연결',
     apiTokens: 'API 토큰',
     newApiToken: '새 API 토큰',
     tokenOnce: '이 토큰 값은 지금 한 번만 표시됩니다.',
@@ -560,7 +559,7 @@ const ko = {
     createNoPermissionTitle: '새 링크를 만들 권한이 없습니다.',
     createNoPermissionDetail:
       '현재 계정 또는 접속 환경에서는 링크 생성이 허용되지 않습니다.',
-    captchaFailed: 'CAPTCHA 인증에 실패했습니다.',
+    formVerificationFailed: '폼 검증에 실패했습니다.',
     enterUrl: 'URL을 입력해주세요.',
     urlSchemeNotAllowed:
       '허용되지 않은 URL scheme입니다. 허용된 scheme: {schemes}',
@@ -593,8 +592,8 @@ const ko = {
     onlyAdminDeleteDenied: '유일한 관리자는 삭제할 수 없습니다.',
     onlyAdminDemoteDenied: '유일한 관리자는 관리자 권한을 잃을 수 없습니다.',
     currentPasswordMismatch: '현재 비밀번호가 일치하지 않습니다.',
-    oidcAccountAlreadyLinked:
-      '이 OIDC 계정은 이미 다른 사용자에게 연결되어 있습니다.',
+    identityAlreadyLinked:
+      '이 외부 계정은 이미 다른 사용자에게 연결되어 있습니다.',
     permissionGroupIdInvalid: '권한 그룹 ID가 올바르지 않습니다.',
     permissionGroupNotFound: '권한 그룹을 찾을 수 없습니다.',
     userIdInvalid: '사용자 ID가 올바르지 않습니다.',
@@ -622,24 +621,6 @@ const ko = {
     proxyIpHeaderInvalid:
       '프록시 IP 헤더 {line}번째 줄의 헤더 이름이 올바르지 않습니다.',
     httpHeaderNameInvalid: '{label}은 올바른 HTTP 헤더 이름이 아닙니다.',
-    captchaHeaderInvalid:
-      'CAPTCHA HTTP 헤더 "{header}"는 올바른 헤더 이름이 아닙니다.',
-    captchaProtectedRequiresProvider:
-      'CAPTCHA 프로바이더가 비활성화된 상태에서는 보호 작업을 켤 수 없습니다.',
-    captchaSettingsIncomplete:
-      '보호 작업을 켜기 전에 CAPTCHA 설정을 완료해주세요.',
-    captchaCustomEndpointRequired:
-      '커스텀 CAPTCHA verification endpoint를 입력해주세요.',
-    captchaCustomSuccessPathRequired:
-      '커스텀 CAPTCHA success JSON path를 입력해주세요.',
-    captchaTokenFieldRequired:
-      '커스텀 CAPTCHA token field name을 입력해주세요.',
-    captchaSiteKeyRequired: 'CAPTCHA Site Key를 입력해주세요.',
-    captchaSecretKeyRequired: 'CAPTCHA Secret Key를 입력해주세요.',
-    rateLimitRuleDuplicate: 'Rate limit 규칙 ID "{id}"가 중복되었습니다.',
-    rateLimitRuleIdInvalid: 'Rate limit 규칙 ID "{id}"가 올바르지 않습니다.',
-    rateLimitRegexInvalid:
-      'Rate limit 규칙 "{name}"의 regex path가 올바르지 않습니다.',
     apiTokenRequired: '올바른 API 토큰이 필요합니다.',
     apiAccessDisabled: 'API 사용이 비활성화되어 있습니다.',
     apiCapabilityDisabled: '요청한 API 기능이 비활성화되어 있습니다.',
@@ -1081,6 +1062,14 @@ const en: typeof ko = {
     description: 'Manage the account for {name}.',
     profile: 'Profile',
     pendingEmail: 'Pending verification: {email}',
+    permissionGroups: 'Current permission groups',
+    permissionGroupsDescription:
+      'Permission groups currently applied to this account.',
+    automaticPermissionGroup: 'Automatic',
+    manualPermissionGroup: 'Manual',
+    permissionGroupExpires: 'Expires {value}',
+    noGroupDescription: 'No description',
+    emptyPermissionGroups: 'No permission groups are currently applied.',
     password: 'Password',
     currentPassword: 'Current password',
     nextPassword: 'New password',
@@ -1089,14 +1078,6 @@ const en: typeof ko = {
     sessionsDescription:
       'Keep this device signed in and log out every other device.',
     logoutOtherSessions: 'Log out other devices',
-    oidcConnections: 'OIDC connections',
-    connected: 'Connected',
-    disconnected: 'Not connected',
-    unlink: 'Unlink',
-    unlinkTitle: 'Unlink {provider}?',
-    unlinkMessage:
-      'Removing this SSO connection prevents account access through this provider until it is linked again.',
-    connect: 'Connect',
     apiTokens: 'API tokens',
     newApiToken: 'New API token',
     tokenOnce: 'This token value is shown only once.',
@@ -1263,7 +1244,7 @@ const en: typeof ko = {
     createNoPermissionTitle: 'You do not have permission to create links.',
     createNoPermissionDetail:
       'Link creation is not allowed for your account or connection.',
-    captchaFailed: 'CAPTCHA verification failed.',
+    formVerificationFailed: 'Form verification failed.',
     enterUrl: 'Enter a URL.',
     urlSchemeNotAllowed:
       'URL scheme is not allowed. Allowed schemes: {schemes}',
@@ -1295,8 +1276,8 @@ const en: typeof ko = {
     onlyAdminDemoteDenied:
       'The only administrator cannot lose administrator access.',
     currentPasswordMismatch: 'Current password does not match.',
-    oidcAccountAlreadyLinked:
-      'This OIDC account is already linked to another user.',
+    identityAlreadyLinked:
+      'This external account is already linked to another user.',
     permissionGroupIdInvalid: 'Permission group ID is invalid.',
     permissionGroupNotFound: 'Permission group not found.',
     userIdInvalid: 'User ID is invalid.',
@@ -1322,23 +1303,6 @@ const en: typeof ko = {
     proxyIpHeaderInvalid:
       'Proxy IP header line {line} has an invalid header name.',
     httpHeaderNameInvalid: '{label} is not a valid HTTP header name.',
-    captchaHeaderInvalid:
-      'CAPTCHA HTTP header "{header}" is not a valid header name.',
-    captchaProtectedRequiresProvider:
-      'Protected actions cannot be enabled when the CAPTCHA provider is disabled.',
-    captchaSettingsIncomplete:
-      'Complete the CAPTCHA settings before enabling protected actions.',
-    captchaCustomEndpointRequired:
-      'Enter the custom CAPTCHA verification endpoint.',
-    captchaCustomSuccessPathRequired:
-      'Enter the custom CAPTCHA success JSON path.',
-    captchaTokenFieldRequired: 'Enter the custom CAPTCHA token field name.',
-    captchaSiteKeyRequired: 'Enter the CAPTCHA site key.',
-    captchaSecretKeyRequired: 'Enter the CAPTCHA secret key.',
-    rateLimitRuleDuplicate: 'Rate limit rule ID "{id}" is duplicated.',
-    rateLimitRuleIdInvalid: 'Rate limit rule ID "{id}" is invalid.',
-    rateLimitRegexInvalid:
-      'Rate limit rule "{name}" has an invalid regex path.',
     apiTokenRequired: 'A valid API token is required.',
     apiAccessDisabled: 'API access is disabled.',
     apiCapabilityDisabled: 'The requested API capability is disabled.',

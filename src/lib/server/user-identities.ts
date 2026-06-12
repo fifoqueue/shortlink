@@ -43,7 +43,7 @@ export async function linkIdentity(input: {
   });
 
   if (identity.user_id !== input.userId) {
-    throw new Error(serverMessage('oidcAccountAlreadyLinked'));
+    throw new Error(serverMessage('identityAlreadyLinked'));
   }
 
   await identity.update({ email: normalizeEmail(input.email) });

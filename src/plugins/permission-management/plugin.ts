@@ -10,6 +10,7 @@ const plugin: PluginDefinition = {
     category: 'core',
     required: true,
     order: 30,
+    adminAccessPermissions: ['manageUsers', 'managePermissions'],
   },
   translations: {
     ko: {
@@ -60,12 +61,6 @@ const plugin: PluginDefinition = {
         'admin.changeOnlyPlaceholder': '변경할 때만 입력',
         'admin.enabled': '활성화',
         'admin.save': '저장',
-        'admin.oidcConnections': 'OIDC 연결',
-        'admin.forceUnlink': '강제 해제',
-        'admin.forceUnlinkTitle': 'OIDC 연결을 강제로 해제할까요?',
-        'admin.forceUnlinkMessage':
-          '이 사용자는 다시 연결하기 전까지 해당 OIDC 계정으로 로그인할 수 없습니다.',
-        'admin.emptyOidcConnections': '연결된 OIDC 계정이 없습니다.',
         'admin.apiTokens': 'API 토큰',
         'admin.apiTokensDescription':
           '이 사용자에게 발급된 API 토큰을 확인하고 즉시 폐기합니다.',
@@ -87,6 +82,18 @@ const plugin: PluginDefinition = {
           '삭제되는 사용자 데이터와 생성 링크를 복구할 수 없다는 점을 이해했습니다.',
         'admin.priority': '우선순위',
         'admin.enableGroup': '그룹 활성화',
+        'admin.automaticAssignment': '자동 사용자 할당',
+        'admin.automaticAssignmentDescription':
+          '조건을 만족하는 회원을 이 그룹에 자동으로 추가합니다.',
+        'admin.enableAutomaticAssignment': '자동 할당 활성화',
+        'admin.emailDomains': '이메일 도메인',
+        'admin.emailDomainsHelp':
+          '한 줄 또는 쉼표로 구분하세요. example.com은 하위 도메인도 포함합니다.',
+        'admin.revokeWhenUnmatched': '조건 불일치 시 자동 회수',
+        'admin.revokeWhenUnmatchedHelp':
+          '조건을 더 이상 만족하지 않는 사용자의 자동 할당만 제거합니다. 수동 할당은 유지됩니다.',
+        'admin.automaticAssignmentBadge': '자동 할당',
+        'admin.manualAssignmentBadge': '수동 할당',
         'admin.permissionGroupSettings': '권한 그룹 설정',
         'admin.links': '링크',
         'admin.api': 'API',
@@ -218,6 +225,8 @@ const plugin: PluginDefinition = {
         'server.adminUserManageRequiresRoot':
           '관리자 사용자는 최상위 관리자만 관리할 수 있습니다.',
         'server.manageUsersDenied': '사용자 관리 권한이 없습니다.',
+        'server.permissionActionDenied':
+          '이 권한 관리 작업을 수행할 권한이 없습니다.',
         'server.userCreated': '사용자를 추가했습니다.',
         'server.groupCreated': '권한 그룹을 추가했습니다.',
         'server.selectGroupsToDelete': '삭제할 권한 그룹을 선택해주세요.',
@@ -292,12 +301,6 @@ const plugin: PluginDefinition = {
         'admin.changeOnlyPlaceholder': 'Enter only when changing it',
         'admin.enabled': 'Enabled',
         'admin.save': 'Save',
-        'admin.oidcConnections': 'OIDC connections',
-        'admin.forceUnlink': 'Force unlink',
-        'admin.forceUnlinkTitle': 'Force unlink OIDC connection?',
-        'admin.forceUnlinkMessage':
-          'This user cannot log in with that OIDC account until it is linked again.',
-        'admin.emptyOidcConnections': 'No OIDC accounts are linked.',
         'admin.apiTokens': 'API tokens',
         'admin.apiTokensDescription':
           'Review and immediately revoke API tokens issued to this user.',
@@ -319,6 +322,18 @@ const plugin: PluginDefinition = {
           'I understand that the deleted user data and created links cannot be recovered.',
         'admin.priority': 'Priority',
         'admin.enableGroup': 'Enable group',
+        'admin.automaticAssignment': 'Automatic user assignment',
+        'admin.automaticAssignmentDescription':
+          'Automatically add members who satisfy the configured conditions to this group.',
+        'admin.enableAutomaticAssignment': 'Enable automatic assignment',
+        'admin.emailDomains': 'Email domains',
+        'admin.emailDomainsHelp':
+          'Separate by line or comma. example.com also includes subdomains.',
+        'admin.revokeWhenUnmatched': 'Automatically revoke when unmatched',
+        'admin.revokeWhenUnmatchedHelp':
+          'Only automatic assignments are removed when a user no longer matches. Manual assignments stay intact.',
+        'admin.automaticAssignmentBadge': 'Automatic assignment',
+        'admin.manualAssignmentBadge': 'Manual assignment',
         'admin.permissionGroupSettings': 'Permission group settings',
         'admin.links': 'Links',
         'admin.api': 'API',
@@ -451,6 +466,8 @@ const plugin: PluginDefinition = {
           'Only root administrators can manage administrator users.',
         'server.manageUsersDenied':
           'You do not have permission to manage users.',
+        'server.permissionActionDenied':
+          'You do not have permission to perform this permission management action.',
         'server.userCreated': 'User added.',
         'server.groupCreated': 'Permission group added.',
         'server.selectGroupsToDelete': 'Select permission groups to delete.',

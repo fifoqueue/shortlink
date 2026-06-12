@@ -17,6 +17,7 @@ import {
 import { serverMessage } from '$lib/i18n/ui-text';
 import { sendVerificationEmail } from './email';
 import { paginationMeta, pageOffset } from './pagination';
+import { syncAutomaticPermissionGroupMembershipsForUser } from './permissions';
 import { validatePassword, type PasswordPolicy } from './password-policy';
 
 const KEY_LENGTH = 64;
@@ -192,7 +193,7 @@ export async function createUser(input: {
   const existing = await UserModel.findOne({ where: { email } });
   if (existing) throw new Error(serverMessage('emailInUse'));
   validatePassword(input.password, input.passwordPolicy);
-  return UserModel.create({
+  const user = await UserModel.create({
     email,
     pending_email: null,
     name: input.name.trim().slice(0, 120) || email,
@@ -203,6 +204,8 @@ export async function createUser(input: {
     email_verification_token_hash: input.emailVerificationTokenHash ?? null,
     email_verification_expires_at: input.emailVerificationExpiresAt ?? null,
   });
+  await syncAutomaticPermissionGroupMembershipsForUser(user.id);
+  return user;
 }
 
 export async function ensureUserEmailAvailable(
@@ -242,7 +245,7 @@ export async function upsertSsoUser(input: {
     return existing;
   }
 
-  return UserModel.create({
+  const user = await UserModel.create({
     email,
     pending_email: null,
     name,
@@ -250,6 +253,8 @@ export async function upsertSsoUser(input: {
     is_admin: false,
     enabled: true,
   });
+  await syncAutomaticPermissionGroupMembershipsForUser(user.id);
+  return user;
 }
 
 export async function authenticateUser(email: string, password: string) {
@@ -302,6 +307,7 @@ export async function updateUser(input: {
   const user = await UserModel.findByPk(input.id);
   if (!user) throw new Error(serverMessage('userNotFound'));
   const email = await ensureUserEmailAvailable(input.email, user.id);
+  const emailChanged = email !== user.email;
   if ((user.is_admin && !input.isAdmin) || (user.is_admin && !input.enabled)) {
     await ensureCanLoseAdmin(user.id);
   }
@@ -319,6 +325,8 @@ export async function updateUser(input: {
     next.password_hash = hashPassword(input.password);
   }
   await user.update(next);
+  if (emailChanged)
+    await syncAutomaticPermissionGroupMembershipsForUser(user.id);
   return user;
 }
 
@@ -432,6 +440,7 @@ export async function verifyUserEmailToken(token: string) {
       email_verification_token_hash: null,
       email_verification_expires_at: null,
     });
+    await syncAutomaticPermissionGroupMembershipsForUser(user.id);
     return { user, purpose: 'email-change' as const };
   }
 
@@ -441,6 +450,7 @@ export async function verifyUserEmailToken(token: string) {
     email_verification_token_hash: null,
     email_verification_expires_at: null,
   });
+  await syncAutomaticPermissionGroupMembershipsForUser(user.id);
   return { user, purpose: 'signup' as const };
 }
 

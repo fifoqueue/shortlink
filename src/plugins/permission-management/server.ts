@@ -24,6 +24,7 @@ import {
   listPermissionGroupSummaries,
   permissionAssignmentExpiresAtFromForm,
   permissionGroupInputFromForm,
+  registerPermissionGroupAutoAssignMatcher,
   removePermissionGroupCidr,
   removePermissionGroupCidrs,
   removePermissionGroupUser,
@@ -37,6 +38,7 @@ import type {
   PluginDefinition,
   PluginLocaleKey,
   PluginLocaleStrings,
+  PluginAdminPermissionContext,
 } from '$lib/plugin-contracts';
 
 function numericItem(prefix: string, item: string) {
@@ -55,6 +57,7 @@ function groupItem(id: number) {
 
 const GROUP_MEMBER_PAGE_SIZE = 5;
 const GROUP_CIDR_PAGE_SIZE = 6;
+const EMAIL_DOMAIN_CONDITION = 'email-domain';
 
 function formIds(form: FormData, name: string) {
   return [
@@ -76,6 +79,104 @@ function formStrings(form: FormData, name: string) {
         .filter(Boolean),
     ),
   ];
+}
+
+function normalizeEmailDomain(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '')
+    .replace(/^\*\./, '');
+  if (
+    !normalized ||
+    normalized.length > 253 ||
+    normalized.includes('@') ||
+    /\s/.test(normalized)
+  ) {
+    return '';
+  }
+  return normalized;
+}
+
+function emailDomainList(value: unknown, limit = 100) {
+  const source =
+    typeof value === 'string'
+      ? value.split(/[\r\n,]/)
+      : Array.isArray(value)
+        ? value
+        : [];
+  return [
+    ...new Set(
+      source
+        .map((item) => normalizeEmailDomain(String(item)))
+        .filter(Boolean)
+        .slice(0, limit),
+    ),
+  ];
+}
+
+function userEmailDomain(email: string | null | undefined) {
+  const normalized = String(email ?? '')
+    .trim()
+    .toLowerCase();
+  const atIndex = normalized.lastIndexOf('@');
+  return atIndex > -1 ? normalized.slice(atIndex + 1) : '';
+}
+
+registerPermissionGroupAutoAssignMatcher(
+  EMAIL_DOMAIN_CONDITION,
+  ({ user, condition }) => {
+    const domains = emailDomainList(condition.config.domains);
+    const domain = userEmailDomain(user.email);
+    return domains.some(
+      (allowed) => domain === allowed || domain.endsWith(`.${allowed}`),
+    );
+  },
+);
+
+function permissionGroupAutoAssignFromForm(form: FormData) {
+  const domains = emailDomainList(stringValue(form, 'autoAssign.emailDomains'));
+  return {
+    enabled: parseBoolean(form, 'autoAssign.enabled'),
+    revokeWhenUnmatched: parseBoolean(form, 'autoAssign.revokeWhenUnmatched'),
+    conditions:
+      domains.length > 0
+        ? [
+            {
+              type: EMAIL_DOMAIN_CONDITION,
+              config: { domains },
+            },
+          ]
+        : [],
+  };
+}
+
+function permissionManagementGroupInputFromForm(form: FormData) {
+  return permissionGroupInputFromForm(form, {
+    autoAssign: permissionGroupAutoAssignFromForm(form),
+  });
+}
+
+function permissionActionAccess(
+  action: string,
+  permissions: PluginAdminPermissionContext,
+) {
+  if (permissions.isAdmin) return true;
+  if (action === 'createUser') return permissions.admin.manageUsers;
+  if (action === 'createGroup' || action === 'deleteGroups') {
+    return permissions.admin.managePermissions;
+  }
+  return true;
+}
+
+function permissionItemAccess(
+  item: string,
+  permissions: PluginAdminPermissionContext,
+) {
+  if (permissions.isAdmin) return true;
+  if (item.startsWith('user-')) return permissions.admin.manageUsers;
+  if (item.startsWith('group-')) return permissions.admin.managePermissions;
+  return true;
 }
 
 function t(strings: PluginLocaleStrings, key: PluginLocaleKey) {
@@ -146,6 +247,7 @@ function memberSearchPayload(
       expiresAt: user.expiresAt,
       reason: user.reason,
       reasonPublic: user.reasonPublic,
+      assignmentSource: user.assignmentSource,
     })),
   };
 }
@@ -191,6 +293,21 @@ async function adminBaseData(url: URL) {
 }
 
 const serverPlugin = {
+  canAccessAdminAction({ action, permissions, strings }) {
+    return {
+      allowed: permissionActionAccess(action, permissions),
+      reason: t(strings, 'server.permissionActionDenied'),
+    };
+  },
+
+  canAccessAdminSubpage({ item, permissions, strings }) {
+    return {
+      allowed: permissionItemAccess(item, permissions),
+      reason: t(strings, 'server.permissionActionDenied'),
+      redirectTo: '/admin/plugins/permission-management',
+    };
+  },
+
   async loadAdminData({ url }) {
     return adminBaseData(url);
   },
@@ -212,7 +329,7 @@ const serverPlugin = {
     }
 
     if (action === 'createGroup') {
-      await createPermissionGroup(permissionGroupInputFromForm(form));
+      await createPermissionGroup(permissionManagementGroupInputFromForm(form));
       return { message: t(strings, 'server.groupCreated') };
     }
 
@@ -364,7 +481,7 @@ const serverPlugin = {
       if (action === 'saveGroup') {
         await updatePermissionGroupSettings(
           groupId,
-          permissionGroupInputFromForm(form),
+          permissionManagementGroupInputFromForm(form),
         );
         return { message: t(strings, 'server.groupSaved') };
       }

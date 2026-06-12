@@ -99,7 +99,25 @@ src/plugins/example/
 - `meta.required === true`인 플러그인은 항상 `enabled: true`다.
 - 현재 코드에 없는 플러그인 ID는 런타임 상태에서 제외된다. 설정 저장 시 현재 플러그인 목록에 없는 `plugins:*` row는 정리될 수 있다.
 
-플러그인 전용 DB migration 인터페이스는 현재 없다. 새 테이블이나 컬럼이 필요한 플러그인은 코어 모델과 migration 설계를 먼저 확장해야 한다. 플러그인 내부에서 임의로 schema를 변경하는 코드는 작성하지 않는다.
+플러그인 전용 DB migration은 `src/plugins/{pluginId}/migrations/*.migration.ts`에 둔다. 각 파일은 `$lib/server/migrations/types`의 `DatabaseMigration`을 default export한다. 코어는 이 경로를 generic glob으로 읽을 뿐이며, 특정 플러그인 ID나 schema를 알지 않는다.
+
+```ts
+import type { DatabaseMigration } from '$lib/server/migrations/types';
+
+const migration: DatabaseMigration = {
+  id: 'example:001-create-table',
+  async shouldRun(sequelize) {
+    return true;
+  },
+  async up(sequelize) {
+    await sequelize.query('SELECT 1');
+  },
+};
+
+export default migration;
+```
+
+마이그레이션 `id`는 전체 프로젝트에서 유일해야 한다. 플러그인 ID를 prefix로 붙이면 충돌을 피하기 쉽다.
 
 ## `plugin.ts`
 
@@ -168,17 +186,20 @@ export default plugin;
 
 ### `meta`
 
-| 필드          | 필수   | 설명                                                                       |
-| ------------- | ------ | -------------------------------------------------------------------------- |
-| `id`          | 예     | 폴더명과 같아야 한다.                                                      |
-| `name`        | 예     | 기본 표시 이름. 실제 UI에서는 `translations[locale].meta.name`이 우선된다. |
-| `description` | 예     | 기본 설명.                                                                 |
-| `version`     | 예     | 관리자 플러그인 페이지 상태 표시.                                          |
-| `category`    | 예     | 표시/분류용 문자열.                                                        |
-| `required`    | 아니오 | true면 비활성화할 수 없다.                                                 |
-| `order`       | 아니오 | 낮을수록 먼저 표시/실행된다. 기본 취급값은 100이다.                        |
+| 필드                     | 필수   | 설명                                                                                             |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------------------ |
+| `id`                     | 예     | 폴더명과 같아야 한다.                                                                            |
+| `name`                   | 예     | 기본 표시 이름. 실제 UI에서는 `translations[locale].meta.name`이 우선된다.                       |
+| `description`            | 예     | 기본 설명.                                                                                       |
+| `version`                | 예     | 관리자 플러그인 페이지 상태 표시.                                                                |
+| `category`               | 예     | 표시/분류용 문자열.                                                                              |
+| `required`               | 아니오 | true면 비활성화할 수 없다.                                                                       |
+| `order`                  | 아니오 | 낮을수록 먼저 표시/실행된다. 기본 취급값은 100이다.                                              |
+| `adminAccessPermissions` | 아니오 | `manageUsers`, `managePermissions` 같은 공통 관리자 권한으로 플러그인 접근을 허용할 때 선언한다. |
 
 `required`는 로드된 플러그인을 비활성화하지 못하게 하는 설정이다. 폴더가 없으면 플러그인은 발견되지 않는다.
+
+플러그인별 ID 접근 권한은 권한 그룹의 `admin.plugins`에서 제어된다. 특정 공통 권한을 가진 사용자에게도 플러그인을 보여야 한다면 `adminAccessPermissions`를 사용한다.
 
 ### `translations`
 
@@ -308,20 +329,20 @@ parseConfig(form, current) {
 
 체크박스는 unchecked 상태일 때 form에 값이 없다. 반드시 명시적으로 boolean을 만든다.
 
-### `validateConfig(config)`
+### `validateConfig(config, context)`
 
 저장 직전에 호출되는 검증 훅이다. 브라우저 안전 코드만 필요하면 `plugin.ts`에 둘 수 있고, 서버 전용 import가 필요하면 `server.ts`에 둔다.
 
 ```ts
-validateConfig(config) {
+validateConfig(config, { strings } = {}) {
   if (typeof config.endpoint !== 'string') {
-    throw new Error('Endpoint is required.');
+    throw new Error(pluginText(strings, 'server.endpointRequired'));
   }
   new URL(config.endpoint);
 }
 ```
 
-검증 실패는 `Error`를 throw한다. 관리자에게 표시되는 메시지이므로 사용자가 고칠 수 있는 내용을 담는다.
+검증 실패는 `Error`를 throw한다. 관리자에게 표시되는 메시지이므로 사용자가 고칠 수 있는 내용을 담는다. 하드코딩 문장 대신 플러그인의 `translations`와 `pluginText()`를 사용한다. `context`에는 `locale`, `fallbackLocale`, `strings`가 들어온다.
 
 ### `prepareAdminConfig(config)`
 
@@ -388,6 +409,8 @@ export default server;
 
 - `canEnable`
 - `canDisable`
+- `canAccessAdminAction`
+- `canAccessAdminSubpage`
 - `validateConfig`
 - `loadAdminData`
 - `handleAdminAction`
@@ -421,6 +444,31 @@ canDisable({ state, url }) {
 ```
 
 `reason`은 관리자 UI에 그대로 표시된다. 현재 `canEnable()`/`canDisable()`은 `locale`이나 `strings`를 받지 않는다. 다국어 reason이 필요하면 이 훅의 계약을 먼저 확장해야 한다. UI에서 막는 것과 별개로 저장 액션에서도 다시 검사된다.
+
+### 관리자 접근 제어
+
+플러그인 내부 action이나 하위 페이지가 공통 관리자 권한을 추가로 요구한다면 `canAccessAdminAction`과 `canAccessAdminSubpage`를 제공한다. 코어는 플러그인 ID를 해석하지 않고 이 훅의 결과만 따른다.
+
+```ts
+canAccessAdminAction({ action, permissions, strings }) {
+  if (action === 'createUser' && !permissions.admin.manageUsers) {
+    return {
+      allowed: false,
+      reason: pluginText(strings, 'server.permissionDenied'),
+    };
+  }
+  return { allowed: true };
+}
+
+canAccessAdminSubpage({ item, permissions }) {
+  if (item.startsWith('user-')) {
+    return { allowed: permissions.admin.manageUsers };
+  }
+  return { allowed: true };
+}
+```
+
+`canAccessAdminSubpage`는 `{ allowed, reason, redirectTo }`를 반환할 수 있다. 접근 거부 시 `redirectTo`가 있으면 그 경로로 이동하고, 없으면 해당 플러그인 관리자 첫 화면으로 돌아간다.
 
 ### 관리자 데이터와 action
 
@@ -550,9 +598,19 @@ async handleAccountAction({ user, action, form, state, strings }) {
 }
 ```
 
-현재 일반 플러그인용 `Account.svelte` 자동 렌더링 표면은 없다. 계정 페이지가 특정 integration을 표시하도록 코어 UI가 연결되어 있어야 사용자가 볼 수 있다.
+`Account.svelte`가 있으면 `/account`에서 자동 렌더링된다. 코어는 `loadAccountData()`의 반환값을 `integrationData` prop으로 넘길 뿐이며, 데이터 구조는 플러그인이 정의한다.
+
+```svelte
+<script lang="ts">
+  import type { PluginComponentProps } from '$lib/plugin-contracts';
+
+  let { integrationData, strings = {} }: PluginComponentProps = $props();
+</script>
+```
 
 `loadUserAdminData`와 `handleUserAdminAction`은 관리자 하위 페이지가 특정 사용자 관련 integration을 표시/조작할 때 쓰인다. 하위 페이지는 safe integer user id를 해석할 수 있는 `item`에 대해 모든 enabled 플러그인의 `loadUserAdminData`를 모아 `integrations` prop으로 넘긴다.
+
+`UserAdmin.svelte`가 있으면 사용자 관리자 화면에서 자동 렌더링된다. 이 컴포넌트도 `integrationData`, `locale`, `fallbackLocale`, `strings`를 prop으로 받는다.
 
 integration action form은 하위 페이지에서 `action="?/integrationAction"`을 사용하고 다음 값을 보낸다.
 
@@ -914,19 +972,19 @@ function formatText(template: string, values: Record<string, string | number>) {
 - 클릭 메타데이터는 JSON-safe이고 크기가 작다.
 - 인증 redirect/account-link method는 노출된 method만 시작된다.
 - 모바일 viewport에서 슬롯 UI가 form을 깨뜨리지 않는다.
-- `npm run check`가 통과한다.
+- TypeScript/Svelte 변경 후 `yarn lint`, `yarn check`가 순서대로 통과한다.
 
 ## 참고 구현
 
 기존 플러그인은 참고용이다. 복사보다 필요한 훅만 최소 구현하는 편이 안전하다.
 
-| 플러그인                | 참고할 부분                                                                |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `builtin`               | 공개 슬롯, 언어별 관리자 편집값, 줄 단위 소셜 링크 DSL                     |
-| `captcha`               | `verifyFormSubmission`, 공개 form 슬롯, secret masking, provider none 처리 |
-| `oidc-sso`              | `auth.ts`, redirect login, account link, secret masking, 관리자 action     |
-| `permission-management` | 관리자 하위 페이지, bulk action, 사용자 integration action                 |
-| `enhanced-tracking`     | 클릭 메타데이터 수집/표시, header DSL 검증                                 |
-| `rate-limit`            | `handleRequest`, 언어별 응답 메시지, JSON 규칙 검증                        |
+| 플러그인                | 참고할 부분                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `builtin`               | 공개 슬롯, 언어별 관리자 편집값, 줄 단위 소셜 링크 DSL                        |
+| `captcha`               | `verifyFormSubmission`, 공개 form 슬롯, secret masking, provider none 처리    |
+| `oidc-sso`              | `auth.ts`, redirect login, account link, `Account.svelte`, `UserAdmin.svelte` |
+| `permission-management` | 관리자 하위 페이지, bulk action, 사용자 integration action, 접근 권한 훅      |
+| `enhanced-tracking`     | 클릭 메타데이터 수집/표시, header DSL 검증                                    |
+| `rate-limit`            | `handleRequest`, 언어별 응답 메시지, JSON 규칙 검증                           |
 
 문서와 코드가 다르면 코드가 기준이다. 단, 새 플러그인에서 문서에 없는 내부 API를 직접 쓰기 전에 플러그인 계약을 확장하는 쪽을 우선한다.

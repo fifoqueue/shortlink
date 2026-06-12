@@ -24,10 +24,13 @@ const globalDatabase = globalThis as typeof globalThis & {
   __shortlinkDatabaseShutdownHookRegistered?: boolean;
 };
 
-const migrationModules = import.meta.glob<{ default: DatabaseMigration }>(
+const coreMigrationModules = import.meta.glob<{ default: DatabaseMigration }>(
   './migrations/*.migration.ts',
   { eager: true },
 );
+const pluginMigrationModules = import.meta.glob<{
+  default: DatabaseMigration;
+}>('../../plugins/*/migrations/*.migration.ts', { eager: true });
 
 function createSequelize() {
   if (!env.DATABASE_URL) {
@@ -94,7 +97,10 @@ function registerShutdownHook() {
 registerShutdownHook();
 
 function databaseMigrations() {
-  return Object.values(migrationModules)
+  return [
+    ...Object.values(coreMigrationModules),
+    ...Object.values(pluginMigrationModules),
+  ]
     .map((module) => module.default)
     .sort((left, right) => left.id.localeCompare(right.id));
 }

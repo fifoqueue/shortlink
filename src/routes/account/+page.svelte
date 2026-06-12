@@ -7,6 +7,7 @@
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import { keepFormValues } from '$lib/forms';
+  import { pluginLocaleStrings } from '$lib/i18n/plugin';
   import type {
     AuthenticatedUser,
     PluginIntegrationData,
@@ -14,19 +15,7 @@
   import { siteThemeStyle } from '$lib/theme-vars';
   import type { SiteLocale, SiteSettings } from '$lib/config';
   import { formatText, uiText } from '$lib/i18n/ui-text';
-
-  type OidcProvider = {
-    id: string;
-    name: string;
-    connected: boolean;
-    connectionId: number | null;
-    email: string | null;
-    subject: string | null;
-  };
-
-  type OidcData = {
-    providers: OidcProvider[];
-  };
+  import { accountPluginRegistry } from '../../plugins/account-registry';
 
   type Token = {
     id: number;
@@ -36,15 +25,26 @@
     last_used_at: string | null;
   };
 
+  type PermissionGroup = {
+    id: number;
+    name: string;
+    description: string;
+    priority: number;
+    expiresAt: string | null;
+    assignmentSource: 'manual' | 'automatic';
+  };
+
   let {
     data,
     form,
   }: {
     data: {
       locale: SiteLocale;
+      defaultLocale: SiteLocale;
       user: AuthenticatedUser;
       integrations: PluginIntegrationData[];
       tokens: Token[];
+      permissionGroups: PermissionGroup[];
       siteName: string;
       theme: SiteSettings['theme'];
       pendingEmail: string | null;
@@ -54,10 +54,21 @@
     form?: { ok?: boolean; message?: string; token?: string };
   } = $props();
 
-  const text = $derived(uiText(data.locale));
-  const oidc = $derived(
-    data.integrations.find((integration) => integration.pluginId === 'oidc-sso')
-      ?.data as OidcData | undefined,
+  const text = $derived(uiText(data.locale, data.defaultLocale));
+  const accountIntegrations = $derived(
+    data.integrations.flatMap((integration) => {
+      const registered = accountPluginRegistry.find(
+        (plugin) => plugin.definition.meta.id === integration.pluginId,
+      );
+      if (!registered?.account) return [];
+      return [
+        {
+          component: registered.account,
+          definition: registered.definition,
+          integration,
+        },
+      ];
+    }),
   );
   let copiedValue = $state<string | null>(null);
 
@@ -67,6 +78,19 @@
     setTimeout(() => {
       if (copiedValue === label) copiedValue = null;
     }, 1400);
+  }
+
+  function permissionGroupMeta(group: PermissionGroup) {
+    const source =
+      group.assignmentSource === 'automatic'
+        ? text.account.automaticPermissionGroup
+        : text.account.manualPermissionGroup;
+    if (!group.expiresAt) return source;
+    const date = new Date(group.expiresAt);
+    if (Number.isNaN(date.getTime())) return source;
+    return `${source} · ${formatText(text.account.permissionGroupExpires, {
+      value: date.toLocaleString(data.locale),
+    })}`;
   }
 </script>
 
@@ -125,6 +149,24 @@
   </section>
 
   <section>
+    <h2>{text.account.permissionGroups}</h2>
+    <p>{text.account.permissionGroupsDescription}</p>
+    <div class="permission-groups">
+      {#each data.permissionGroups as group (group.id)}
+        <article>
+          <div>
+            <strong>{group.name}</strong>
+            <span>{group.description || text.account.noGroupDescription}</span>
+            <span>{permissionGroupMeta(group)}</span>
+          </div>
+        </article>
+      {:else}
+        <p class="empty">{text.account.emptyPermissionGroups}</p>
+      {/each}
+    </div>
+  </section>
+
+  <section>
     <h2>{text.account.password}</h2>
     <form method="POST" action="?/password" use:enhance={keepFormValues}>
       <div class="grid form-grid balanced">
@@ -155,61 +197,20 @@
     </form>
   </section>
 
-  {#if oidc?.providers?.length}
-    <section>
-      <h2>{text.account.oidcConnections}</h2>
-      <div class="connections">
-        {#each oidc.providers as provider (provider.id)}
-          <article>
-            <div>
-              <strong>{provider.name}</strong>
-              <span>
-                {provider.connected
-                  ? (provider.email ??
-                    provider.subject ??
-                    text.account.connected)
-                  : text.account.disconnected}
-              </span>
-            </div>
-            {#if provider.connected && provider.connectionId}
-              <form
-                method="POST"
-                action="?/pluginAction"
-                use:enhance={keepFormValues}
-              >
-                <input type="hidden" name="pluginId" value="oidc-sso" />
-                <input type="hidden" name="pluginAction" value="unlink" />
-                <input type="hidden" name="providerId" value={provider.id} />
-                <input
-                  type="hidden"
-                  name="identityId"
-                  value={provider.connectionId}
-                />
-                <DangerConfirmButton
-                  label={text.account.unlink}
-                  title={formatText(text.account.unlinkTitle, {
-                    provider: provider.name,
-                  })}
-                  message={text.account.unlinkMessage}
-                  confirmLabel={text.account.unlink}
-                  locale={data.locale}
-                />
-              </form>
-            {:else}
-              <a
-                class="button"
-                href={resolve(
-                  `/account/connections/oidc-sso/${provider.id}/start?returnTo=/account`,
-                )}
-              >
-                {text.account.connect}
-              </a>
-            {/if}
-          </article>
-        {/each}
-      </div>
-    </section>
-  {/if}
+  {#each accountIntegrations as integration (integration.integration.pluginId)}
+    {@const PluginAccount = integration.component}
+    <PluginAccount
+      config={{}}
+      integrationData={integration.integration.data}
+      locale={data.locale}
+      fallbackLocale={data.defaultLocale}
+      strings={pluginLocaleStrings(
+        integration.definition,
+        data.locale,
+        data.defaultLocale,
+      )}
+    />
+  {/each}
 
   <section>
     <h2>{text.account.apiTokens}</h2>
@@ -376,8 +377,7 @@
     color: var(--page-text);
     font: inherit;
   }
-  button,
-  .button {
+  button {
     display: inline-flex;
     width: fit-content;
     min-height: 40px;
@@ -408,7 +408,8 @@
   .issued-token p {
     font-size: 0.84rem;
   }
-  .tokens {
+  .tokens,
+  .permission-groups {
     display: grid;
     margin-top: 16px;
   }

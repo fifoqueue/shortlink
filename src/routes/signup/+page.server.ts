@@ -76,7 +76,7 @@ export const actions: Actions = {
       email: stringValue(form, 'email'),
       name: stringValue(form, 'name'),
     };
-    const captcha = await verifyFormSubmissionPlugins({
+    const verification = await verifyFormSubmissionPlugins({
       action: 'signup',
       form,
       request,
@@ -93,16 +93,16 @@ export const actions: Actions = {
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
     });
-    if (!captcha.allowed) {
+    if (!verification.allowed) {
       return fail(400, {
         values,
-        message: captcha.message
+        message: verification.message
           ? localizeServerMessage(
               locals.locale,
-              captcha.message,
+              verification.message,
               settings.i18n.defaultLocale,
             )
-          : text.messages.captchaFailed,
+          : text.messages.formVerificationFailed,
       });
     }
 

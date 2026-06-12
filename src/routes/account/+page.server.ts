@@ -20,6 +20,7 @@ import {
   updateOwnProfile,
 } from '$lib/server/users';
 import { getSettings, stringValue } from '$lib/server/settings';
+import { listUserPermissionGroups } from '$lib/server/permissions';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 
 async function loadIntegrations(
@@ -63,15 +64,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     locals.locale,
   );
   const displaySettings = locals.localizedSettings;
-  const storedUser = await getUserById(user.id);
+  const [storedUser, permissionGroups] = await Promise.all([
+    getUserById(user.id),
+    listUserPermissionGroups(user.id),
+  ]);
   return {
     locale: locals.locale,
+    defaultLocale: settings.i18n.defaultLocale,
     user,
     integrations,
     tokens: await listApiTokens(user.id),
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
     pendingEmail: storedUser?.pending_email ?? null,
+    permissionGroups,
     passwordMinLength: settings.auth.password.minLength,
     passwordPolicy: passwordPolicyDescription(
       settings.auth.password,

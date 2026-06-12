@@ -25,6 +25,7 @@ export interface PluginMeta {
   category: string;
   required?: boolean;
   order?: number;
+  adminAccessPermissions?: AdminPluginAccessPermission[];
 }
 
 export type PluginLocaleKey = `${string}.${string}`;
@@ -38,6 +39,26 @@ export interface PluginLocalizedText {
 export interface PluginActivationStatus {
   allowed: boolean;
   reason?: string;
+}
+
+export type AdminPluginAccessPermission = 'manageUsers' | 'managePermissions';
+
+export interface PluginAdminPermissionContext {
+  isAdmin: boolean;
+  admin: {
+    access: boolean;
+    sections: string[];
+    manageSections: string[];
+    plugins: string[];
+    manageUsers: boolean;
+    managePermissions: boolean;
+  };
+}
+
+export interface PluginAdminAccessStatus {
+  allowed: boolean;
+  reason?: string;
+  redirectTo?: string;
 }
 
 export type CorePluginProtectedAction = 'login' | 'signup' | 'link-create';
@@ -153,10 +174,18 @@ export interface PluginDefinition {
   parseConfig: (
     form: FormData,
     current: PluginConfig,
-    input?: { defaultLocale: SiteLocale },
+    input?: {
+      defaultLocale: SiteLocale;
+      locale?: SiteLocale;
+      fallbackLocale?: SiteLocale;
+      strings?: PluginLocaleStrings;
+    },
   ) => PluginConfig;
   prepareAdminConfig?: (config: PluginConfig) => PluginConfig;
-  validateConfig?: (config: PluginConfig) => void | Promise<void>;
+  validateConfig?: (
+    config: PluginConfig,
+    context?: PluginLocaleContext,
+  ) => void | Promise<void>;
   canEnable?: (input: {
     state: PluginState;
     url: URL;
@@ -165,6 +194,20 @@ export interface PluginDefinition {
     state: PluginState;
     url: URL;
   }) => PluginActivationStatus | Promise<PluginActivationStatus>;
+  canAccessAdminAction?: (input: {
+    action: string;
+    permissions: PluginAdminPermissionContext;
+    locale: SiteLocale;
+    fallbackLocale: SiteLocale;
+    strings: PluginLocaleStrings;
+  }) => PluginAdminAccessStatus | Promise<PluginAdminAccessStatus>;
+  canAccessAdminSubpage?: (input: {
+    item: string;
+    permissions: PluginAdminPermissionContext;
+    locale: SiteLocale;
+    fallbackLocale: SiteLocale;
+    strings: PluginLocaleStrings;
+  }) => PluginAdminAccessStatus | Promise<PluginAdminAccessStatus>;
   loadAdminData?: (input: {
     state: PluginState;
     url: URL;
@@ -327,6 +370,7 @@ export interface PluginComponentProps {
   adminData?: unknown;
   item?: string;
   integrations?: PluginIntegrationData[];
+  integrationData?: unknown;
 }
 
 export interface PluginIntegrationData {

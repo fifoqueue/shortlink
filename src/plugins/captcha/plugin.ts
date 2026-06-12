@@ -1,10 +1,17 @@
-import type { PluginDefinition } from '$lib/plugin-contracts';
+import type {
+  PluginDefinition,
+  PluginLocaleKey,
+  PluginLocaleStrings,
+} from '$lib/plugin-contracts';
+import { pluginText } from '$lib/i18n/plugin';
+import { formatText } from '$lib/i18n/ui-text';
 import { fieldName, pluginChecked, pluginString } from '../utils';
 import {
   defaultCaptchaConfig,
   isCaptchaProvider,
   normalizeCaptchaConfig,
   validateCaptchaConfig,
+  type CaptchaConfigMessageKey,
   type CaptchaRequestFormat,
   type CaptchaVerifyMethod,
 } from './config';
@@ -40,6 +47,14 @@ function parseVerifyMethod(value: string): CaptchaVerifyMethod {
 
 function parseRequestFormat(value: string): CaptchaRequestFormat {
   return value === 'json' ? 'json' : 'form';
+}
+
+function messageFromStrings(
+  strings: PluginLocaleStrings | undefined,
+  key: CaptchaConfigMessageKey,
+  values: Record<string, string | number> = {},
+) {
+  return formatText(pluginText(strings, key as PluginLocaleKey), values);
 }
 
 const plugin: PluginDefinition = {
@@ -126,6 +141,22 @@ const plugin: PluginDefinition = {
         'public.required': 'CAPTCHA 인증을 완료해주세요.',
         'public.failed': 'CAPTCHA 인증에 실패했습니다. 다시 시도해주세요.',
         'public.serverUnavailable': 'CAPTCHA 인증 서버에 연결하지 못했습니다.',
+        'server.httpHeadersDescription': 'CAPTCHA HTTP 헤더',
+        'server.extraBodyDescription': 'CAPTCHA 추가 본문',
+        'server.headerInvalid':
+          'CAPTCHA HTTP 헤더 "{header}"는 올바른 헤더 이름이 아닙니다.',
+        'server.protectedRequiresProvider':
+          'CAPTCHA 프로바이더가 비활성화된 상태에서는 보호 작업을 켤 수 없습니다.',
+        'server.settingsIncomplete':
+          '보호 작업을 켜기 전에 CAPTCHA 설정을 완료해주세요.',
+        'server.customEndpointRequired':
+          '커스텀 CAPTCHA verification endpoint를 입력해주세요.',
+        'server.customSuccessPathRequired':
+          '커스텀 CAPTCHA success JSON path를 입력해주세요.',
+        'server.tokenFieldRequired':
+          '커스텀 CAPTCHA token field name을 입력해주세요.',
+        'server.siteKeyRequired': 'CAPTCHA Site Key를 입력해주세요.',
+        'server.secretKeyRequired': 'CAPTCHA Secret Key를 입력해주세요.',
       },
     },
     en: {
@@ -200,6 +231,22 @@ const plugin: PluginDefinition = {
         'public.failed': 'CAPTCHA verification failed. Try again.',
         'public.serverUnavailable':
           'Could not connect to the CAPTCHA verification server.',
+        'server.httpHeadersDescription': 'CAPTCHA HTTP headers',
+        'server.extraBodyDescription': 'CAPTCHA extra body',
+        'server.headerInvalid':
+          'CAPTCHA HTTP header "{header}" is not a valid header name.',
+        'server.protectedRequiresProvider':
+          'Protected actions cannot be enabled while CAPTCHA is disabled.',
+        'server.settingsIncomplete':
+          'Complete CAPTCHA settings before enabling protected actions.',
+        'server.customEndpointRequired':
+          'Enter the custom CAPTCHA verification endpoint.',
+        'server.customSuccessPathRequired':
+          'Enter the custom CAPTCHA success JSON path.',
+        'server.tokenFieldRequired':
+          'Enter the custom CAPTCHA token field name.',
+        'server.siteKeyRequired': 'Enter the CAPTCHA site key.',
+        'server.secretKeyRequired': 'Enter the CAPTCHA secret key.',
       },
     },
   },
@@ -324,8 +371,10 @@ const plugin: PluginDefinition = {
       secretKey: '',
     };
   },
-  validateConfig(config) {
-    validateCaptchaConfig(normalizeCaptchaConfig(config));
+  validateConfig(config, context) {
+    validateCaptchaConfig(normalizeCaptchaConfig(config), (key, values) =>
+      messageFromStrings(context?.strings, key, values),
+    );
   },
   publicConfig(config) {
     const normalized = normalizeCaptchaConfig(config);

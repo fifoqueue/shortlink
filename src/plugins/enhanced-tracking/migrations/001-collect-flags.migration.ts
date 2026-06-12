@@ -1,6 +1,6 @@
 import { QueryTypes, type Sequelize } from 'sequelize';
-import { tableExists } from './helpers';
-import type { DatabaseMigration } from './types';
+import { tableExists } from '$lib/server/migrations/helpers';
+import type { DatabaseMigration } from '$lib/server/migrations/types';
 
 async function hasLegacyEnhancedTrackingFlags(sequelize: Sequelize) {
   if (!(await tableExists(sequelize, 'app_settings'))) return false;
@@ -24,7 +24,7 @@ async function hasLegacyEnhancedTrackingFlags(sequelize: Sequelize) {
 }
 
 const migration: DatabaseMigration = {
-  id: '002-enhanced-tracking-collect-flags',
+  id: 'enhanced-tracking:001-collect-flags',
 
   shouldRun: hasLegacyEnhancedTrackingFlags,
 

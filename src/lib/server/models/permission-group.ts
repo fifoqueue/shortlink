@@ -17,6 +17,7 @@ export class PermissionGroupModel extends Model<
   declare priority: CreationOptional<number>;
   declare enabled: CreationOptional<boolean>;
   declare rules: CreationOptional<Record<string, unknown>>;
+  declare auto_assign: CreationOptional<Record<string, unknown>>;
   declare created_at: CreationOptional<Date>;
   declare updated_at: CreationOptional<Date>;
 }
@@ -31,6 +32,7 @@ export class PermissionGroupUserModel extends Model<
   declare expires_at: Date | null;
   declare reason: CreationOptional<string>;
   declare reason_public: CreationOptional<boolean>;
+  declare assignment_source: CreationOptional<string>;
   declare created_at: CreationOptional<Date>;
 }
 
@@ -76,6 +78,11 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         defaultValue: true,
       },
       rules: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+        defaultValue: {},
+      },
+      auto_assign: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: {},
@@ -132,6 +139,11 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: false,
       },
+      assignment_source: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'manual',
+      },
       created_at: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -145,6 +157,7 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
       indexes: [
         { fields: ['group_id', 'user_id'], unique: true },
         { fields: ['user_id'] },
+        { fields: ['assignment_source'] },
       ],
     },
   );

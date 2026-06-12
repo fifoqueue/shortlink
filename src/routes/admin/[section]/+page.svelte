@@ -32,6 +32,7 @@
   import { keepFormValues } from '$lib/forms';
   import { localizedPluginMeta } from '$lib/i18n/plugin';
   import { formatText, uiText } from '$lib/i18n/ui-text';
+  import type { AdminPluginAccessPermission } from '$lib/plugin-contracts';
   import { adminPluginRegistry } from '../../../plugins/admin-registry';
 
   type AdminLink = {
@@ -88,6 +89,8 @@
       admin: {
         sections: string[];
         plugins: string[];
+        manageUsers: boolean;
+        managePermissions: boolean;
       };
     };
     themePresets: Record<ThemePreset, ThemeTokens>;
@@ -404,12 +407,22 @@
     );
   }
 
-  function canViewPlugin(pluginId: string) {
+  function hasAdminAccessPermission(permission: AdminPluginAccessPermission) {
+    if (permission === 'manageUsers') return data.permissions.admin.manageUsers;
+    if (permission === 'managePermissions') {
+      return data.permissions.admin.managePermissions;
+    }
+    return false;
+  }
+
+  function canViewPlugin(plugin: (typeof adminPluginRegistry)[number]) {
+    const accessPermissions =
+      plugin.definition.meta.adminAccessPermissions ?? [];
     return (
       data.permissions.isAdmin ||
       data.permissions.admin.plugins.includes('*') ||
-      data.permissions.admin.plugins.includes(pluginId) ||
-      pluginId === 'permission-management'
+      data.permissions.admin.plugins.includes(plugin.definition.meta.id) ||
+      accessPermissions.some(hasAdminAccessPermission)
     );
   }
 
@@ -1235,7 +1248,7 @@
     </form>
   {:else if activeSection === 'plugins'}
     <section class="plugin-grid">
-      {#each adminPluginRegistry.filter( (plugin) => canViewPlugin(plugin.definition.meta.id), ) as plugin (plugin.definition.meta.id)}
+      {#each adminPluginRegistry.filter(canViewPlugin) as plugin (plugin.definition.meta.id)}
         {@const meta = localizedPluginMeta(
           plugin.definition,
           data.locale,
