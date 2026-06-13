@@ -405,6 +405,8 @@ const ko = {
   auth: {
     loginTitle: '로그인',
     loginDescription: '링크를 만들려면 계정으로 로그인하세요.',
+    ssoVerificationSent:
+      '인증 메일을 보냈습니다. 이메일 인증을 완료한 뒤 다시 로그인하세요.',
     email: '이메일',
     password: '비밀번호',
     passwordLogin: '비밀번호로 로그인',
@@ -665,6 +667,8 @@ const ko = {
     validEmailRequired: '올바른 이메일 주소가 필요합니다.',
     emailInUse: '이미 사용 중인 이메일 주소입니다.',
     ssoEmailMissing: 'SSO 사용자 이메일 주소를 확인할 수 없습니다.',
+    ssoExistingAccountLinkRequired:
+      '이미 같은 이메일 주소를 사용하는 계정이 있습니다. 먼저 기존 계정으로 로그인한 뒤 계정 연결에서 이 프로바이더를 추가해주세요.',
     userDisabled: '비활성화된 사용자입니다.',
     userNotFound: '사용자를 찾을 수 없습니다.',
     onlyAdminDeleteDenied: '유일한 관리자는 삭제할 수 없습니다.',
@@ -1171,6 +1175,8 @@ const en: typeof ko = {
   auth: {
     loginTitle: 'Log in',
     loginDescription: 'Log in to create links.',
+    ssoVerificationSent:
+      'Verification email sent. Complete email verification, then log in again.',
     email: 'Email',
     password: 'Password',
     passwordLogin: 'Log in with password',
@@ -1430,6 +1436,8 @@ const en: typeof ko = {
     validEmailRequired: 'A valid email address is required.',
     emailInUse: 'Email address is already in use.',
     ssoEmailMissing: 'Could not resolve the SSO user email address.',
+    ssoExistingAccountLinkRequired:
+      'An account with the same email address already exists. Log in with that account first, then connect this provider from account settings.',
     userDisabled: 'User is disabled.',
     userNotFound: 'User not found.',
     onlyAdminDeleteDenied: 'The only administrator cannot be deleted.',

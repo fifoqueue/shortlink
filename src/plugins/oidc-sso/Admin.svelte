@@ -7,7 +7,11 @@
   import { keepFormValues } from '$lib/forms';
   import { pluginText } from '$lib/i18n/plugin';
   import { formatText } from '$lib/i18n/ui-text';
-  import { defaultOidcScopes, normalizeOidcConfig } from './config';
+  import {
+    defaultOidcScopes,
+    normalizeOidcConfig,
+    type EmailTrustMode,
+  } from './config';
   import type {
     PluginComponentProps,
     PluginLocaleKey,
@@ -28,6 +32,8 @@
   const oidc = $derived(normalizeOidcConfig(config));
   const data = $derived((adminData ?? {}) as Partial<AdminData>);
   let copiedCallback = $state<string | null>(null);
+  let providerEmailTrustModes = $state<Record<string, EmailTrustMode>>({});
+  let newProviderEmailTrustMode = $state<EmailTrustMode>('verified-claim');
 
   function t(key: PluginLocaleKey) {
     return pluginText(strings, key);
@@ -40,6 +46,27 @@
     setTimeout(() => {
       if (copiedCallback === key) copiedCallback = null;
     }, 1400);
+  }
+
+  function normalizeEmailTrustMode(value: string): EmailTrustMode {
+    return value === 'local-verification' ||
+      value === 'disabled' ||
+      value === 'existing-only'
+      ? value
+      : 'verified-claim';
+  }
+
+  function selectedProviderEmailTrustMode(
+    providerId: string,
+    fallback: EmailTrustMode,
+  ) {
+    return providerEmailTrustModes[providerId] ?? fallback;
+  }
+
+  function updateProviderEmailTrustMode(providerId: string, event: Event) {
+    providerEmailTrustModes[providerId] = normalizeEmailTrustMode(
+      (event.currentTarget as HTMLSelectElement).value,
+    );
   }
 </script>
 
@@ -84,6 +111,13 @@
               <input name="name" value={provider.name} required /></label
             >
             <label>
+              {t('admin.flow')}
+              <select name="flow" value={provider.flow}>
+                <option value="oidc">{t('admin.flowOidc')}</option>
+                <option value="oauth">{t('admin.flowOauth')}</option>
+              </select>
+            </label>
+            <label>
               {t('admin.loginButtonColor')}
               <input
                 name="loginButtonColor"
@@ -113,20 +147,83 @@
             </label>
             <label class="wide">
               {t('admin.issuerUrl')}
+              <input type="url" name="issuerUrl" value={provider.issuerUrl} />
+            </label>
+            <label>
+              {t('admin.oauthMetadataSource')}
+              <select
+                name="oauthMetadataSource"
+                value={provider.oauthMetadataSource}
+              >
+                <option value="manual">{t('admin.oauthMetadataManual')}</option>
+                <option value="metadata-url"
+                  >{t('admin.oauthMetadataUrlSource')}</option
+                >
+                <option value="profile-link"
+                  >{t('admin.oauthMetadataProfileLink')}</option
+                >
+              </select>
+            </label>
+            <label class="wide">
+              {t('admin.oauthMetadataUrl')}
               <input
                 type="url"
-                name="issuerUrl"
-                value={provider.issuerUrl}
-                required
+                name="oauthMetadataUrl"
+                value={provider.oauthMetadataUrl}
+                placeholder={t('admin.oauthMetadataUrlPlaceholder')}
+              />
+            </label>
+            <label class="wide">
+              {t('admin.authorizationEndpoint')}
+              <input
+                type="url"
+                name="authorizationEndpoint"
+                value={provider.authorizationEndpoint}
+              />
+            </label>
+            <label class="wide">
+              {t('admin.tokenEndpoint')}
+              <input
+                type="url"
+                name="tokenEndpoint"
+                value={provider.tokenEndpoint}
+              />
+              <small>{t('admin.tokenEndpointHint')}</small>
+            </label>
+            <label class="wide">
+              {t('admin.userInfoEndpoint')}
+              <input
+                type="url"
+                name="userInfoEndpoint"
+                value={provider.userInfoEndpoint}
+              />
+            </label>
+            <label>
+              {t('admin.metadataLinkRel')}
+              <input
+                name="metadataLinkRel"
+                value={provider.metadataLinkRel}
+                placeholder={t('admin.metadataLinkRelPlaceholder')}
+              />
+            </label>
+            <label>
+              {t('admin.authorizationEndpointRel')}
+              <input
+                name="authorizationEndpointRel"
+                value={provider.authorizationEndpointRel}
+              />
+            </label>
+            <label>
+              {t('admin.tokenEndpointRel')}
+              <input
+                name="tokenEndpointRel"
+                value={provider.tokenEndpointRel}
               />
             </label>
             <label
               >{t('admin.clientId')}
-              <input
-                name="clientId"
-                value={provider.clientId}
-                required
-              /></label
+              <input name="clientId" value={provider.clientId} required />
+              <small>{t('admin.clientIdHint')}</small></label
             >
             <label>
               {t('admin.clientSecret')}
@@ -153,21 +250,170 @@
               >{t('admin.scopes')}
               <input name="scopes" value={provider.scopes} /></label
             >
+            <label>
+              {t('admin.authorizationHintParameter')}
+              <input
+                name="authorizationHintParameter"
+                value={provider.authorizationHintParameter}
+                placeholder={t('admin.authorizationHintParameterPlaceholder')}
+              />
+            </label>
             <label class="wide">
               {t('admin.allowedEmailDomains')}
               <textarea name="allowedEmailDomains" rows="3"
                 >{provider.allowedEmailDomains.join('\n')}</textarea
               >
             </label>
+            <label class="wide">
+              {t('admin.authorizationRequestQuery')}
+              <small>{t('admin.authorizationRequestQueryHelp')}</small>
+              <textarea name="authorizationRequestQuery" rows="3"
+                >{provider.authorizationRequestQuery}</textarea
+              >
+            </label>
+            <label class="wide">
+              {t('admin.tokenRequestBody')}
+              <small>{t('admin.tokenRequestBodyHelp')}</small>
+              <textarea name="tokenRequestBody" rows="3"
+                >{provider.tokenRequestBody}</textarea
+              >
+            </label>
+            <label class="wide">
+              {t('admin.extraRequestQuery')}
+              <small>{t('admin.extraRequestQueryHelp')}</small>
+              <textarea name="extraRequestQuery" rows="3"
+                >{provider.extraRequestQuery}</textarea
+              >
+            </label>
+            <label class="wide">
+              {t('admin.extraRequestHeaders')}
+              <small>{t('admin.extraRequestHeadersHelp')}</small>
+              <textarea name="extraRequestHeaders" rows="3"
+                >{provider.extraRequestHeaders}</textarea
+              >
+            </label>
+            <label>
+              {t('admin.loginInputName')}
+              <input
+                name="loginInputName"
+                value={provider.loginInputName}
+                placeholder={t('admin.loginInputNamePlaceholder')}
+              />
+            </label>
+            <label>
+              {t('admin.loginInputLabel')}
+              <input name="loginInputLabel" value={provider.loginInputLabel} />
+            </label>
+            <label>
+              {t('admin.loginInputPlaceholder')}
+              <input
+                name="loginInputPlaceholder"
+                value={provider.loginInputPlaceholder}
+              />
+            </label>
+            <label>
+              {t('admin.loginInputDefault')}
+              <input
+                name="loginInputDefault"
+                value={provider.loginInputDefault}
+              />
+            </label>
+            <label class="wide">
+              {t('admin.loginInputHelp')}
+              <input name="loginInputHelp" value={provider.loginInputHelp} />
+            </label>
+            <ToggleField
+              name="loginInputRequired"
+              label={t('admin.loginInputRequired')}
+              checked={provider.loginInputRequired}
+            />
+            <ToggleField
+              name="loginInputUrlCanonicalization"
+              label={t('admin.loginInputUrlCanonicalization')}
+              checked={provider.loginInputUrlCanonicalization}
+            />
+            <label>
+              {t('admin.subjectPath')}
+              <input name="subjectPath" value={provider.subjectPath} />
+            </label>
+            <label>
+              {t('admin.emailPath')}
+              <input name="emailPath" value={provider.emailPath} />
+            </label>
+            <label>
+              {t('admin.emailVerifiedPath')}
+              <input
+                name="emailVerifiedPath"
+                value={provider.emailVerifiedPath}
+              />
+            </label>
+            <label>
+              {t('admin.namePath')}
+              <input name="namePath" value={provider.namePath} />
+            </label>
+            <label class="wide">
+              {t('admin.emailTrustMode')}
+              <select
+                name="emailTrustMode"
+                value={selectedProviderEmailTrustMode(
+                  provider.id,
+                  provider.emailTrustMode,
+                )}
+                onchange={(event) =>
+                  updateProviderEmailTrustMode(provider.id, event)}
+              >
+                <option value="verified-claim"
+                  >{t('admin.emailTrustVerifiedClaim')}</option
+                >
+                <option value="local-verification"
+                  >{t('admin.emailTrustLocalVerification')}</option
+                >
+                <option value="existing-only"
+                  >{t('admin.emailTrustExistingOnly')}</option
+                >
+                <option value="disabled">{t('admin.emailTrustDisabled')}</option
+                >
+              </select>
+              <small>{t('admin.emailTrustModeHelp')}</small>
+            </label>
+            <label>
+              {t('admin.subjectVerification')}
+              <select
+                name="subjectVerification"
+                value={provider.subjectVerification}
+              >
+                <option value="none"
+                  >{t('admin.subjectVerificationNone')}</option
+                >
+                <option value="authorization-endpoint"
+                  >{t('admin.subjectVerificationAuthorizationEndpoint')}</option
+                >
+              </select>
+            </label>
           </div>
           <div class="actions">
-            <button
-              type="submit"
-              name="pluginActionSubmit"
-              value="saveProvider"
-            >
-              {t('admin.validateAndSave')}
-            </button>
+            {#if selectedProviderEmailTrustMode(provider.id, provider.emailTrustMode) === 'disabled'}
+              <DangerConfirmButton
+                label={t('admin.validateAndSave')}
+                {locale}
+                name="pluginActionSubmit"
+                value="saveProvider"
+                title={t('admin.emailTrustDisabledTitle')}
+                message={t('admin.emailTrustDisabledMessage')}
+                details={[provider.name]}
+                confirmLabel={t('admin.emailTrustDisabledConfirm')}
+                requireConsent
+                consentLabel={t('admin.emailTrustDisabledConsent')}
+              />
+            {:else}
+              <button
+                type="submit"
+                name="pluginActionSubmit"
+                value="saveProvider"
+              >
+                {t('admin.validateAndSave')}
+              </button>
+            {/if}
           </div>
         </form>
         <form
@@ -216,6 +462,13 @@
             /></label
           >
           <label>
+            {t('admin.flow')}
+            <select name="flow">
+              <option value="oidc">{t('admin.flowOidc')}</option>
+              <option value="oauth">{t('admin.flowOauth')}</option>
+            </select>
+          </label>
+          <label>
             {t('admin.loginButtonColor')}
             <input
               name="loginButtonColor"
@@ -242,9 +495,60 @@
           </label>
           <label class="wide"
             >{t('admin.issuerUrl')}
-            <input type="url" name="issuerUrl" required /></label
+            <input type="url" name="issuerUrl" /></label
           >
-          <label>{t('admin.clientId')} <input name="clientId" required /></label
+          <label>
+            {t('admin.oauthMetadataSource')}
+            <select name="oauthMetadataSource">
+              <option value="manual">{t('admin.oauthMetadataManual')}</option>
+              <option value="metadata-url"
+                >{t('admin.oauthMetadataUrlSource')}</option
+              >
+              <option value="profile-link"
+                >{t('admin.oauthMetadataProfileLink')}</option
+              >
+            </select>
+          </label>
+          <label class="wide">
+            {t('admin.oauthMetadataUrl')}
+            <input
+              type="url"
+              name="oauthMetadataUrl"
+              placeholder={t('admin.oauthMetadataUrlPlaceholder')}
+            />
+          </label>
+          <label class="wide">
+            {t('admin.authorizationEndpoint')}
+            <input type="url" name="authorizationEndpoint" />
+          </label>
+          <label class="wide">
+            {t('admin.tokenEndpoint')}
+            <input type="url" name="tokenEndpoint" />
+            <small>{t('admin.tokenEndpointHint')}</small>
+          </label>
+          <label class="wide">
+            {t('admin.userInfoEndpoint')}
+            <input type="url" name="userInfoEndpoint" />
+          </label>
+          <label>
+            {t('admin.metadataLinkRel')}
+            <input
+              name="metadataLinkRel"
+              placeholder={t('admin.metadataLinkRelPlaceholder')}
+            />
+          </label>
+          <label>
+            {t('admin.authorizationEndpointRel')}
+            <input name="authorizationEndpointRel" />
+          </label>
+          <label>
+            {t('admin.tokenEndpointRel')}
+            <input name="tokenEndpointRel" />
+          </label>
+          <label
+            >{t('admin.clientId')}
+            <input name="clientId" required />
+            <small>{t('admin.clientIdHint')}</small></label
           >
           <label>
             {t('admin.clientSecret')}
@@ -271,14 +575,130 @@
             >{t('admin.scopes')}
             <input name="scopes" value={defaultOidcScopes} /></label
           >
+          <label>
+            {t('admin.authorizationHintParameter')}
+            <input
+              name="authorizationHintParameter"
+              placeholder={t('admin.authorizationHintParameterPlaceholder')}
+            />
+          </label>
           <label class="wide">
             {t('admin.allowedEmailDomains')}
             <textarea name="allowedEmailDomains" rows="3"></textarea>
           </label>
+          <label class="wide">
+            {t('admin.authorizationRequestQuery')}
+            <small>{t('admin.authorizationRequestQueryHelp')}</small>
+            <textarea name="authorizationRequestQuery" rows="3"></textarea>
+          </label>
+          <label class="wide">
+            {t('admin.tokenRequestBody')}
+            <small>{t('admin.tokenRequestBodyHelp')}</small>
+            <textarea name="tokenRequestBody" rows="3"></textarea>
+          </label>
+          <label class="wide">
+            {t('admin.extraRequestQuery')}
+            <small>{t('admin.extraRequestQueryHelp')}</small>
+            <textarea name="extraRequestQuery" rows="3"></textarea>
+          </label>
+          <label class="wide">
+            {t('admin.extraRequestHeaders')}
+            <small>{t('admin.extraRequestHeadersHelp')}</small>
+            <textarea name="extraRequestHeaders" rows="3"></textarea>
+          </label>
+          <label>
+            {t('admin.loginInputName')}
+            <input
+              name="loginInputName"
+              placeholder={t('admin.loginInputNamePlaceholder')}
+            />
+          </label>
+          <label>
+            {t('admin.loginInputLabel')}
+            <input name="loginInputLabel" />
+          </label>
+          <label>
+            {t('admin.loginInputPlaceholder')}
+            <input name="loginInputPlaceholder" />
+          </label>
+          <label>
+            {t('admin.loginInputDefault')}
+            <input name="loginInputDefault" />
+          </label>
+          <label class="wide">
+            {t('admin.loginInputHelp')}
+            <input name="loginInputHelp" />
+          </label>
+          <ToggleField
+            name="loginInputRequired"
+            label={t('admin.loginInputRequired')}
+          />
+          <ToggleField
+            name="loginInputUrlCanonicalization"
+            label={t('admin.loginInputUrlCanonicalization')}
+          />
+          <label>
+            {t('admin.subjectPath')}
+            <input name="subjectPath" value="sub" />
+          </label>
+          <label>
+            {t('admin.emailPath')}
+            <input name="emailPath" value="email" />
+          </label>
+          <label>
+            {t('admin.emailVerifiedPath')}
+            <input name="emailVerifiedPath" value="email_verified" />
+          </label>
+          <label>
+            {t('admin.namePath')}
+            <input name="namePath" value="name" />
+          </label>
+          <label class="wide">
+            {t('admin.emailTrustMode')}
+            <select
+              name="emailTrustMode"
+              bind:value={newProviderEmailTrustMode}
+            >
+              <option value="verified-claim"
+                >{t('admin.emailTrustVerifiedClaim')}</option
+              >
+              <option value="local-verification"
+                >{t('admin.emailTrustLocalVerification')}</option
+              >
+              <option value="existing-only"
+                >{t('admin.emailTrustExistingOnly')}</option
+              >
+              <option value="disabled">{t('admin.emailTrustDisabled')}</option>
+            </select>
+            <small>{t('admin.emailTrustModeHelp')}</small>
+          </label>
+          <label>
+            {t('admin.subjectVerification')}
+            <select name="subjectVerification">
+              <option value="none">{t('admin.subjectVerificationNone')}</option>
+              <option value="authorization-endpoint"
+                >{t('admin.subjectVerificationAuthorizationEndpoint')}</option
+              >
+            </select>
+          </label>
         </div>
-        <button type="submit" name="pluginActionSubmit" value="saveProvider">
-          {t('admin.validateIssuerAndAdd')}
-        </button>
+        {#if newProviderEmailTrustMode === 'disabled'}
+          <DangerConfirmButton
+            label={t('admin.validateIssuerAndAdd')}
+            {locale}
+            name="pluginActionSubmit"
+            value="saveProvider"
+            title={t('admin.emailTrustDisabledTitle')}
+            message={t('admin.emailTrustDisabledMessage')}
+            confirmLabel={t('admin.emailTrustDisabledConfirm')}
+            requireConsent
+            consentLabel={t('admin.emailTrustDisabledConsent')}
+          />
+        {:else}
+          <button type="submit" name="pluginActionSubmit" value="saveProvider">
+            {t('admin.validateIssuerAndAdd')}
+          </button>
+        {/if}
       </form>
     </details>
     <div class="callbacks">

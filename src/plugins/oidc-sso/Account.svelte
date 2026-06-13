@@ -14,6 +14,14 @@
   type OidcProvider = {
     id: string;
     name: string;
+    identifier?: {
+      name: string;
+      label: string;
+      placeholder?: string;
+      value?: string;
+      required?: boolean;
+      help?: string;
+    };
     connected: boolean;
     connectionId: number | null;
     email: string | null;
@@ -77,14 +85,38 @@
               />
             </form>
           {:else}
-            <a
-              class="button"
-              href={resolve(
-                `/account/connections/oidc-sso/${provider.id}/start?returnTo=/account`,
-              )}
-            >
-              {t('account.connect')}
-            </a>
+            {#if provider.identifier}
+              <form
+                method="GET"
+                action={resolve(
+                  `/account/connections/oidc-sso/${provider.id}/start`,
+                )}
+              >
+                <input type="hidden" name="returnTo" value="/account" />
+                <label>
+                  {provider.identifier.label}
+                  {#if provider.identifier.help}
+                    <small>{provider.identifier.help}</small>
+                  {/if}
+                  <input
+                    name={provider.identifier.name}
+                    value={provider.identifier.value ?? ''}
+                    placeholder={provider.identifier.placeholder ?? ''}
+                    required={provider.identifier.required}
+                  />
+                </label>
+                <button type="submit">{t('account.connect')}</button>
+              </form>
+            {:else}
+              <a
+                class="button"
+                href={resolve(
+                  `/account/connections/oidc-sso/${provider.id}/start?returnTo=/account`,
+                )}
+              >
+                {t('account.connect')}
+              </a>
+            {/if}
           {/if}
         </article>
       {/each}
@@ -128,10 +160,26 @@
     color: var(--page-muted);
     line-height: 1.6;
   }
-  form {
+  form,
+  label {
     display: grid;
-    gap: 14px;
+    gap: 10px;
   }
+  label {
+    color: var(--page-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+  input {
+    min-height: 40px;
+    border: 1px solid var(--page-border);
+    border-radius: 10px;
+    padding: 0 12px;
+    background: var(--page-surface);
+    color: var(--page-text);
+    font: inherit;
+  }
+  button,
   .button {
     display: inline-flex;
     width: fit-content;

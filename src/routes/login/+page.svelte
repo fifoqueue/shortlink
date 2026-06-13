@@ -18,6 +18,7 @@
       locale: SiteLocale;
       defaultLocale: SiteLocale;
       returnTo: string;
+      notice: string;
       siteName: string;
       theme: SiteSettings['theme'];
       customHead: string;
@@ -31,6 +32,14 @@
         buttonColor?: string;
         buttonTextColor?: string;
         iconUrl?: string;
+        identifier?: {
+          name: string;
+          label: string;
+          placeholder?: string;
+          value?: string;
+          required?: boolean;
+          help?: string;
+        };
       }>;
     };
     form?: { message?: string };
@@ -83,9 +92,12 @@
   data-theme-preset={data.theme.preset}
   style={siteThemeStyle(data.theme)}
 >
-  {#if form?.message}
-    {#key form}
-      <ToastNotice message={form.message} locale={data.locale} />
+  {#if form?.message || data.notice}
+    {#key form?.message ?? data.notice}
+      <ToastNotice
+        message={form?.message ?? data.notice}
+        locale={data.locale}
+      />
     {/key}
   {/if}
 
@@ -132,6 +144,20 @@
             action={resolve(`/auth/${provider.pluginId}/${provider.id}/login`)}
           >
             <input type="hidden" name="returnTo" value={data.returnTo} />
+            {#if provider.identifier}
+              <label>
+                {provider.identifier.label}
+                {#if provider.identifier.help}
+                  <small>{provider.identifier.help}</small>
+                {/if}
+                <input
+                  name={provider.identifier.name}
+                  value={provider.identifier.value ?? ''}
+                  placeholder={provider.identifier.placeholder ?? ''}
+                  required={provider.identifier.required}
+                />
+              </label>
+            {/if}
             <button
               class:custom-provider={Boolean(provider.buttonColor) ||
                 Boolean(provider.buttonTextColor)}

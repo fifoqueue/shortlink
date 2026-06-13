@@ -9,16 +9,25 @@ export const GET: RequestHandler = async ({ cookies, locals, params, url }) => {
   if (!params.plugin || !params.method) {
     error(404, text.auth.noLoginMethods);
   }
-  const loginUrl = await startPluginLogin(
-    cookies,
-    settings.plugins,
-    params.plugin,
-    params.method,
-    url.origin,
-    url.searchParams.get('returnTo'),
-    locals.locale,
-    settings.i18n.defaultLocale,
-  );
+  let loginUrl: URL | null;
+  try {
+    loginUrl = await startPluginLogin(
+      cookies,
+      settings.plugins,
+      params.plugin,
+      params.method,
+      url.origin,
+      url.searchParams.get('returnTo'),
+      locals.locale,
+      settings.i18n.defaultLocale,
+      url.searchParams,
+    );
+  } catch (cause) {
+    error(
+      400,
+      cause instanceof Error ? cause.message : text.auth.noLoginMethods,
+    );
+  }
 
   if (!loginUrl) error(404, text.auth.noLoginMethods);
   redirect(302, loginUrl.href);

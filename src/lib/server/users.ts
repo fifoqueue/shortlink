@@ -32,6 +32,10 @@ function verificationUrl(origin: string, token: string) {
   return url.toString();
 }
 
+function ssoPasswordHash(provider: string, subject: string) {
+  return `sso:${provider}:${subject}`;
+}
+
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString('base64url');
   const hash = scryptSync(password, salt, KEY_LENGTH).toString('base64url');
@@ -228,6 +232,7 @@ export async function upsertSsoUser(input: {
   name: string;
   provider: string;
   subject: string;
+  emailVerifiedAt?: Date | null;
 }) {
   await ensureDatabase();
   const email = normalizeEmail(input.email ?? '');
@@ -239,9 +244,13 @@ export async function upsertSsoUser(input: {
   const existing = await UserModel.findOne({ where: { email } });
   if (existing) {
     if (!existing.enabled) throw new Error(serverMessage('userDisabled'));
-    await existing.update({
+    const updates: Partial<UserModel> = {
       name,
-    });
+    };
+    if (input.emailVerifiedAt && !existing.email_verified_at) {
+      updates.email_verified_at = input.emailVerifiedAt;
+    }
+    await existing.update(updates);
     return existing;
   }
 
@@ -249,11 +258,90 @@ export async function upsertSsoUser(input: {
     email,
     pending_email: null,
     name,
-    password_hash: `sso:${input.provider}:${input.subject}`,
+    password_hash: ssoPasswordHash(input.provider, input.subject),
     is_admin: false,
     enabled: true,
+    email_verified_at: input.emailVerifiedAt ?? null,
   });
   await syncAutomaticPermissionGroupMembershipsForUser(user.id);
+  return user;
+}
+
+export async function createPendingSsoUser(input: {
+  settings: SiteSettings;
+  origin: string;
+  email: string | null;
+  name: string;
+  provider: string;
+  subject: string;
+}) {
+  await ensureDatabase();
+  const email = normalizeEmail(input.email ?? '');
+  if (!email || !email.includes('@')) {
+    throw new Error(serverMessage('ssoEmailMissing'));
+  }
+
+  const name = input.name.trim().slice(0, 120) || email;
+  const passwordHash = ssoPasswordHash(input.provider, input.subject);
+  const token = createEmailVerificationToken();
+  const expiresAt = new Date(
+    Date.now() +
+      input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
+  );
+  const verification = {
+    email_verification_token_hash: hashEmailVerificationToken(token),
+    email_verification_expires_at: expiresAt,
+  };
+
+  const existing = await UserModel.findOne({ where: { email } });
+  let user = existing;
+  let created = false;
+
+  if (user) {
+    if (user.enabled) {
+      throw new Error(serverMessage('ssoExistingAccountLinkRequired'));
+    }
+    if (user.password_hash !== passwordHash) {
+      throw new Error(serverMessage('userDisabled'));
+    }
+    await user.update({
+      name,
+      pending_email: null,
+      ...verification,
+    });
+  } else {
+    user = await UserModel.create({
+      email,
+      pending_email: null,
+      name,
+      password_hash: passwordHash,
+      is_admin: false,
+      enabled: false,
+      email_verified_at: null,
+      ...verification,
+    });
+    created = true;
+  }
+
+  try {
+    await sendVerificationEmail({
+      settings: input.settings,
+      email,
+      name,
+      verificationUrl: verificationUrl(input.origin, token),
+    });
+  } catch (cause) {
+    if (created) {
+      await user.destroy();
+    } else {
+      await user.update({
+        email_verification_token_hash: null,
+        email_verification_expires_at: null,
+      });
+    }
+    throw cause;
+  }
+
   return user;
 }
 

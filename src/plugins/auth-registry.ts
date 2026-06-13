@@ -182,6 +182,7 @@ export async function startPluginLogin(
   returnTo: string | null,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
+  requestParams?: URLSearchParams,
 ) {
   const plugin = authPlugins.find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
@@ -200,6 +201,7 @@ export async function startPluginLogin(
     methodId,
     returnTo,
     context,
+    requestParams,
   );
 }
 
@@ -232,6 +234,7 @@ export async function startPluginAccountLink(
   returnTo: string | null,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
+  requestParams?: URLSearchParams,
 ) {
   const plugin = authPlugins.find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
@@ -251,6 +254,7 @@ export async function startPluginAccountLink(
     user,
     returnTo,
     context,
+    requestParams,
   );
 }
 

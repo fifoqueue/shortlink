@@ -21,6 +21,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   if (locals.user)
     redirect(303, safeReturnTo(url.searchParams.get('returnTo')));
   const settings = await getSettings();
+  const text = uiText(locals.locale, settings.i18n.defaultLocale);
   const displaySettings = locals.localizedSettings;
   const methods = getAuthLoginMethods(
     settings.plugins,
@@ -35,6 +36,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     locale: locals.locale,
     defaultLocale: settings.i18n.defaultLocale,
     returnTo: safeReturnTo(url.searchParams.get('returnTo')),
+    notice:
+      url.searchParams.get('notice') === 'sso-verification-sent'
+        ? text.auth.ssoVerificationSent
+        : '',
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
     customHead: displaySettings.seo.customHead,
@@ -44,13 +49,22 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     providers: methods
       .filter((method) => method.type === 'redirect')
       .map(
-        ({ pluginId, id, label, buttonColor, buttonTextColor, iconUrl }) => ({
+        ({
           pluginId,
           id,
           label,
           buttonColor,
           buttonTextColor,
           iconUrl,
+          identifier,
+        }) => ({
+          pluginId,
+          id,
+          label,
+          buttonColor,
+          buttonTextColor,
+          iconUrl,
+          identifier,
         }),
       ),
   };

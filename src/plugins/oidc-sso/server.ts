@@ -12,12 +12,19 @@ import {
   listUserIdentities,
   unlinkIdentity,
 } from '$lib/server/user-identities';
+import { parseHeaderRecord } from '$lib/delimited';
 import { testProvider } from './auth';
 import {
+  defaultOidcScopes,
   normalizeOidcConfig,
+  parseExtraRequestQuery,
   parseList,
   providerSlug,
+  type EmailTrustMode,
+  type OAuthMetadataSource,
+  type OAuthSubjectVerification,
   type OidcProvider,
+  type SsoProviderFlow,
 } from './config';
 
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
@@ -57,10 +64,67 @@ function validateOptionalIconUrl(value: string, strings: PluginLocaleStrings) {
   throw new Error(t(strings, 'server.loginIconUrlInvalid'));
 }
 
+function validateOptionalHttpUrl(
+  value: string,
+  messageKey: PluginLocaleKey,
+  strings: PluginLocaleStrings,
+) {
+  if (!value) return;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'https:' || url.protocol === 'http:') return;
+  } catch {
+    // fall through to shared validation error
+  }
+  throw new Error(t(strings, messageKey));
+}
+
+function validatePath(
+  value: string,
+  messageKey: PluginLocaleKey,
+  strings: PluginLocaleStrings,
+) {
+  if (!value || /^[A-Za-z0-9_.-]+$/.test(value)) return;
+  throw new Error(t(strings, messageKey));
+}
+
 function providerFromForm(
   form: FormData,
   current?: OidcProvider,
 ): OidcProvider {
+  const flow: SsoProviderFlow =
+    stringValue(form, 'flow', current?.flow ?? 'oidc') === 'oauth'
+      ? 'oauth'
+      : 'oidc';
+  const oauthMetadataSourceInput = stringValue(
+    form,
+    'oauthMetadataSource',
+    current?.oauthMetadataSource ?? 'manual',
+  );
+  const oauthMetadataSource: OAuthMetadataSource =
+    oauthMetadataSourceInput === 'metadata-url' ||
+    oauthMetadataSourceInput === 'profile-link'
+      ? oauthMetadataSourceInput
+      : 'manual';
+  const subjectVerification: OAuthSubjectVerification =
+    stringValue(
+      form,
+      'subjectVerification',
+      current?.subjectVerification ?? 'none',
+    ) === 'authorization-endpoint'
+      ? 'authorization-endpoint'
+      : 'none';
+  const emailTrustModeInput = stringValue(
+    form,
+    'emailTrustMode',
+    current?.emailTrustMode ?? 'verified-claim',
+  );
+  const emailTrustMode: EmailTrustMode =
+    emailTrustModeInput === 'local-verification' ||
+    emailTrustModeInput === 'disabled' ||
+    emailTrustModeInput === 'existing-only'
+      ? emailTrustModeInput
+      : 'verified-claim';
   const clientAuthMethod = stringValue(
     form,
     'clientAuthMethod',
@@ -75,6 +139,7 @@ function providerFromForm(
   return {
     id: providerSlug(stringValue(form, 'id', current?.id ?? '')),
     name: stringValue(form, 'name', current?.name ?? ''),
+    flow,
     loginButtonColor: stringValue(
       form,
       'loginButtonColor',
@@ -91,6 +156,42 @@ function providerFromForm(
       current?.loginIconUrl ?? '',
     ),
     issuerUrl: stringValue(form, 'issuerUrl', current?.issuerUrl ?? ''),
+    oauthMetadataSource,
+    oauthMetadataUrl: stringValue(
+      form,
+      'oauthMetadataUrl',
+      current?.oauthMetadataUrl ?? '',
+    ),
+    authorizationEndpoint: stringValue(
+      form,
+      'authorizationEndpoint',
+      current?.authorizationEndpoint ?? '',
+    ),
+    tokenEndpoint: stringValue(
+      form,
+      'tokenEndpoint',
+      current?.tokenEndpoint ?? '',
+    ),
+    userInfoEndpoint: stringValue(
+      form,
+      'userInfoEndpoint',
+      current?.userInfoEndpoint ?? '',
+    ),
+    metadataLinkRel: stringValue(
+      form,
+      'metadataLinkRel',
+      current?.metadataLinkRel ?? '',
+    ),
+    authorizationEndpointRel: stringValue(
+      form,
+      'authorizationEndpointRel',
+      current?.authorizationEndpointRel ?? '',
+    ),
+    tokenEndpointRel: stringValue(
+      form,
+      'tokenEndpointRel',
+      current?.tokenEndpointRel ?? '',
+    ),
     clientId: stringValue(form, 'clientId', current?.clientId ?? ''),
     clientSecret:
       selectedAuthMethod === 'none'
@@ -98,8 +199,77 @@ function providerFromForm(
         : clientSecret || current?.clientSecret || '',
     clientAuthMethod: selectedAuthMethod,
     scopes:
-      stringValue(form, 'scopes', current?.scopes ?? 'openid profile email') ||
-      'openid profile email',
+      stringValue(form, 'scopes', current?.scopes ?? defaultOidcScopes) ||
+      defaultOidcScopes,
+    authorizationRequestQuery: stringValue(
+      form,
+      'authorizationRequestQuery',
+      current?.authorizationRequestQuery ?? '',
+    ).slice(0, 5000),
+    tokenRequestBody: stringValue(
+      form,
+      'tokenRequestBody',
+      current?.tokenRequestBody ?? '',
+    ).slice(0, 5000),
+    extraRequestQuery: stringValue(
+      form,
+      'extraRequestQuery',
+      current?.extraRequestQuery ?? '',
+    ).slice(0, 5000),
+    extraRequestHeaders: stringValue(
+      form,
+      'extraRequestHeaders',
+      current?.extraRequestHeaders ?? '',
+    ).slice(0, 5000),
+    loginInputName: stringValue(
+      form,
+      'loginInputName',
+      current?.loginInputName ?? '',
+    ),
+    loginInputLabel: stringValue(
+      form,
+      'loginInputLabel',
+      current?.loginInputLabel ?? '',
+    ),
+    loginInputPlaceholder: stringValue(
+      form,
+      'loginInputPlaceholder',
+      current?.loginInputPlaceholder ?? '',
+    ),
+    loginInputHelp: stringValue(
+      form,
+      'loginInputHelp',
+      current?.loginInputHelp ?? '',
+    ),
+    loginInputDefault: stringValue(
+      form,
+      'loginInputDefault',
+      current?.loginInputDefault ?? '',
+    ),
+    loginInputRequired: parseBoolean(form, 'loginInputRequired'),
+    loginInputUrlCanonicalization: parseBoolean(
+      form,
+      'loginInputUrlCanonicalization',
+    ),
+    authorizationHintParameter: stringValue(
+      form,
+      'authorizationHintParameter',
+      current?.authorizationHintParameter ?? '',
+    ),
+    subjectPath:
+      stringValue(form, 'subjectPath', current?.subjectPath ?? 'sub') || 'sub',
+    emailPath:
+      stringValue(form, 'emailPath', current?.emailPath ?? 'email') || 'email',
+    emailVerifiedPath:
+      stringValue(
+        form,
+        'emailVerifiedPath',
+        current?.emailVerifiedPath ?? 'email_verified',
+      ) || 'email_verified',
+    namePath:
+      stringValue(form, 'namePath', current?.namePath ?? 'name') || 'name',
+    subjectVerification,
+    emailTrustMode,
     allowedEmailDomains: parseList(
       stringValue(
         form,
@@ -108,6 +278,35 @@ function providerFromForm(
       ),
     ),
   };
+}
+
+function validateExtraRequests(
+  provider: OidcProvider,
+  strings: PluginLocaleStrings,
+) {
+  parseExtraRequestQuery(provider.extraRequestQuery, (type, line) =>
+    type === 'keyRequired'
+      ? new Error(t(strings, 'server.extraRequestQueryKeyRequired', { line }))
+      : new Error(t(strings, 'server.extraRequestQueryInvalid', { line })),
+  );
+  parseHeaderRecord(
+    provider.extraRequestHeaders,
+    t(strings, 'server.extraRequestHeadersDescription'),
+  );
+  parseExtraRequestQuery(provider.authorizationRequestQuery, (type, line) =>
+    type === 'keyRequired'
+      ? new Error(
+          t(strings, 'server.authorizationRequestQueryKeyRequired', { line }),
+        )
+      : new Error(
+          t(strings, 'server.authorizationRequestQueryInvalid', { line }),
+        ),
+  );
+  parseExtraRequestQuery(provider.tokenRequestBody, (type, line) =>
+    type === 'keyRequired'
+      ? new Error(t(strings, 'server.tokenRequestBodyKeyRequired', { line }))
+      : new Error(t(strings, 'server.tokenRequestBodyInvalid', { line })),
+  );
 }
 
 function requireProvider(provider: OidcProvider, strings: PluginLocaleStrings) {
@@ -125,13 +324,73 @@ function requireProvider(provider: OidcProvider, strings: PluginLocaleStrings) {
     strings,
   );
   validateOptionalIconUrl(provider.loginIconUrl, strings);
-  if (!provider.issuerUrl)
+  if (provider.flow === 'oidc' && !provider.issuerUrl) {
     throw new Error(t(strings, 'server.issuerUrlRequired'));
-  if (!provider.clientId)
+  }
+  if (!provider.clientId) {
     throw new Error(t(strings, 'server.clientIdRequired'));
+  }
   if (provider.clientAuthMethod !== 'none' && !provider.clientSecret) {
     throw new Error(t(strings, 'auth.clientSecretRequired'));
   }
+  validateOptionalHttpUrl(
+    provider.issuerUrl,
+    'server.issuerUrlInvalid',
+    strings,
+  );
+  validateOptionalHttpUrl(
+    provider.oauthMetadataUrl,
+    'server.oauthMetadataUrlInvalid',
+    strings,
+  );
+  validateOptionalHttpUrl(
+    provider.authorizationEndpoint,
+    'server.authorizationEndpointInvalid',
+    strings,
+  );
+  validateOptionalHttpUrl(
+    provider.tokenEndpoint,
+    'server.tokenEndpointInvalid',
+    strings,
+  );
+  validateOptionalHttpUrl(
+    provider.userInfoEndpoint,
+    'server.userInfoEndpointInvalid',
+    strings,
+  );
+  if (provider.flow === 'oauth') {
+    if (
+      provider.oauthMetadataSource === 'manual' &&
+      !provider.authorizationEndpoint
+    ) {
+      throw new Error(t(strings, 'server.authorizationEndpointRequired'));
+    }
+    if (
+      provider.oauthMetadataSource === 'metadata-url' &&
+      !provider.oauthMetadataUrl
+    ) {
+      throw new Error(t(strings, 'server.oauthMetadataUrlRequired'));
+    }
+    if (
+      provider.oauthMetadataSource === 'profile-link' &&
+      !provider.loginInputName &&
+      !provider.loginInputDefault
+    ) {
+      throw new Error(t(strings, 'server.loginInputRequiredForProfileLink'));
+    }
+    if (!provider.subjectPath) {
+      throw new Error(t(strings, 'server.subjectPathRequired'));
+    }
+  }
+  validatePath(provider.subjectPath, 'server.subjectPathInvalid', strings);
+  validatePath(provider.emailPath, 'server.emailPathInvalid', strings);
+  validatePath(
+    provider.emailVerifiedPath,
+    'server.emailVerifiedPathInvalid',
+    strings,
+  );
+  validatePath(provider.namePath, 'server.namePathInvalid', strings);
+  validateExtraRequests(provider, strings);
 }
 
 function savePolicy(
@@ -208,6 +467,25 @@ function deleteProvider(
   };
 }
 
+function providerIdentifier(
+  provider: OidcProvider,
+  strings: PluginLocaleStrings,
+) {
+  if (!provider.loginInputName) return undefined;
+  return {
+    name: provider.loginInputName,
+    label:
+      provider.loginInputLabel ||
+      t(strings, 'auth.identifierDefaultLabel', {
+        name: provider.loginInputName,
+      }),
+    placeholder: provider.loginInputPlaceholder || undefined,
+    value: provider.loginInputDefault || undefined,
+    required: provider.loginInputRequired,
+    help: provider.loginInputHelp || undefined,
+  };
+}
+
 const serverPlugin = {
   async loadAdminData({ url }) {
     return {
@@ -271,7 +549,7 @@ const serverPlugin = {
     throw new Error(t(strings, 'server.unsupportedUserAction'));
   },
 
-  async loadAccountData({ user, state }) {
+  async loadAccountData({ user, state, strings }) {
     const oidc = normalizeOidcConfig(state.config);
     const identities = await listUserIdentities(user.id);
     return {
@@ -283,6 +561,7 @@ const serverPlugin = {
         return {
           id: provider.id,
           name: provider.name,
+          identifier: providerIdentifier(provider, strings),
           connected: Boolean(connection),
           connectionId: connection?.id ?? null,
           email: connection?.email ?? null,

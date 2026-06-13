@@ -118,6 +118,14 @@ export interface AuthMethodPresentation {
   buttonColor?: string;
   buttonTextColor?: string;
   iconUrl?: string;
+  identifier?: {
+    name: string;
+    label: string;
+    placeholder?: string;
+    value?: string;
+    required?: boolean;
+    help?: string;
+  };
 }
 
 export interface AuthLoginMethod extends AuthMethodPresentation {
@@ -167,6 +175,7 @@ export interface AuthPluginModule {
     methodId: string,
     returnTo: string | null,
     context?: PluginLocaleContext,
+    requestParams?: URLSearchParams,
   ) => URL | Promise<URL>;
   finishLogin?: (
     cookies: Cookies,
@@ -182,6 +191,7 @@ export interface AuthPluginModule {
     user: AuthenticatedUser,
     returnTo: string | null,
     context?: PluginLocaleContext,
+    requestParams?: URLSearchParams,
   ) => URL | Promise<URL>;
   finishAccountLink?: (
     cookies: Cookies,
