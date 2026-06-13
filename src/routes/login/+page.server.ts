@@ -30,10 +30,16 @@ export const load: PageServerLoad = async ({
   const settings = await getSettings();
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
   const displaySettings = locals.localizedSettings;
+  const permissions = await effectivePermissionsForEvent({
+    locals,
+    request,
+    getClientAddress,
+  });
   const methods = getAuthLoginMethods(
     settings.plugins,
     locals.locale,
     settings.i18n.defaultLocale,
+    permissions.auth.providers,
   );
   const registration = await registrationAvailability(settings, {
     passwordLoginEnabled: methods.some((method) => method.type === 'password'),
@@ -41,11 +47,7 @@ export const load: PageServerLoad = async ({
   const passwordEnabled = methods.some((method) => method.type === 'password');
   const recovery = accountRecoveryAvailability({
     settings,
-    permissions: await effectivePermissionsForEvent({
-      locals,
-      request,
-      getClientAddress,
-    }),
+    permissions,
     passwordLoginEnabled: passwordEnabled,
   });
   if (registration.setupRequired) redirect(303, '/signup');
@@ -93,6 +95,11 @@ export const actions: Actions = {
   login: async ({ request, cookies, locals, url, getClientAddress }) => {
     const settings = await getSettings();
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
+    const permissions = await effectivePermissionsForEvent({
+      locals,
+      request,
+      getClientAddress,
+    });
     const form = await request.formData();
     const verification = await verifyFormSubmissionPlugins({
       action: 'login',
@@ -131,6 +138,7 @@ export const actions: Actions = {
       String(form.get('password') ?? ''),
       locals.locale,
       settings.i18n.defaultLocale,
+      permissions.auth.providers,
     );
     if (!user)
       return fail(401, {

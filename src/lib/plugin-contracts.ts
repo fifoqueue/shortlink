@@ -57,6 +57,12 @@ export interface PluginAdminPermissionContext {
   };
 }
 
+export interface PluginPermissionContext {
+  auth: {
+    providers: string[] | null;
+  };
+}
+
 export interface PluginAdminAccessStatus {
   allowed: boolean;
   reason?: string;
@@ -182,6 +188,7 @@ export interface AuthPluginModule {
     currentUrl: URL,
     config: PluginConfig,
     context?: PluginLocaleContext,
+    allowedProviders?: readonly string[] | null,
   ) => string | Promise<string>;
   startAccountLink?: (
     cookies: Cookies,
@@ -199,6 +206,7 @@ export interface AuthPluginModule {
     config: PluginConfig,
     user: AuthenticatedUser,
     context?: PluginLocaleContext,
+    allowedProviders?: readonly string[] | null,
   ) => string | Promise<string>;
 }
 
@@ -335,6 +343,7 @@ export interface PluginDefinition {
     locale: SiteLocale;
     fallbackLocale: SiteLocale;
     strings: PluginLocaleStrings;
+    permissions: PluginPermissionContext;
   }) => unknown | Promise<unknown>;
   handleAccountAction?: (input: {
     user: AuthenticatedUser;

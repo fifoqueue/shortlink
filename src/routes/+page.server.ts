@@ -153,6 +153,7 @@ export const load: PageServerLoad = async ({
     settings.plugins,
     locals.locale,
     settings.i18n.defaultLocale,
+    permissions.auth.providers,
   );
   const authEnabled = authMethods.length > 0;
   const registration = await registrationAvailability(settings, {

@@ -8,9 +8,11 @@ import type {
 } from '$lib/plugin-contracts';
 import { defaultSiteLocale, type SiteLocale } from '$lib/config';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
+import { authProviderKey } from '$lib/server/permissions';
 
 type AuthModule = { default: AuthPluginModule };
 type PluginModule = { default: PluginDefinition };
+type AuthProviderAllowList = readonly string[] | null | undefined;
 
 const modules = import.meta.glob<AuthModule>('./*/auth.ts', {
   eager: true,
@@ -65,12 +67,26 @@ function loginMethods(
   return plugin.getLoginMethods?.(state.config, context) ?? [];
 }
 
+function authProviderAllowed(
+  pluginId: string,
+  methodId: string,
+  allowedProviders: AuthProviderAllowList,
+) {
+  return (
+    allowedProviders === undefined ||
+    allowedProviders === null ||
+    allowedProviders.includes(authProviderKey(pluginId, methodId))
+  );
+}
+
 function redirectLoginMethod(
   plugin: AuthPluginModule,
   state: PluginState,
   methodId: string,
   context: PluginLocaleContext,
+  allowedProviders?: AuthProviderAllowList,
 ) {
+  if (!authProviderAllowed(plugin.id, methodId, allowedProviders)) return null;
   return loginMethods(plugin, state, context).find(
     (method) => method.id === methodId && method.type === 'redirect',
   );
@@ -94,7 +110,9 @@ function accountLinkMethod(
   state: PluginState,
   methodId: string,
   context: PluginLocaleContext,
+  allowedProviders?: AuthProviderAllowList,
 ) {
+  if (!authProviderAllowed(plugin.id, methodId, allowedProviders)) return null;
   return accountLinkMethods(plugin, state, context).find(
     (method) => method.id === methodId && method.type === 'redirect',
   );
@@ -121,6 +139,7 @@ export function getAuthLoginMethods(
   states: Record<string, PluginState>,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
+  allowedProviders?: AuthProviderAllowList,
 ) {
   return authPlugins.flatMap((plugin) => {
     const state = stateFor(states, plugin.id);
@@ -129,10 +148,14 @@ export function getAuthLoginMethods(
       plugin,
       state,
       localeContext(plugin.id, locale, fallbackLocale),
-    ).map((method) => ({
-      ...method,
-      pluginId: plugin.id,
-    }));
+    )
+      .filter((method) =>
+        authProviderAllowed(plugin.id, method.id, allowedProviders),
+      )
+      .map((method) => ({
+        ...method,
+        pluginId: plugin.id,
+      }));
   });
 }
 
@@ -143,10 +166,17 @@ export async function authenticatePluginPassword(
   password: string,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
+  allowedProviders?: AuthProviderAllowList,
 ) {
   for (const plugin of authPlugins) {
     const state = stateFor(states, plugin.id);
-    if (!state || !plugin.authenticatePassword) continue;
+    if (
+      !state ||
+      !plugin.authenticatePassword ||
+      !authProviderAllowed(plugin.id, 'password', allowedProviders)
+    ) {
+      continue;
+    }
     const user = await plugin.authenticatePassword(
       cookies,
       state.config,
@@ -183,6 +213,7 @@ export async function startPluginLogin(
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
   requestParams?: URLSearchParams,
+  allowedProviders?: AuthProviderAllowList,
 ) {
   const plugin = authPlugins.find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
@@ -190,7 +221,7 @@ export async function startPluginLogin(
   if (
     !plugin?.startLogin ||
     !state ||
-    !redirectLoginMethod(plugin, state, methodId, context)
+    !redirectLoginMethod(plugin, state, methodId, context, allowedProviders)
   ) {
     return null;
   }
@@ -212,6 +243,7 @@ export async function finishPluginLogin(
   currentUrl: URL,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
+  allowedProviders?: AuthProviderAllowList,
 ) {
   const plugin = authPlugins.find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
@@ -221,6 +253,7 @@ export async function finishPluginLogin(
     currentUrl,
     state.config,
     localeContext(pluginId, locale, fallbackLocale),
+    allowedProviders,
   );
 }
 
@@ -235,6 +268,7 @@ export async function startPluginAccountLink(
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
   requestParams?: URLSearchParams,
+  allowedProviders?: AuthProviderAllowList,
 ) {
   const plugin = authPlugins.find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
@@ -242,7 +276,7 @@ export async function startPluginAccountLink(
   if (
     !plugin?.startAccountLink ||
     !state ||
-    !accountLinkMethod(plugin, state, methodId, context)
+    !accountLinkMethod(plugin, state, methodId, context, allowedProviders)
   ) {
     return null;
   }
@@ -266,6 +300,7 @@ export async function finishPluginAccountLink(
   user: AuthenticatedUser,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
+  allowedProviders?: AuthProviderAllowList,
 ) {
   const plugin = authPlugins.find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
@@ -276,5 +311,6 @@ export async function finishPluginAccountLink(
     state.config,
     user,
     localeContext(pluginId, locale, fallbackLocale),
+    allowedProviders,
   );
 }

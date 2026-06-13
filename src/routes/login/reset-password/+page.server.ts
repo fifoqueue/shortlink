@@ -3,25 +3,42 @@ import type { Actions, PageServerLoad } from './$types';
 import { resetPasswordFromToken } from '$lib/server/account-recovery';
 import { passwordPolicyDescription } from '$lib/server/password-policy';
 import { getSettings, stringValue } from '$lib/server/settings';
+import { effectivePermissionsForEvent } from '$lib/server/permissions';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import { getAuthLoginMethods } from '../../../plugins/auth-registry';
 
 function passwordLoginEnabled(
   settings: Awaited<ReturnType<typeof getSettings>>,
   locale: App.Locals['locale'],
+  allowedProviders?: readonly string[] | null,
 ) {
   return getAuthLoginMethods(
     settings.plugins,
     locale,
     settings.i18n.defaultLocale,
+    allowedProviders,
   ).some((method) => method.type === 'password');
 }
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({
+  getClientAddress,
+  locals,
+  request,
+  url,
+}) => {
   if (locals.user) redirect(303, '/account');
   const settings = await getSettings();
   const displaySettings = locals.localizedSettings;
-  const passwordEnabled = passwordLoginEnabled(settings, locals.locale);
+  const permissions = await effectivePermissionsForEvent({
+    locals,
+    request,
+    getClientAddress,
+  });
+  const passwordEnabled = passwordLoginEnabled(
+    settings,
+    locals.locale,
+    permissions.auth.providers,
+  );
   const token = url.searchParams.get('token') ?? '';
   const available = passwordEnabled && Boolean(token);
   return {
@@ -48,10 +65,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-  reset: async ({ request, locals }) => {
+  reset: async ({ getClientAddress, request, locals }) => {
     const settings = await getSettings();
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
-    if (!passwordLoginEnabled(settings, locals.locale)) {
+    const permissions = await effectivePermissionsForEvent({
+      locals,
+      request,
+      getClientAddress,
+    });
+    if (
+      !passwordLoginEnabled(settings, locals.locale, permissions.auth.providers)
+    ) {
       return fail(403, {
         message: localizeServerMessage(
           locals.locale,

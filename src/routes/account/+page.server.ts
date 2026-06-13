@@ -20,15 +20,20 @@ import {
   updateOwnProfile,
 } from '$lib/server/users';
 import { getSettings, stringValue } from '$lib/server/settings';
-import { listUserPermissionGroups } from '$lib/server/permissions';
+import {
+  effectivePermissions,
+  listUserPermissionGroups,
+} from '$lib/server/permissions';
+import { getClientIp } from '$lib/server/client-ip';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 
 async function loadIntegrations(
   user: NonNullable<App.Locals['user']>,
   url: URL,
   locale: App.Locals['locale'],
+  settings: Awaited<ReturnType<typeof getSettings>>,
+  permissions: Awaited<ReturnType<typeof effectivePermissions>>,
 ) {
-  const settings = await getSettings();
   const fallbackLocale = settings.i18n.defaultLocale;
   const integrations = await Promise.all(
     pluginDefinitions.map(async (definition) => {
@@ -44,24 +49,43 @@ async function loadIntegrations(
           locale,
           fallbackLocale,
           strings: pluginLocaleStrings(definition, locale, fallbackLocale),
+          permissions,
         }),
       };
     }),
   );
   return {
-    settings,
     integrations: integrations.filter(
       (item): item is NonNullable<typeof item> => Boolean(item),
     ),
   };
 }
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({
+  getClientAddress,
+  locals,
+  request,
+  url,
+}) => {
   const user = requirePageUser(locals, '/account');
-  const { settings, integrations } = await loadIntegrations(
+  const settings = await getSettings();
+  const permissions = await effectivePermissions({
+    settings,
+    user,
+    isAdmin: locals.isAdmin,
+    ip: getClientIp(
+      request,
+      getClientAddress,
+      settings.network.trustProxyHeaders,
+      settings.network.proxyIpHeaders,
+    ),
+  });
+  const { integrations } = await loadIntegrations(
     user,
     url,
     locals.locale,
+    settings,
+    permissions,
   );
   const displaySettings = locals.localizedSettings;
   const [storedUser, permissionGroups] = await Promise.all([

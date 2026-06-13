@@ -12,6 +12,7 @@ import {
   listUserIdentities,
   unlinkIdentity,
 } from '$lib/server/user-identities';
+import { canUseAuthProvider } from '$lib/server/permissions';
 import { parseHeaderRecord } from '$lib/delimited';
 import { testProvider } from './auth';
 import {
@@ -550,25 +551,35 @@ const serverPlugin = {
     throw new Error(t(strings, 'server.unsupportedUserAction'));
   },
 
-  async loadAccountData({ user, state, strings }) {
+  async loadAccountData({ user, state, strings, permissions }) {
     const oidc = normalizeOidcConfig(state.config);
     const identities = await listUserIdentities(user.id);
     return {
-      providers: oidc.providers.map((provider) => {
-        const providerName = `oidc-sso:${provider.id}`;
-        const connection = identities.find(
-          (identity) => identity.provider === providerName,
-        );
-        return {
-          id: provider.id,
-          name: provider.name,
-          identifier: providerIdentifier(provider, strings),
-          connected: Boolean(connection),
-          connectionId: connection?.id ?? null,
-          email: connection?.email ?? null,
-          subject: connection?.subject ?? null,
-        };
-      }),
+      providers: oidc.providers
+        .map((provider) => {
+          const providerName = `oidc-sso:${provider.id}`;
+          const connection = identities.find(
+            (identity) => identity.provider === providerName,
+          );
+          if (
+            !connection &&
+            !canUseAuthProvider(permissions, 'oidc-sso', provider.id)
+          ) {
+            return null;
+          }
+          return {
+            id: provider.id,
+            name: provider.name,
+            identifier: providerIdentifier(provider, strings),
+            connected: Boolean(connection),
+            connectionId: connection?.id ?? null,
+            email: connection?.email ?? null,
+            subject: connection?.subject ?? null,
+          };
+        })
+        .filter((provider): provider is NonNullable<typeof provider> =>
+          Boolean(provider),
+        ),
     };
   },
 

@@ -13,11 +13,13 @@ import { getAuthLoginMethods } from '../../../plugins/auth-registry';
 function passwordLoginEnabled(
   settings: Awaited<ReturnType<typeof getSettings>>,
   locale: App.Locals['locale'],
+  allowedProviders?: readonly string[] | null,
 ) {
   return getAuthLoginMethods(
     settings.plugins,
     locale,
     settings.i18n.defaultLocale,
+    allowedProviders,
   ).some((method) => method.type === 'password');
 }
 
@@ -39,12 +41,16 @@ export const load: PageServerLoad = async ({
 }) => {
   if (locals.user) redirect(303, '/account');
   const settings = await getSettings();
-  const passwordEnabled = passwordLoginEnabled(settings, locals.locale);
   const permissions = await effectivePermissionsForEvent({
     locals,
     request,
     getClientAddress,
   });
+  const passwordEnabled = passwordLoginEnabled(
+    settings,
+    locals.locale,
+    permissions.auth.providers,
+  );
   const available = accountRecoveryAvailability({
     settings,
     permissions,
@@ -68,12 +74,16 @@ export const actions: Actions = {
   request: async ({ request, locals, url, getClientAddress }) => {
     const settings = await getSettings();
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
-    const passwordEnabled = passwordLoginEnabled(settings, locals.locale);
     const permissions = await effectivePermissionsForEvent({
       locals,
       request,
       getClientAddress,
     });
+    const passwordEnabled = passwordLoginEnabled(
+      settings,
+      locals.locale,
+      permissions.auth.providers,
+    );
     const available = accountRecoveryAvailability({
       settings,
       permissions,

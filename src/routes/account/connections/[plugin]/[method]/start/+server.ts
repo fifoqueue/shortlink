@@ -3,11 +3,24 @@ import type { RequestHandler } from './$types';
 import { startPluginAccountLink } from '../../../../../../plugins/auth-registry';
 import { getSettings } from '$lib/server/settings';
 import { uiText } from '$lib/i18n/ui-text';
+import { effectivePermissionsForEvent } from '$lib/server/permissions';
 
-export const GET: RequestHandler = async ({ cookies, locals, params, url }) => {
+export const GET: RequestHandler = async ({
+  cookies,
+  getClientAddress,
+  locals,
+  params,
+  request,
+  url,
+}) => {
   if (!locals.user) redirect(303, '/login?returnTo=/account');
   const settings = await getSettings();
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
+  const permissions = await effectivePermissionsForEvent({
+    locals,
+    request,
+    getClientAddress,
+  });
   let target: URL | null;
   try {
     target = await startPluginAccountLink(
@@ -21,6 +34,7 @@ export const GET: RequestHandler = async ({ cookies, locals, params, url }) => {
       locals.locale,
       settings.i18n.defaultLocale,
       url.searchParams,
+      permissions.auth.providers,
     );
   } catch (cause) {
     error(

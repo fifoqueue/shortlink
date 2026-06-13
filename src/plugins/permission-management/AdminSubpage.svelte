@@ -58,6 +58,14 @@
     expiresAt: string | null;
   };
 
+  type AuthProviderOption = {
+    id: string;
+    pluginId: string;
+    methodId: string;
+    label: string;
+    type: 'password' | 'redirect';
+  };
+
   type RuleValue = boolean | null;
   type Group = {
     id: number;
@@ -112,6 +120,7 @@
         managePermissions: RuleValue;
       };
       auth: {
+        providers: string[] | null;
         resendVerificationDailyLimit: number | null;
         passwordResetDailyLimit: number | null;
       };
@@ -154,6 +163,7 @@
     | {
         kind: 'group';
         group: Group;
+        authProviders: AuthProviderOption[];
         cidrs: CidrSearch;
         members: UserSearch;
         addableUsers: UserSearch;
@@ -185,6 +195,9 @@
   const user = $derived(data.kind === 'user' ? data.user : undefined);
   const userSettings = $derived(data.kind === 'user' ? data : undefined);
   const group = $derived(data.kind === 'group' ? data.group : undefined);
+  const authProviders = $derived(
+    data.kind === 'group' ? (data.authProviders ?? []) : [],
+  );
   const cidrs = $derived(data.kind === 'group' ? data.cidrs : undefined);
   const members = $derived(data.kind === 'group' ? data.members : undefined);
   const addableUsers = $derived(
@@ -780,7 +793,7 @@
           type="button"
           class:active={activeTab === 'auth'}
           onclick={() => (activeTab = 'auth')}
-          >{t('admin.accountRecovery')}</button
+          >{t('admin.authentication')}</button
         >
         <button
           type="button"
@@ -947,6 +960,38 @@
       </div>
 
       <div class="tab-panel" hidden={activeTab !== 'auth'}>
+        <section>
+          <h2>{t('admin.authProviders')}</h2>
+          <p class="muted">{t('admin.authProvidersDescription')}</p>
+          <div class="override-control wide">
+            <div class="override-heading">
+              <span>{t('admin.authProviderAccess')}</span>
+              <ToggleField
+                name="overrideAuthProviders"
+                checked={group.rules.auth.providers !== null}
+                label={t('admin.override')}
+                ariaLabel={t('admin.overrideAuthProviders')}
+              />
+            </div>
+            {#if authProviders.length}
+              <div class="auth-provider-list">
+                {#each authProviders as provider (provider.id)}
+                  <ToggleField
+                    name="authProviders"
+                    value={provider.id}
+                    checked={group.rules.auth.providers === null ||
+                      group.rules.auth.providers.includes(provider.id)}
+                    label={provider.label}
+                  />
+                {/each}
+              </div>
+            {:else}
+              <p class="empty">{t('admin.noAuthProviders')}</p>
+            {/if}
+            <small>{t('admin.authProvidersHelp')}</small>
+          </div>
+        </section>
+
         <section>
           <h2>{t('admin.accountRecovery')}</h2>
           <p class="muted">{t('admin.accountRecoveryDescription')}</p>
@@ -1625,6 +1670,17 @@
     flex-wrap: wrap;
     gap: 12px;
     --toggle-min-height: 42px;
+  }
+  .auth-provider-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    --toggle-border: var(--admin-border);
+    --toggle-surface: var(--admin-surface);
+    --toggle-primary: var(--admin-primary);
+    --toggle-label: var(--admin-text);
+    --toggle-font-size: 0.82rem;
+    --toggle-min-height: 40px;
   }
   .override-grid {
     align-items: start;

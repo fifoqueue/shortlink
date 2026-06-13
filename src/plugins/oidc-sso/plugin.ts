@@ -161,6 +161,7 @@ const plugin: PluginDefinition = {
           'OIDC authorization server가 요청을 거부했습니다. {message}',
         'auth.requestFailed': 'OIDC 요청을 처리하지 못했습니다.',
         'auth.providerNotFound': 'SSO 프로바이더를 찾을 수 없습니다.',
+        'auth.providerNotAllowed': '이 SSO 프로바이더를 사용할 수 없습니다.',
         'auth.loginRequestExpired':
           '로그인 요청이 만료되었습니다. 다시 시도해주세요.',
         'auth.providerRemoved': 'SSO 프로바이더가 삭제되었습니다.',
@@ -177,7 +178,7 @@ const plugin: PluginDefinition = {
         'auth.notAccountLinkRequest':
           '계정 연결 요청이 아닙니다. 다시 시도해주세요.',
         'auth.passwordLogin': '비밀번호로 로그인',
-        'auth.providerLogin': '{name} 로그인',
+        'auth.providerLogin': '{nameWithJosa} 로그인',
         'auth.identifierDefaultLabel': '{name}',
         'auth.loginInputRequired': '로그인 입력값이 필요합니다.',
         'auth.loginInputUrlInvalid':
@@ -406,6 +407,7 @@ const plugin: PluginDefinition = {
           'The OIDC authorization server rejected the request. {message}',
         'auth.requestFailed': 'OIDC request failed.',
         'auth.providerNotFound': 'SSO provider not found.',
+        'auth.providerNotAllowed': 'This SSO provider cannot be used.',
         'auth.loginRequestExpired': 'The login request expired. Try again.',
         'auth.providerRemoved': 'The SSO provider was removed.',
         'auth.userInfoFailed':

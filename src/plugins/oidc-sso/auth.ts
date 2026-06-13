@@ -1,5 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
 import { Buffer } from 'node:buffer';
+import { josa } from 'es-hangul';
 import * as oidc from 'openid-client';
 import { parseHeaderRecord } from '$lib/delimited';
 import type {
@@ -13,6 +14,7 @@ import { formatText, localizeServerMessage } from '$lib/i18n/ui-text';
 import { pluginText } from '$lib/i18n/plugin';
 import { getSettings } from '$lib/server/settings';
 import { outboundFetch, outboundRequest } from '$lib/server/outbound-http';
+import { canUseAuthProvider } from '$lib/server/permissions';
 import {
   authCookieOptions,
   clearUserSession,
@@ -68,6 +70,33 @@ function t(
 ) {
   const text = pluginText(context?.strings, key);
   return values ? formatText(text, values) : text;
+}
+
+function providerLoginLabel(
+  provider: OidcProvider,
+  context?: PluginLocaleContext,
+) {
+  return t(context, 'auth.providerLogin', {
+    name: provider.name,
+    nameWithJosa:
+      context?.locale === 'ko' ? josa(provider.name, '으로/로') : provider.name,
+  });
+}
+
+function assertAuthProviderAllowed(
+  providerId: string,
+  allowedProviders: readonly string[] | null | undefined,
+  context?: PluginLocaleContext,
+) {
+  if (
+    !canUseAuthProvider(
+      { auth: { providers: allowedProviders ?? null } },
+      id,
+      providerId,
+    )
+  ) {
+    throw new Error(t(context, 'auth.providerNotAllowed'));
+  }
 }
 
 function throwLocalizedServerError(
@@ -972,9 +1001,11 @@ export async function finishLogin(
   currentUrl: URL,
   config: PluginConfig,
   context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
 ) {
   const { flow, provider, subject, email, emailVerified, providerName, name } =
     await resolveCallbackClaims(cookies, currentUrl, config, context);
+  assertAuthProviderAllowed(provider.id, allowedProviders, context);
   if (flow.purpose && flow.purpose !== 'login') {
     throw new Error(t(context, 'auth.notLoginRequest'));
   }
@@ -1069,13 +1100,11 @@ export async function finishAccountLink(
   config: PluginConfig,
   user: AuthenticatedUser,
   context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
 ) {
-  const { flow, subject, email, providerName } = await resolveCallbackClaims(
-    cookies,
-    currentUrl,
-    config,
-    context,
-  );
+  const { flow, provider, subject, email, providerName } =
+    await resolveCallbackClaims(cookies, currentUrl, config, context);
+  assertAuthProviderAllowed(provider.id, allowedProviders, context);
   if (flow.purpose !== 'account-link' || flow.userId !== user.id) {
     throw new Error(t(context, 'auth.notAccountLinkRequest'));
   }
@@ -1198,7 +1227,7 @@ function getLoginMethods(config: PluginConfig, context?: PluginLocaleContext) {
       : []),
     ...normalized.providers.map((provider) => ({
       id: provider.id,
-      label: t(context, 'auth.providerLogin', { name: provider.name }),
+      label: providerLoginLabel(provider, context),
       buttonColor: provider.loginButtonColor || undefined,
       buttonTextColor: provider.loginButtonTextColor || undefined,
       iconUrl: provider.loginIconUrl || undefined,

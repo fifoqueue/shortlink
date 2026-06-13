@@ -97,6 +97,15 @@ const plugin: PluginDefinition = {
         'admin.permissionGroupSettings': '권한 그룹 설정',
         'admin.links': '링크',
         'admin.api': 'API',
+        'admin.authentication': '인증',
+        'admin.authProviders': '인증 제공자',
+        'admin.authProvidersDescription':
+          '이 그룹에 매칭된 사용자나 CIDR이 사용할 수 있는 로그인 및 계정 연결 제공자를 제한합니다.',
+        'admin.authProviderAccess': '사용 가능한 인증 제공자',
+        'admin.overrideAuthProviders': '인증 제공자 사용 권한 override',
+        'admin.authProvidersHelp':
+          'Override를 켜면 선택한 제공자만 사용할 수 있습니다. 아무것도 선택하지 않으면 모든 인증 제공자를 차단합니다.',
+        'admin.noAuthProviders': '사용 가능한 인증 제공자가 없습니다.',
         'admin.accountRecovery': '계정 복구',
         'admin.accountRecoveryDescription':
           '비로그인 상태에서 사용할 수 있는 인증 메일 재발송과 비밀번호 재설정 요청 제한을 override합니다. CIDR 그룹에도 적용됩니다.',
@@ -354,6 +363,15 @@ const plugin: PluginDefinition = {
         'admin.permissionGroupSettings': 'Permission group settings',
         'admin.links': 'Links',
         'admin.api': 'API',
+        'admin.authentication': 'Authentication',
+        'admin.authProviders': 'Auth providers',
+        'admin.authProvidersDescription':
+          'Restrict the login and account-link providers available to users or CIDRs matched by this group.',
+        'admin.authProviderAccess': 'Available auth providers',
+        'admin.overrideAuthProviders': 'Override auth provider access',
+        'admin.authProvidersHelp':
+          'When override is enabled, only selected providers can be used. Selecting nothing blocks every auth provider.',
+        'admin.noAuthProviders': 'No auth providers are available.',
         'admin.accountRecovery': 'Account recovery',
         'admin.accountRecoveryDescription':
           'Override unauthenticated resend-verification and password-reset request limits. CIDR groups apply here too.',

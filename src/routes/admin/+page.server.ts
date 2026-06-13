@@ -18,10 +18,23 @@ export const load: PageServerLoad = async ({
   if (locals.isAdmin) redirect(303, '/admin/core');
   const settings = await getSettings();
   if (!locals.user) {
+    const ip = getClientIp(
+      request,
+      getClientAddress,
+      settings.network.trustProxyHeaders,
+      settings.network.proxyIpHeaders,
+    );
+    const permissions = await effectivePermissions({
+      settings,
+      user: null,
+      isAdmin: false,
+      ip,
+    });
     const methods = getAuthLoginMethods(
       settings.plugins,
       locals.locale,
       settings.i18n.defaultLocale,
+      permissions.auth.providers,
     );
     const registration = await registrationAvailability(settings, {
       passwordLoginEnabled: methods.some(

@@ -1,11 +1,12 @@
 import { isIP } from 'node:net';
 
-function cleanIp(value: string) {
+function cleanIp(value: unknown) {
+  if (typeof value !== 'string') return '';
   const ip = value.trim().replace(/^"|"$/g, '');
   return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
 }
 
-function normalizeIp(value: string) {
+function normalizeIp(value: unknown) {
   const ip = cleanIp(value);
   if (isIP(ip)) return ip;
 
@@ -33,10 +34,12 @@ function forwardedForIp(value: string) {
 
 function proxyHeaderIp(headers: Headers, proxyIpHeaders: string[]) {
   for (const header of proxyIpHeaders) {
-    const value = headers.get(header);
+    const name = cleanIp(header);
+    if (!name) continue;
+    const value = headers.get(name);
     if (!value) continue;
 
-    if (header.toLowerCase() === 'forwarded') {
+    if (name.toLowerCase() === 'forwarded') {
       for (const entry of value.split(',')) {
         const ip = forwardedForIp(entry);
         if (ip) return ip;
@@ -53,13 +56,22 @@ function proxyHeaderIp(headers: Headers, proxyIpHeaders: string[]) {
   return '';
 }
 
+function directClientAddress(getClientAddress: () => string) {
+  try {
+    return getClientAddress();
+  } catch {
+    return '';
+  }
+}
+
 export function getClientIp(
   request: Request,
   getClientAddress: () => string,
   trustProxyHeaders: boolean,
   proxyIpHeaders: string[],
 ) {
-  const directIp = normalizeIp(getClientAddress()) || getClientAddress();
+  const directAddress = directClientAddress(getClientAddress);
+  const directIp = normalizeIp(directAddress) || cleanIp(directAddress);
   if (!trustProxyHeaders) return directIp;
   return proxyHeaderIp(request.headers, proxyIpHeaders) || directIp;
 }

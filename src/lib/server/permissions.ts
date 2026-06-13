@@ -55,6 +55,22 @@ export const API_PERMISSION_KEYS = [
 ] as const;
 export type ApiPermissionKey = (typeof API_PERMISSION_KEYS)[number];
 
+export function authProviderKey(pluginId: string, methodId: string) {
+  return `${pluginId}:${methodId}`;
+}
+
+export function canUseAuthProvider(
+  permissions: { auth: { providers: readonly string[] | null } },
+  pluginId: string,
+  methodId: string,
+) {
+  const providers = permissions.auth.providers;
+  return (
+    providers === null ||
+    providers.includes(authProviderKey(pluginId, methodId))
+  );
+}
+
 export interface PermissionRules {
   links: {
     create: boolean | null;
@@ -85,6 +101,7 @@ export interface PermissionRules {
     managePermissions: boolean | null;
   };
   auth: {
+    providers: string[] | null;
     resendVerificationDailyLimit: number | null;
     passwordResetDailyLimit: number | null;
   };
@@ -239,6 +256,7 @@ export interface EffectivePermissions {
     managePermissions: boolean;
   };
   auth: {
+    providers: string[] | null;
     resendVerificationDailyLimit: number;
     passwordResetDailyLimit: number;
   };
@@ -285,6 +303,7 @@ const emptyRules: PermissionRules = {
     managePermissions: null,
   },
   auth: {
+    providers: null,
     resendVerificationDailyLimit: null,
     passwordResetDailyLimit: null,
   },
@@ -709,6 +728,9 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
       managePermissions: nullableBoolean(admin.managePermissions),
     },
     auth: {
+      providers: Object.prototype.hasOwnProperty.call(auth, 'providers')
+        ? stringList(auth.providers, 200)
+        : null,
       resendVerificationDailyLimit: boundedNumber(
         auth.resendVerificationDailyLimit,
         0,
@@ -1666,6 +1688,7 @@ function basePermissions(
       managePermissions: false,
     },
     auth: {
+      providers: null,
       resendVerificationDailyLimit:
         settings.auth.accountRecovery.resendVerificationDailyLimit,
       passwordResetDailyLimit:
@@ -1715,6 +1738,7 @@ function adminPermissions(settings: SiteSettings): EffectivePermissions {
       managePermissions: true,
     },
     auth: {
+      providers: null,
       resendVerificationDailyLimit: 1_000,
       passwordResetDailyLimit: 1_000,
     },
@@ -1820,6 +1844,9 @@ function applyGroupRules(
   if (rules.auth.passwordResetDailyLimit !== null) {
     permissions.auth.passwordResetDailyLimit =
       rules.auth.passwordResetDailyLimit;
+  }
+  if (rules.auth.providers !== null) {
+    permissions.auth.providers = [...rules.auth.providers];
   }
 
   for (const key of API_PERMISSION_KEYS) {
@@ -2122,6 +2149,9 @@ export function permissionGroupInputFromForm(
     'overridePasswordResetDailyLimit',
   )
     ? boundedNumber(form.get('passwordResetDailyLimit'), 0, 1_000)
+    : null;
+  rules.auth.providers = parseBoolean(form, 'overrideAuthProviders')
+    ? stringList(form.getAll('authProviders'), 200)
     : null;
 
   for (const key of API_PERMISSION_KEYS) {

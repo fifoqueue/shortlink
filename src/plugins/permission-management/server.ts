@@ -32,7 +32,9 @@ import {
   searchPermissionGroupCidrs,
   searchPermissionGroupUsers,
   updatePermissionGroupSettings,
+  authProviderKey,
 } from '$lib/server/permissions';
+import { getAuthLoginMethods } from '../auth-registry';
 import type {
   AuthenticatedUser,
   PluginDefinition,
@@ -386,7 +388,8 @@ const serverPlugin = {
       const memberQuery = url.searchParams.get('memberQ') ?? '';
       const userQuery = url.searchParams.get('addUserQ') ?? '';
       const cidrQuery = url.searchParams.get('cidrQ') ?? '';
-      const [members, addableUsers, cidrs] = await Promise.all([
+      const [settings, members, addableUsers, cidrs] = await Promise.all([
+        getSettings(),
         searchPermissionGroupUsers({
           groupId,
           query: memberQuery,
@@ -418,6 +421,17 @@ const serverPlugin = {
       return {
         kind: 'group' as const,
         group,
+        authProviders: getAuthLoginMethods(
+          settings.plugins,
+          locale,
+          settings.i18n.defaultLocale,
+        ).map((method) => ({
+          id: authProviderKey(method.pluginId, method.id),
+          pluginId: method.pluginId,
+          methodId: method.id,
+          label: method.label,
+          type: method.type,
+        })),
         cidrs,
         members: memberSearchPayload(members, 'memberPage', 'memberQ'),
         addableUsers: userSearchPayload(
