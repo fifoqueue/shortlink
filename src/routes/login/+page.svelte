@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
+  import { tick } from 'svelte';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import PluginSlotOutlet from '$lib/components/PluginSlotOutlet.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
@@ -9,6 +10,23 @@
   import type { SiteLocale, SiteSettings } from '$lib/config';
   import { publicPluginRegistry } from '../../plugins/public-registry';
   import { uiText } from '$lib/i18n/ui-text';
+
+  type LoginProvider = {
+    pluginId: string;
+    id: string;
+    label: string;
+    buttonColor?: string;
+    buttonTextColor?: string;
+    iconUrl?: string;
+    identifier?: {
+      name: string;
+      label: string;
+      placeholder?: string;
+      value?: string;
+      required?: boolean;
+      help?: string;
+    };
+  };
 
   let {
     data,
@@ -27,27 +45,14 @@
       registrationAllowed: boolean;
       resendVerificationAvailable: boolean;
       passwordResetAvailable: boolean;
-      providers: Array<{
-        pluginId: string;
-        id: string;
-        label: string;
-        buttonColor?: string;
-        buttonTextColor?: string;
-        iconUrl?: string;
-        identifier?: {
-          name: string;
-          label: string;
-          placeholder?: string;
-          value?: string;
-          required?: boolean;
-          help?: string;
-        };
-      }>;
+      providers: LoginProvider[];
     };
     form?: { message?: string };
   } = $props();
 
   const text = $derived(uiText(data.locale, data.defaultLocale));
+  let identifierProvider = $state<LoginProvider | null>(null);
+  let identifierInput = $state<HTMLInputElement>();
 
   function contrastTextColor(color: string) {
     const match = /^#([0-9a-fA-F]{6})$/.exec(color);
@@ -80,7 +85,27 @@
     }
     return values.join(';');
   }
+
+  async function openIdentifierModal(provider: LoginProvider) {
+    identifierProvider = provider;
+    await tick();
+    identifierInput?.focus();
+  }
+
+  function closeIdentifierModal() {
+    identifierProvider = null;
+  }
+
+  function closeIdentifierModalFromBackdrop(event: MouseEvent) {
+    if (event.target === event.currentTarget) closeIdentifierModal();
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') closeIdentifierModal();
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <svelte:head>
   <title>{text.auth.loginTitle} · {data.siteName}</title>
@@ -141,38 +166,111 @@
       <div class="divider"><span>SSO</span></div>
       <div class="providers">
         {#each data.providers as provider (`${provider.pluginId}:${provider.id}`)}
-          <form
-            method="GET"
-            action={resolve(`/auth/${provider.pluginId}/${provider.id}/login`)}
-          >
-            <input type="hidden" name="returnTo" value={data.returnTo} />
-            {#if provider.identifier}
-              <label>
-                {provider.identifier.label}
-                {#if provider.identifier.help}
-                  <small>{provider.identifier.help}</small>
-                {/if}
-                <input
-                  name={provider.identifier.name}
-                  value={provider.identifier.value ?? ''}
-                  placeholder={provider.identifier.placeholder ?? ''}
-                  required={provider.identifier.required}
-                />
-              </label>
-            {/if}
+          {#if provider.identifier}
             <button
               class:custom-provider={Boolean(provider.buttonColor) ||
                 Boolean(provider.buttonTextColor)}
+              class="provider-launch"
               style={providerButtonStyle(provider)}
-              type="submit"
+              type="button"
+              onclick={() => openIdentifierModal(provider)}
             >
               {#if provider.iconUrl}
                 <img src={provider.iconUrl} alt="" aria-hidden="true" />
               {/if}
               <span>{provider.label}</span>
             </button>
-          </form>
+          {:else}
+            <form
+              method="GET"
+              action={resolve(
+                `/auth/${provider.pluginId}/${provider.id}/login`,
+              )}
+            >
+              <input type="hidden" name="returnTo" value={data.returnTo} />
+              <button
+                class:custom-provider={Boolean(provider.buttonColor) ||
+                  Boolean(provider.buttonTextColor)}
+                style={providerButtonStyle(provider)}
+                type="submit"
+              >
+                {#if provider.iconUrl}
+                  <img src={provider.iconUrl} alt="" aria-hidden="true" />
+                {/if}
+                <span>{provider.label}</span>
+              </button>
+            </form>
+          {/if}
         {/each}
+      </div>
+    {/if}
+
+    {#if identifierProvider?.identifier}
+      <div
+        class="identifier-backdrop"
+        role="presentation"
+        onclick={closeIdentifierModalFromBackdrop}
+      >
+        <div
+          class="identifier-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={identifierProvider.label}
+        >
+          <form
+            method="GET"
+            action={resolve(
+              `/auth/${identifierProvider.pluginId}/${identifierProvider.id}/login`,
+            )}
+          >
+            <input type="hidden" name="returnTo" value={data.returnTo} />
+            <div class="modal-head">
+              <h2>{identifierProvider.label}</h2>
+              <button
+                class="close-button"
+                type="button"
+                aria-label={text.common.cancel}
+                onclick={closeIdentifierModal}>&times;</button
+              >
+            </div>
+            <label>
+              {identifierProvider.identifier.label}
+              {#if identifierProvider.identifier.help}
+                <small>{identifierProvider.identifier.help}</small>
+              {/if}
+              <input
+                bind:this={identifierInput}
+                name={identifierProvider.identifier.name}
+                value={identifierProvider.identifier.value ?? ''}
+                placeholder={identifierProvider.identifier.placeholder ?? ''}
+                required={identifierProvider.identifier.required}
+              />
+            </label>
+            <div class="modal-actions">
+              <button
+                class="secondary"
+                type="button"
+                onclick={closeIdentifierModal}>{text.common.cancel}</button
+              >
+              <button
+                class:custom-provider={Boolean(
+                  identifierProvider.buttonColor,
+                ) || Boolean(identifierProvider.buttonTextColor)}
+                style={providerButtonStyle(identifierProvider)}
+                type="submit"
+              >
+                {#if identifierProvider.iconUrl}
+                  <img
+                    src={identifierProvider.iconUrl}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                {/if}
+                <span>{identifierProvider.label}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     {/if}
 
@@ -258,7 +356,8 @@
   form,
   label,
   .providers,
-  .providers form {
+  .providers form,
+  .provider-launch {
     display: grid;
     gap: 10px;
   }
@@ -270,6 +369,7 @@
   input,
   button,
   .providers button,
+  .provider-launch,
   .link-button {
     min-height: 48px;
     border-radius: 11px;
@@ -305,11 +405,68 @@
     background: var(--provider-bg, var(--page-surface));
     color: var(--provider-text, var(--page-primary));
   }
-  .providers img {
+  .providers img,
+  .modal-actions img {
     width: 20px;
     height: 20px;
     flex: none;
     object-fit: contain;
+  }
+  .identifier-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: color-mix(in srgb, #000 42%, transparent);
+  }
+  .identifier-modal {
+    display: grid;
+    width: min(420px, 100%);
+    gap: 18px;
+    border: 1px solid var(--page-border);
+    border-radius: 18px;
+    padding: 22px;
+    background: var(--page-surface);
+    box-shadow: 0 28px 90px color-mix(in srgb, #000 28%, transparent);
+    color: var(--page-text);
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .modal-head h2 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+  .close-button {
+    width: 40px;
+    min-height: 40px;
+    border: 1px solid var(--page-border);
+    border-radius: 10px;
+    padding: 0;
+    background: var(--page-surface);
+    color: var(--page-muted);
+    font-size: 1.35rem;
+    line-height: 1;
+  }
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .modal-actions .secondary {
+    border: 1px solid var(--page-border);
+    background: var(--page-surface);
+    color: var(--page-text);
+  }
+  .modal-actions button.custom-provider {
+    border-color: var(--provider-border, var(--page-primary));
+    background: var(--provider-bg, var(--page-primary));
+    color: var(--provider-text, var(--page-primary-contrast));
   }
   .divider {
     display: flex;
@@ -360,6 +517,9 @@
   }
   @media (max-width: 520px) {
     .links {
+      grid-template-columns: 1fr;
+    }
+    .modal-actions {
       grid-template-columns: 1fr;
     }
   }
