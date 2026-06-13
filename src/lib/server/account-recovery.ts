@@ -89,6 +89,7 @@ export function accountRecoveryAvailability(input: {
       input.settings.auth.emailVerification.enabled &&
       input.permissions.auth.resendVerificationDailyLimit > 0,
     passwordReset:
+      input.settings.auth.emailVerification.enabled &&
       input.passwordLoginEnabled &&
       input.permissions.auth.passwordResetDailyLimit > 0,
   };
@@ -123,6 +124,9 @@ export async function requestPasswordReset(input: {
   passwordLoginEnabled: boolean;
 }) {
   if (!input.passwordLoginEnabled) {
+    throw new Error(serverMessage('passwordResetDisabled'));
+  }
+  if (!input.settings.auth.emailVerification.enabled) {
     throw new Error(serverMessage('passwordResetDisabled'));
   }
   await enforceDailyLimit({
