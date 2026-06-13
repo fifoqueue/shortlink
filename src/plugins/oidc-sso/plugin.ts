@@ -219,13 +219,13 @@ const plugin: PluginDefinition = {
           'Profile link discovery에는 로그인 입력 필드 이름 또는 기본값이 필요합니다.',
         'server.subjectPathRequired': 'Subject JSON path가 필요합니다.',
         'server.subjectPathInvalid':
-          'Subject JSON path는 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다.',
+          'Subject JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
         'server.emailPathInvalid':
-          'Email JSON path는 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다.',
+          'Email JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
         'server.emailVerifiedPathInvalid':
-          'Email verified JSON path는 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다.',
+          'Email verified JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
         'server.namePathInvalid':
-          'Name JSON path는 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다.',
+          'Name JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
         'server.authorizationRequestQueryInvalid':
           '추가 authorization 쿼리스트링 {line}번째 항목이 올바르지 않습니다.',
         'server.authorizationRequestQueryKeyRequired':
@@ -460,13 +460,13 @@ const plugin: PluginDefinition = {
           'Profile link discovery requires a login input field name or default value.',
         'server.subjectPathRequired': 'Subject JSON path is required.',
         'server.subjectPathInvalid':
-          'Subject JSON path may only contain letters, numbers, dots, underscores, and hyphens.',
+          'Subject JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',
         'server.emailPathInvalid':
-          'Email JSON path may only contain letters, numbers, dots, underscores, and hyphens.',
+          'Email JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',
         'server.emailVerifiedPathInvalid':
-          'Email verified JSON path may only contain letters, numbers, dots, underscores, and hyphens.',
+          'Email verified JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',
         'server.namePathInvalid':
-          'Name JSON path may only contain letters, numbers, dots, underscores, and hyphens.',
+          'Name JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',
         'server.authorizationRequestQueryInvalid':
           'Extra authorization query item on line {line} is invalid.',
         'server.authorizationRequestQueryKeyRequired':

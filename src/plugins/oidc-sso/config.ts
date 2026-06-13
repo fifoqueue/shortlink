@@ -59,6 +59,12 @@ export const defaultOidcScopes = 'openid profile email';
 
 export type ExtraRequestQueryError = 'invalid' | 'keyRequired';
 
+type JsonPathSegment =
+  | { type: 'key'; key: string }
+  | { type: 'index'; index: number };
+
+const blockedJsonPathKeys = new Set(['__proto__', 'prototype', 'constructor']);
+
 function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
@@ -178,6 +184,161 @@ export function providerSlug(value: string) {
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
+}
+
+function readQuotedJsonPathKey(input: string, startIndex: number) {
+  const quote = input[startIndex];
+  let value = '';
+  for (let index = startIndex + 1; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === quote) {
+      return { value, nextIndex: index + 1 };
+    }
+    if (char !== '\\') {
+      value += char;
+      continue;
+    }
+    const escaped = input[index + 1];
+    if (!escaped) throw new Error('Invalid JSON path');
+    index += 1;
+    if (escaped === 'b') value += '\b';
+    else if (escaped === 'f') value += '\f';
+    else if (escaped === 'n') value += '\n';
+    else if (escaped === 'r') value += '\r';
+    else if (escaped === 't') value += '\t';
+    else if (escaped === 'u') {
+      const hex = input.slice(index + 1, index + 5);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+        throw new Error('Invalid JSON path');
+      }
+      value += String.fromCharCode(Number.parseInt(hex, 16));
+      index += 4;
+    } else {
+      value += escaped;
+    }
+  }
+  throw new Error('Invalid JSON path');
+}
+
+function pushJsonPathKey(segments: JsonPathSegment[], key: string) {
+  const normalized = key.trim();
+  if (!normalized || blockedJsonPathKeys.has(normalized)) {
+    throw new Error('Invalid JSON path');
+  }
+  segments.push({ type: 'key', key: normalized });
+}
+
+function pushJsonPathIndex(segments: JsonPathSegment[], value: string) {
+  if (!/^\d+$/.test(value)) throw new Error('Invalid JSON path');
+  const index = Number(value);
+  if (!Number.isSafeInteger(index)) throw new Error('Invalid JSON path');
+  segments.push({ type: 'index', index });
+}
+
+export function parseJsonPath(path: string) {
+  const source = path.trim();
+  const segments: JsonPathSegment[] = [];
+  let index = 0;
+  if (!source) return segments;
+  if (source[index] === '$') {
+    index += 1;
+    if (index < source.length && !'.['.includes(source[index])) {
+      throw new Error('Invalid JSON path');
+    }
+  }
+
+  while (index < source.length) {
+    while (/\s/.test(source[index] ?? '')) index += 1;
+    const char = source[index];
+    if (!char) break;
+    if (char === '.') {
+      index += 1;
+      const start = index;
+      while (
+        index < source.length &&
+        source[index] !== '.' &&
+        source[index] !== '['
+      ) {
+        index += 1;
+      }
+      pushJsonPathKey(segments, source.slice(start, index));
+      continue;
+    }
+    if (char === '[') {
+      index += 1;
+      while (/\s/.test(source[index] ?? '')) index += 1;
+      if (source[index] === '"' || source[index] === "'") {
+        const result = readQuotedJsonPathKey(source, index);
+        index = result.nextIndex;
+        while (/\s/.test(source[index] ?? '')) index += 1;
+        if (source[index] !== ']') throw new Error('Invalid JSON path');
+        index += 1;
+        pushJsonPathKey(segments, result.value);
+        continue;
+      }
+      const start = index;
+      while (index < source.length && source[index] !== ']') index += 1;
+      if (source[index] !== ']') throw new Error('Invalid JSON path');
+      const value = source.slice(start, index).trim();
+      index += 1;
+      if (!value) throw new Error('Invalid JSON path');
+      if (/^\d+$/.test(value)) pushJsonPathIndex(segments, value);
+      else pushJsonPathKey(segments, value);
+      continue;
+    }
+    const start = index;
+    while (
+      index < source.length &&
+      source[index] !== '.' &&
+      source[index] !== '['
+    ) {
+      index += 1;
+    }
+    pushJsonPathKey(segments, source.slice(start, index));
+  }
+
+  return segments;
+}
+
+export function isValidJsonPath(path: string) {
+  try {
+    parseJsonPath(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function arrayIndexFromPathSegment(segment: JsonPathSegment) {
+  if (segment.type === 'index') return segment.index;
+  if (!/^\d+$/.test(segment.key)) return null;
+  const index = Number(segment.key);
+  return Number.isSafeInteger(index) ? index : null;
+}
+
+export function getJsonPathValue(value: unknown, path: string) {
+  let current = value;
+  let segments: JsonPathSegment[];
+  try {
+    segments = parseJsonPath(path);
+  } catch {
+    return null;
+  }
+  for (const segment of segments) {
+    if (!current || typeof current !== 'object') return null;
+    if (Array.isArray(current)) {
+      const index = arrayIndexFromPathSegment(segment);
+      if (index === null || !Object.hasOwn(current, index)) return null;
+      current = current[index];
+      continue;
+    }
+    const key = segment.type === 'index' ? String(segment.index) : segment.key;
+    if (blockedJsonPathKeys.has(key) || !Object.hasOwn(current, key)) {
+      return null;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
 }
 
 export function parseExtraRequestQuery(

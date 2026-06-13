@@ -30,6 +30,7 @@ import {
 import { findIdentity, linkIdentity } from '$lib/server/user-identities';
 import {
   findProvider,
+  getJsonPathValue,
   normalizeOidcConfig,
   parseExtraRequestQuery,
   type ExtraRequestQueryError,
@@ -169,25 +170,13 @@ function parseFormEncodedOrJson(body: string, contentType = '') {
   return Object.fromEntries(new URLSearchParams(body).entries());
 }
 
-function valueFromJson(value: unknown, path: string) {
-  let current = value;
-  for (const part of path.split('.').map((item) => item.trim())) {
-    if (!part) continue;
-    if (!current || typeof current !== 'object' || Array.isArray(current)) {
-      return null;
-    }
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
-}
-
 function stringFromJson(value: unknown, path: string) {
-  const current = valueFromJson(value, path);
+  const current = getJsonPathValue(value, path);
   return typeof current === 'string' && current.trim() ? current.trim() : null;
 }
 
 function booleanFromJson(value: unknown, path: string) {
-  const current = valueFromJson(value, path);
+  const current = getJsonPathValue(value, path);
   if (typeof current === 'boolean') return current;
   if (typeof current === 'number') return current === 1;
   if (typeof current !== 'string') return false;

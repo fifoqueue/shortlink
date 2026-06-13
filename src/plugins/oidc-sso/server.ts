@@ -16,6 +16,7 @@ import { parseHeaderRecord } from '$lib/delimited';
 import { testProvider } from './auth';
 import {
   defaultOidcScopes,
+  isValidJsonPath,
   normalizeOidcConfig,
   parseExtraRequestQuery,
   parseList,
@@ -84,7 +85,7 @@ function validatePath(
   messageKey: PluginLocaleKey,
   strings: PluginLocaleStrings,
 ) {
-  if (!value || /^[A-Za-z0-9_.-]+$/.test(value)) return;
+  if (!value || isValidJsonPath(value)) return;
   throw new Error(t(strings, messageKey));
 }
 
