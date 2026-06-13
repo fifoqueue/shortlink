@@ -111,6 +111,10 @@
         manageUsers: RuleValue;
         managePermissions: RuleValue;
       };
+      auth: {
+        resendVerificationDailyLimit: number | null;
+        passwordResetDailyLimit: number | null;
+      };
       api: Record<string, RuleValue>;
     };
   };
@@ -155,7 +159,7 @@
         addableUsers: UserSearch;
       };
 
-  type Tab = 'links' | 'admin' | 'api';
+  type Tab = 'links' | 'admin' | 'auth' | 'api';
   type LinkPermissionKey =
     | 'create'
     | 'deleteOwn'
@@ -774,6 +778,12 @@
         >
         <button
           type="button"
+          class:active={activeTab === 'auth'}
+          onclick={() => (activeTab = 'auth')}
+          >{t('admin.accountRecovery')}</button
+        >
+        <button
+          type="button"
           class:active={activeTab === 'api'}
           onclick={() => (activeTab = 'api')}>{t('admin.api')}</button
         >
@@ -931,6 +941,54 @@
                 value={group.rules.links.deleteMaxClicks ?? 0}
               />
               <small>{t('admin.zeroMeansUnlimited')}</small>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="tab-panel" hidden={activeTab !== 'auth'}>
+        <section>
+          <h2>{t('admin.accountRecovery')}</h2>
+          <p class="muted">{t('admin.accountRecoveryDescription')}</p>
+          <div class="grid form-grid balanced dense-grid override-grid">
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.resendVerificationDailyLimit')}</span>
+                <ToggleField
+                  name="overrideResendVerificationDailyLimit"
+                  checked={group.rules.auth.resendVerificationDailyLimit !==
+                    null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overrideResendVerificationDailyLimit')}
+                />
+              </div>
+              <input
+                name="resendVerificationDailyLimit"
+                type="number"
+                min="0"
+                max="1000"
+                value={group.rules.auth.resendVerificationDailyLimit ?? 5}
+              />
+              <small>{t('admin.zeroMeansDisabled')}</small>
+            </div>
+            <div class="override-control">
+              <div class="override-heading">
+                <span>{t('admin.passwordResetDailyLimit')}</span>
+                <ToggleField
+                  name="overridePasswordResetDailyLimit"
+                  checked={group.rules.auth.passwordResetDailyLimit !== null}
+                  label={t('admin.override')}
+                  ariaLabel={t('admin.overridePasswordResetDailyLimit')}
+                />
+              </div>
+              <input
+                name="passwordResetDailyLimit"
+                type="number"
+                min="0"
+                max="1000"
+                value={group.rules.auth.passwordResetDailyLimit ?? 10}
+              />
+              <small>{t('admin.zeroMeansDisabled')}</small>
             </div>
           </div>
         </section>

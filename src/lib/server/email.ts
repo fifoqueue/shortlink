@@ -212,3 +212,40 @@ export async function sendVerificationEmail(input: {
     await sendSmtp(settings, message);
   }
 }
+
+export async function sendPasswordResetEmail(input: {
+  settings: SiteSettings;
+  email: string;
+  name: string;
+  resetUrl: string;
+}) {
+  const { settings, email, name, resetUrl } = input;
+  const siteName = settings.general.siteName;
+  const textContent = uiText(settings.i18n.defaultLocale).email;
+  const subject = formatText(textContent.passwordResetSubject, { siteName });
+  const intro = formatText(textContent.passwordResetIntro, { name, siteName });
+  const text = [intro, '', resetUrl, '', textContent.oneTimeNotice].join('\n');
+  const safeName = escapeHtml(name);
+  const safeSiteName = escapeHtml(siteName);
+  const safeResetUrl = escapeHtml(resetUrl);
+  const safeOneTimeNotice = escapeHtml(textContent.oneTimeNotice);
+  const htmlIntro = formatText(textContent.passwordResetIntro, {
+    name: safeName,
+    siteName: safeSiteName,
+  });
+  const html = `<p>${htmlIntro}</p><p><a href="${safeResetUrl}">${safeResetUrl}</a></p><p>${safeOneTimeNotice}</p>`;
+
+  const message = {
+    to: email,
+    subject,
+    text,
+    html,
+    verificationUrl: resetUrl,
+  };
+
+  if (settings.auth.emailVerification.provider === 'http') {
+    await sendHttp(settings, message);
+  } else {
+    await sendSmtp(settings, message);
+  }
+}

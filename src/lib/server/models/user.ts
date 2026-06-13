@@ -21,6 +21,8 @@ export class UserModel extends Model<
   declare email_verified_at: CreationOptional<Date | null>;
   declare email_verification_token_hash: CreationOptional<string | null>;
   declare email_verification_expires_at: CreationOptional<Date | null>;
+  declare password_reset_token_hash: CreationOptional<string | null>;
+  declare password_reset_expires_at: CreationOptional<Date | null>;
   declare session_version: CreationOptional<number>;
   declare created_at: CreationOptional<Date>;
 }
@@ -73,6 +75,15 @@ export function initUserModel(sequelize: Sequelize) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      password_reset_token_hash: {
+        type: DataTypes.STRING(128),
+        allowNull: true,
+        unique: true,
+      },
+      password_reset_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       session_version: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -91,6 +102,7 @@ export function initUserModel(sequelize: Sequelize) {
       indexes: [
         { fields: ['email'], unique: true },
         { fields: ['email_verification_token_hash'], unique: true },
+        { fields: ['password_reset_token_hash'], unique: true },
       ],
     },
   );

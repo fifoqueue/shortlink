@@ -684,6 +684,22 @@ export const actions: Actions = {
         registration: {
           enabled: parseBoolean(form, 'registrationEnabled'),
         },
+        accountRecovery: {
+          resendVerificationDailyLimit: numberValue(
+            form,
+            'resendVerificationDailyLimit',
+            settings.auth.accountRecovery.resendVerificationDailyLimit,
+            0,
+            1_000,
+          ),
+          passwordResetDailyLimit: numberValue(
+            form,
+            'passwordResetDailyLimit',
+            settings.auth.accountRecovery.passwordResetDailyLimit,
+            0,
+            1_000,
+          ),
+        },
         emailVerification: mergeEmailSettings(form, settings),
       };
       settings.network.outboundProxy = parseOutboundProxySettings(form);

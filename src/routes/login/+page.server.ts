@@ -4,6 +4,8 @@ import { getClientIp } from '$lib/server/client-ip';
 import { registrationAvailability } from '$lib/server/registration';
 import { getSettings } from '$lib/server/settings';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import { accountRecoveryAvailability } from '$lib/server/account-recovery';
+import { effectivePermissionsForEvent } from '$lib/server/permissions';
 import {
   authenticatePluginPassword,
   getAuthLoginMethods,
@@ -17,7 +19,12 @@ function safeReturnTo(value: string | null) {
   return value?.startsWith('/') && !value.startsWith('//') ? value : '/';
 }
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({
+  locals,
+  url,
+  request,
+  getClientAddress,
+}) => {
   if (locals.user)
     redirect(303, safeReturnTo(url.searchParams.get('returnTo')));
   const settings = await getSettings();
@@ -30,6 +37,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   );
   const registration = await registrationAvailability(settings, {
     passwordLoginEnabled: methods.some((method) => method.type === 'password'),
+  });
+  const passwordEnabled = methods.some((method) => method.type === 'password');
+  const recovery = accountRecoveryAvailability({
+    settings,
+    permissions: await effectivePermissionsForEvent({
+      locals,
+      request,
+      getClientAddress,
+    }),
+    passwordLoginEnabled: passwordEnabled,
   });
   if (registration.setupRequired) redirect(303, '/signup');
   return {
@@ -44,8 +61,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     theme: displaySettings.theme,
     customHead: displaySettings.seo.customHead,
     plugins: getPublicPluginStates(settings.plugins),
-    passwordEnabled: methods.some((method) => method.type === 'password'),
+    passwordEnabled,
     registrationAllowed: registration.allowed,
+    resendVerificationAvailable: recovery.resendVerification,
+    passwordResetAvailable: recovery.passwordReset,
     providers: methods
       .filter((method) => method.type === 'redirect')
       .map(

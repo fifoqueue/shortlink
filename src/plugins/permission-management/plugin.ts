@@ -97,6 +97,16 @@ const plugin: PluginDefinition = {
         'admin.permissionGroupSettings': '권한 그룹 설정',
         'admin.links': '링크',
         'admin.api': 'API',
+        'admin.accountRecovery': '계정 복구',
+        'admin.accountRecoveryDescription':
+          '비로그인 상태에서 사용할 수 있는 인증 메일 재발송과 비밀번호 재설정 요청 제한을 override합니다. CIDR 그룹에도 적용됩니다.',
+        'admin.resendVerificationDailyLimit': '인증 메일 재발송 일일 제한',
+        'admin.passwordResetDailyLimit': '비밀번호 재설정 일일 제한',
+        'admin.overrideResendVerificationDailyLimit':
+          '인증 메일 재발송 일일 제한 override',
+        'admin.overridePasswordResetDailyLimit':
+          '비밀번호 재설정 일일 제한 override',
+        'admin.zeroMeansDisabled': '0이면 차단',
         'admin.linkPermissions': '링크 권한',
         'admin.createLinks': '링크 생성',
         'admin.deleteOwnLinks': '본인 링크 삭제',
@@ -344,6 +354,16 @@ const plugin: PluginDefinition = {
         'admin.permissionGroupSettings': 'Permission group settings',
         'admin.links': 'Links',
         'admin.api': 'API',
+        'admin.accountRecovery': 'Account recovery',
+        'admin.accountRecoveryDescription':
+          'Override unauthenticated resend-verification and password-reset request limits. CIDR groups apply here too.',
+        'admin.resendVerificationDailyLimit': 'Daily resend-verification limit',
+        'admin.passwordResetDailyLimit': 'Daily password-reset limit',
+        'admin.overrideResendVerificationDailyLimit':
+          'Override daily resend-verification limit',
+        'admin.overridePasswordResetDailyLimit':
+          'Override daily password-reset limit',
+        'admin.zeroMeansDisabled': '0 disables it',
         'admin.linkPermissions': 'Link permissions',
         'admin.createLinks': 'Create links',
         'admin.deleteOwnLinks': 'Delete own links',

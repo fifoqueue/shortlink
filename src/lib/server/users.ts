@@ -15,7 +15,7 @@ import {
   getDatabase,
 } from './database';
 import { serverMessage } from '$lib/i18n/ui-text';
-import { sendVerificationEmail } from './email';
+import { sendPasswordResetEmail, sendVerificationEmail } from './email';
 import { paginationMeta, pageOffset } from './pagination';
 import { syncAutomaticPermissionGroupMembershipsForUser } from './permissions';
 import { validatePassword, type PasswordPolicy } from './password-policy';
@@ -56,6 +56,12 @@ export function createEmailVerificationToken() {
 
 export function hashEmailVerificationToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
+}
+
+export const createPasswordResetToken = createEmailVerificationToken;
+
+export function hashPasswordResetToken(token: string) {
+  return hashEmailVerificationToken(token);
 }
 
 export async function countUsers() {
@@ -411,6 +417,8 @@ export async function updateUser(input: {
   if (input.password !== undefined && input.password !== '') {
     validatePassword(input.password, input.passwordPolicy);
     next.password_hash = hashPassword(input.password);
+    next.password_reset_token_hash = null;
+    next.password_reset_expires_at = null;
   }
   await user.update(next);
   if (emailChanged)
@@ -494,7 +502,126 @@ export async function changeOwnPassword(input: {
     throw new Error(serverMessage('currentPasswordMismatch'));
   }
   validatePassword(input.nextPassword, input.passwordPolicy);
-  await user.update({ password_hash: hashPassword(input.nextPassword) });
+  await user.update({
+    password_hash: hashPassword(input.nextPassword),
+    password_reset_token_hash: null,
+    password_reset_expires_at: null,
+  });
+  return user;
+}
+
+export async function resendSignupVerificationEmail(input: {
+  settings: SiteSettings;
+  origin: string;
+  email: string;
+}) {
+  await ensureDatabase();
+  const email = normalizeEmail(input.email);
+  if (!email || !email.includes('@')) {
+    throw new Error(serverMessage('validEmailRequired'));
+  }
+
+  const user = await UserModel.findOne({ where: { email } });
+  if (!user || user.enabled || user.email_verified_at) return false;
+
+  const token = createEmailVerificationToken();
+  const previous = {
+    email_verification_token_hash: user.email_verification_token_hash,
+    email_verification_expires_at: user.email_verification_expires_at,
+  };
+  await user.update({
+    email_verification_token_hash: hashEmailVerificationToken(token),
+    email_verification_expires_at: new Date(
+      Date.now() +
+        input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
+    ),
+  });
+
+  try {
+    await sendVerificationEmail({
+      settings: input.settings,
+      email: user.email,
+      name: user.name,
+      verificationUrl: verificationUrl(input.origin, token),
+    });
+  } catch (cause) {
+    await user.update(previous);
+    throw cause;
+  }
+
+  return true;
+}
+
+function passwordResetUrl(origin: string, token: string) {
+  const url = new URL('/login/reset-password', origin);
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+export async function requestUserPasswordReset(input: {
+  settings: SiteSettings;
+  origin: string;
+  email: string;
+}) {
+  await ensureDatabase();
+  const email = normalizeEmail(input.email);
+  if (!email || !email.includes('@')) {
+    throw new Error(serverMessage('validEmailRequired'));
+  }
+
+  const user = await UserModel.findOne({ where: { email, enabled: true } });
+  if (!user || !user.password_hash.startsWith('scrypt:')) return false;
+
+  const token = createPasswordResetToken();
+  const previous = {
+    password_reset_token_hash: user.password_reset_token_hash,
+    password_reset_expires_at: user.password_reset_expires_at,
+  };
+  await user.update({
+    password_reset_token_hash: hashPasswordResetToken(token),
+    password_reset_expires_at: new Date(
+      Date.now() +
+        input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
+    ),
+  });
+
+  try {
+    await sendPasswordResetEmail({
+      settings: input.settings,
+      email: user.email,
+      name: user.name,
+      resetUrl: passwordResetUrl(input.origin, token),
+    });
+  } catch (cause) {
+    await user.update(previous);
+    throw cause;
+  }
+
+  return true;
+}
+
+export async function resetUserPasswordWithToken(input: {
+  token: string;
+  password: string;
+  passwordPolicy?: PasswordPolicy;
+}) {
+  await ensureDatabase();
+  const tokenHash = hashPasswordResetToken(input.token.trim());
+  const user = await UserModel.findOne({
+    where: {
+      password_reset_token_hash: tokenHash,
+      password_reset_expires_at: { [Op.gt]: new Date() },
+      enabled: true,
+    },
+  });
+  if (!user) return null;
+  validatePassword(input.password, input.passwordPolicy);
+  await user.update({
+    password_hash: hashPassword(input.password),
+    password_reset_token_hash: null,
+    password_reset_expires_at: null,
+    session_version: user.session_version + 1,
+  });
   return user;
 }
 

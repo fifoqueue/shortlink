@@ -179,6 +179,9 @@ const ko = {
       emailTokenTtlHours: '인증 링크 유효 시간',
       emailTimeoutMs: '이메일 발송 Timeout',
       emailTimeoutHelp: 'SMTP와 HTTP API 발송에 적용됩니다. 단위: ms',
+      resendVerificationDailyLimit: '인증 메일 재발송 일일 제한',
+      passwordResetDailyLimit: '비밀번호 재설정 요청 일일 제한',
+      accountRecoveryLimitHelp: '0이면 해당 요청을 비활성화합니다.',
       emailFromEmail: '발송 주소',
       emailFromName: '발송명',
       smtpHost: 'SMTP Host',
@@ -362,10 +365,13 @@ const ko = {
   email: {
     signupSubject: '{siteName} 이메일 인증',
     emailChangeSubject: '{siteName} 이메일 변경 인증',
+    passwordResetSubject: '{siteName} 비밀번호 재설정',
     signupIntro:
       '{name}님, 아래 링크를 열어 이메일 인증을 완료하고 {siteName} 가입을 마무리하세요.',
     emailChangeIntro:
       '{name}님, 아래 링크를 열어 {siteName} 계정의 새 이메일 주소를 인증하세요.',
+    passwordResetIntro:
+      '{name}님, 아래 링크를 열어 {siteName} 계정의 비밀번호를 재설정하세요.',
     oneTimeNotice: '이 링크는 한 번만 사용할 수 있습니다.',
   },
   home: {
@@ -411,6 +417,20 @@ const ko = {
     password: '비밀번호',
     passwordLogin: '비밀번호로 로그인',
     noLoginMethods: '사용 가능한 로그인 방법이 없습니다.',
+    forgotPassword: '비밀번호 찾기',
+    forgotPasswordTitle: '비밀번호 찾기',
+    forgotPasswordDescription:
+      '계정 이메일을 입력하면 비밀번호 재설정 링크를 보냅니다.',
+    sendPasswordResetEmail: '재설정 메일 보내기',
+    resetPasswordTitle: '비밀번호 재설정',
+    resetPasswordDescription: '새 비밀번호를 입력하세요.',
+    resetPasswordSubmit: '비밀번호 변경',
+    newPassword: '새 비밀번호',
+    resendVerification: '인증 메일 재발송',
+    resendVerificationTitle: '인증 메일 재발송',
+    resendVerificationDescription:
+      '가입 또는 외부 로그인 인증을 완료하지 못했다면 인증 메일을 다시 받을 수 있습니다.',
+    sendVerificationEmail: '인증 메일 보내기',
     passwordPolicyMinimum: '{length}자 이상',
     passwordPolicyLetters: '영문자 포함',
     passwordPolicyNumbers: '숫자 포함',
@@ -669,6 +689,12 @@ const ko = {
     ssoEmailMissing: 'SSO 사용자 이메일 주소를 확인할 수 없습니다.',
     ssoExistingAccountLinkRequired:
       '이미 같은 이메일 주소를 사용하는 계정이 있습니다. 먼저 기존 계정으로 로그인한 뒤 계정 연결에서 이 프로바이더를 추가해주세요.',
+    accountRecoveryDisabled: '계정 복구 요청이 비활성화되어 있습니다.',
+    resendVerificationDisabled:
+      '현재 인증 메일 재발송 요청을 사용할 수 없습니다.',
+    passwordResetDisabled: '현재 비밀번호 재설정 요청을 사용할 수 없습니다.',
+    authRequestLimitExceeded:
+      '오늘 요청 가능 횟수를 초과했습니다. 나중에 다시 시도해주세요.',
     userDisabled: '비활성화된 사용자입니다.',
     userNotFound: '사용자를 찾을 수 없습니다.',
     onlyAdminDeleteDenied: '유일한 관리자는 삭제할 수 없습니다.',
@@ -737,6 +763,15 @@ const ko = {
     invalidLogin: '이메일 또는 비밀번호가 올바르지 않습니다.',
     loginCallbackUnhandled: '로그인 콜백을 처리할 수 없습니다.',
     loginFailed: '로그인에 실패했습니다.',
+    resendVerificationRequested: '처리 가능한 계정이면 인증 메일을 보냈습니다.',
+    resendVerificationFailed: '인증 메일 재발송 요청을 처리하지 못했습니다.',
+    passwordResetRequested:
+      '처리 가능한 계정이면 비밀번호 재설정 메일을 보냈습니다.',
+    passwordResetFailed: '비밀번호 재설정 요청을 처리하지 못했습니다.',
+    passwordResetTokenInvalid:
+      '비밀번호 재설정 링크가 만료되었거나 이미 사용되었습니다.',
+    passwordResetComplete:
+      '비밀번호를 변경했습니다. 새 비밀번호로 로그인하세요.',
     signupVerificationSent:
       '인증 메일을 보냈습니다. 이메일 인증을 완료하면 계정이 활성화됩니다.',
     signupFailed: '회원 가입에 실패했습니다.',
@@ -945,6 +980,9 @@ const en: typeof ko = {
       emailTokenTtlHours: 'Verification link lifetime',
       emailTimeoutMs: 'Email send timeout',
       emailTimeoutHelp: 'Applies to SMTP and HTTP API sending, in ms.',
+      resendVerificationDailyLimit: 'Daily resend-verification limit',
+      passwordResetDailyLimit: 'Daily password-reset request limit',
+      accountRecoveryLimitHelp: '0 disables this request.',
       emailFromEmail: 'Sender address',
       emailFromName: 'Sender name',
       smtpHost: 'SMTP Host',
@@ -1132,10 +1170,13 @@ const en: typeof ko = {
   email: {
     signupSubject: '{siteName} email verification',
     emailChangeSubject: '{siteName} email change verification',
+    passwordResetSubject: '{siteName} password reset',
     signupIntro:
       '{name}, open the link below to verify your email and finish signing up for {siteName}.',
     emailChangeIntro:
       '{name}, open the link below to verify this address for your {siteName} account email change.',
+    passwordResetIntro:
+      '{name}, open the link below to reset the password for your {siteName} account.',
     oneTimeNotice: 'This link can be used only once.',
   },
   home: {
@@ -1181,6 +1222,20 @@ const en: typeof ko = {
     password: 'Password',
     passwordLogin: 'Log in with password',
     noLoginMethods: 'No login methods are available.',
+    forgotPassword: 'Forgot password',
+    forgotPasswordTitle: 'Forgot password',
+    forgotPasswordDescription:
+      'Enter your account email and we will send a password reset link.',
+    sendPasswordResetEmail: 'Send reset email',
+    resetPasswordTitle: 'Reset password',
+    resetPasswordDescription: 'Enter a new password.',
+    resetPasswordSubmit: 'Change password',
+    newPassword: 'New password',
+    resendVerification: 'Resend verification email',
+    resendVerificationTitle: 'Resend verification email',
+    resendVerificationDescription:
+      'If you did not complete signup or external-login verification, request a new verification email.',
+    sendVerificationEmail: 'Send verification email',
     passwordPolicyMinimum: 'At least {length} characters',
     passwordPolicyLetters: 'letters required',
     passwordPolicyNumbers: 'numbers required',
@@ -1438,6 +1493,12 @@ const en: typeof ko = {
     ssoEmailMissing: 'Could not resolve the SSO user email address.',
     ssoExistingAccountLinkRequired:
       'An account with the same email address already exists. Log in with that account first, then connect this provider from account settings.',
+    accountRecoveryDisabled: 'Account recovery requests are disabled.',
+    resendVerificationDisabled:
+      'Resending verification emails is currently unavailable.',
+    passwordResetDisabled: 'Password reset requests are currently unavailable.',
+    authRequestLimitExceeded:
+      'You have exceeded today’s request limit. Try again later.',
     userDisabled: 'User is disabled.',
     userNotFound: 'User not found.',
     onlyAdminDeleteDenied: 'The only administrator cannot be deleted.',
@@ -1505,6 +1566,16 @@ const en: typeof ko = {
     invalidLogin: 'Email or password is incorrect.',
     loginCallbackUnhandled: 'Login callback cannot be handled.',
     loginFailed: 'Login failed.',
+    resendVerificationRequested:
+      'If the account can be processed, a verification email has been sent.',
+    resendVerificationFailed:
+      'Could not process the verification email request.',
+    passwordResetRequested:
+      'If the account can be processed, a password reset email has been sent.',
+    passwordResetFailed: 'Could not process the password reset request.',
+    passwordResetTokenInvalid:
+      'The password reset link has expired or has already been used.',
+    passwordResetComplete: 'Password changed. Log in with your new password.',
     signupVerificationSent:
       'Verification email sent. Your account will be active after verification.',
     signupFailed: 'Sign up failed.',

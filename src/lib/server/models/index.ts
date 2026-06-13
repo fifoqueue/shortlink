@@ -2,6 +2,10 @@ import type { Sequelize } from 'sequelize';
 import { associateModels } from './associations';
 import { AppSettingModel, initAppSettingModel } from './app-setting';
 import { ApiTokenModel, initApiTokenModel } from './api-token';
+import {
+  AuthRequestLimitModel,
+  initAuthRequestLimitModel,
+} from './auth-request-limit';
 import { ClickEventModel, initClickEventModel } from './click-event';
 import {
   ClickEventQueueModel,
@@ -19,6 +23,7 @@ import { UserIdentityModel, initUserIdentityModel } from './user-identity';
 
 export { AppSettingModel } from './app-setting';
 export { ApiTokenModel } from './api-token';
+export { AuthRequestLimitModel } from './auth-request-limit';
 export { ClickEventModel } from './click-event';
 export { ClickEventQueueModel } from './click-event-queue';
 export {
@@ -32,6 +37,8 @@ export { UserIdentityModel } from './user-identity';
 
 export function initModels(sequelize: Sequelize) {
   if (AppSettingModel.sequelize !== sequelize) initAppSettingModel(sequelize);
+  if (AuthRequestLimitModel.sequelize !== sequelize)
+    initAuthRequestLimitModel(sequelize);
   if (UserModel.sequelize !== sequelize) initUserModel(sequelize);
   if (ShortLinkModel.sequelize !== sequelize) initShortLinkModel(sequelize);
   if (ClickEventModel.sequelize !== sequelize) initClickEventModel(sequelize);

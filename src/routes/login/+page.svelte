@@ -25,6 +25,8 @@
       plugins: SiteSettings['plugins'];
       passwordEnabled: boolean;
       registrationAllowed: boolean;
+      resendVerificationAvailable: boolean;
+      passwordResetAvailable: boolean;
       providers: Array<{
         pluginId: string;
         id: string;
@@ -177,7 +179,22 @@
     {#if !data.passwordEnabled && !data.providers.length}
       <div class="inline-note">{text.auth.noLoginMethods}</div>
     {/if}
-    <div class:single={!data.registrationAllowed} class="links">
+    <div
+      class:single={!data.registrationAllowed &&
+        !data.passwordResetAvailable &&
+        !data.resendVerificationAvailable}
+      class="links"
+    >
+      {#if data.passwordResetAvailable}
+        <a class="link-button" href={resolve('/login/forgot-password')}
+          >{text.auth.forgotPassword}</a
+        >
+      {/if}
+      {#if data.resendVerificationAvailable}
+        <a class="link-button" href={resolve('/login/resend-verification')}
+          >{text.auth.resendVerification}</a
+        >
+      {/if}
       {#if data.registrationAllowed}
         <a class="link-button primary" href={resolve('/signup')}
           >{text.common.signup}</a

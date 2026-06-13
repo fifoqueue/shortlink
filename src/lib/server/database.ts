@@ -8,6 +8,7 @@ import { runServerShutdownTasks } from './shutdown';
 export {
   AppSettingModel,
   ApiTokenModel,
+  AuthRequestLimitModel,
   ClickEventModel,
   ClickEventQueueModel,
   PermissionGroupCidrModel,

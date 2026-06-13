@@ -1075,6 +1075,29 @@
             /></label
           >
           <label
+            >{text.admin.settings.resendVerificationDailyLimit}
+            <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
+            <input
+              type="number"
+              name="resendVerificationDailyLimit"
+              min="0"
+              max="1000"
+              value={data.settings.auth.accountRecovery
+                .resendVerificationDailyLimit}
+            /></label
+          >
+          <label
+            >{text.admin.settings.passwordResetDailyLimit}
+            <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
+            <input
+              type="number"
+              name="passwordResetDailyLimit"
+              min="0"
+              max="1000"
+              value={data.settings.auth.accountRecovery.passwordResetDailyLimit}
+            /></label
+          >
+          <label
             >{text.admin.settings.emailFromEmail}
             <input
               name="emailFromEmail"

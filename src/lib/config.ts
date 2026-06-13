@@ -209,6 +209,10 @@ export interface SiteSettings {
     registration: {
       enabled: boolean;
     };
+    accountRecovery: {
+      resendVerificationDailyLimit: number;
+      passwordResetDailyLimit: number;
+    };
     password: {
       minLength: number;
       requireLetters: boolean;
@@ -514,6 +518,10 @@ export const defaultSettings: SiteSettings = {
   auth: {
     registration: {
       enabled: true,
+    },
+    accountRecovery: {
+      resendVerificationDailyLimit: 5,
+      passwordResetDailyLimit: 10,
     },
     password: {
       minLength: 10,
