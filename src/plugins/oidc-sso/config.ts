@@ -127,7 +127,12 @@ function provider(value: unknown): OidcProvider | null {
       method === 'client_secret_post' || method === 'none'
         ? method
         : 'client_secret_basic',
-    scopes: typeof raw.scopes === 'string' ? raw.scopes : defaultOidcScopes,
+    scopes:
+      typeof raw.scopes === 'string'
+        ? raw.scopes
+        : flow === 'oauth'
+          ? ''
+          : defaultOidcScopes,
     authorizationRequestQuery: stringValue(raw.authorizationRequestQuery),
     tokenRequestBody: stringValue(raw.tokenRequestBody),
     extraRequestQuery: stringValue(raw.extraRequestQuery),
@@ -142,7 +147,8 @@ function provider(value: unknown): OidcProvider | null {
       raw.loginInputUrlCanonicalization,
     ),
     authorizationHintParameter: stringValue(raw.authorizationHintParameter),
-    subjectPath: stringValue(raw.subjectPath) || 'sub',
+    subjectPath:
+      stringValue(raw.subjectPath) || (flow === 'oauth' ? 'me' : 'sub'),
     emailPath: stringValue(raw.emailPath) || 'email',
     emailVerifiedPath: stringValue(raw.emailVerifiedPath) || 'email_verified',
     namePath: stringValue(raw.namePath) || 'name',

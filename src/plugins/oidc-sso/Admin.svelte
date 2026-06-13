@@ -274,7 +274,8 @@
             </label>
             <label
               >{t('admin.scopes')}
-              <input name="scopes" value={provider.scopes} /></label
+              <input name="scopes" value={provider.scopes} />
+              <small>{t('admin.scopesHint')}</small></label
             >
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
               <label>
@@ -615,7 +616,11 @@
           </label>
           <label
             >{t('admin.scopes')}
-            <input name="scopes" value={defaultOidcScopes} /></label
+            <input
+              name="scopes"
+              value={newProviderFlow === 'oauth' ? '' : defaultOidcScopes}
+            />
+            <small>{t('admin.scopesHint')}</small></label
           >
           {#if newProviderFlow === 'oauth'}
             <label>
@@ -686,7 +691,7 @@
             />
             <label>
               {t('admin.subjectPath')}
-              <input name="subjectPath" value="sub" />
+              <input name="subjectPath" value="me" />
             </label>
           {/if}
           <label>

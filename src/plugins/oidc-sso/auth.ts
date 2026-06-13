@@ -841,9 +841,10 @@ async function resolveGenericOAuthCallbackClaims(
   }
   const oauthFlow = flow.oauth;
   if (!oauthFlow) throw new Error(t(context, 'auth.oauthFlowMissing'));
-  const tokenEndpoint =
-    oauthFlow.tokenEndpoint || oauthFlow.authorizationEndpoint;
-  const response = await providerRequest(provider, tokenEndpoint, {
+  const exchangeEndpoint = provider.scopes.trim()
+    ? oauthFlow.tokenEndpoint || oauthFlow.authorizationEndpoint
+    : oauthFlow.authorizationEndpoint;
+  const response = await providerRequest(provider, exchangeEndpoint, {
     method: 'POST',
     headers: tokenRequestHeaders(provider),
     body: tokenRequestBody(provider, flow, currentUrl, context),

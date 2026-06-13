@@ -137,6 +137,11 @@ function providerFromForm(
     clientAuthMethod === 'client_secret_post' || clientAuthMethod === 'none'
       ? clientAuthMethod
       : 'client_secret_basic';
+  const scopeInput = stringValue(
+    form,
+    'scopes',
+    current?.scopes ?? (flow === 'oauth' ? '' : defaultOidcScopes),
+  );
 
   return {
     id: providerSlug(stringValue(form, 'id', current?.id ?? '')),
@@ -200,9 +205,7 @@ function providerFromForm(
         ? ''
         : clientSecret || current?.clientSecret || '',
     clientAuthMethod: selectedAuthMethod,
-    scopes:
-      stringValue(form, 'scopes', current?.scopes ?? defaultOidcScopes) ||
-      defaultOidcScopes,
+    scopes: flow === 'oauth' ? scopeInput : scopeInput || defaultOidcScopes,
     authorizationRequestQuery: stringValue(
       form,
       'authorizationRequestQuery',

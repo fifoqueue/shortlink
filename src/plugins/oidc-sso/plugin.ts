@@ -54,7 +54,7 @@ const plugin: PluginDefinition = {
         'admin.authorizationEndpoint': 'Authorization endpoint',
         'admin.tokenEndpoint': 'Token endpoint',
         'admin.tokenEndpointHint':
-          '비워두면 authorization endpoint로 code exchange를 보냅니다.',
+          'Scopes가 비어 있으면 IndieAuth 로그인 전용 흐름으로 authorization endpoint에 code exchange를 보냅니다.',
         'admin.userInfoEndpoint': 'UserInfo endpoint',
         'admin.metadataLinkRel': 'Metadata link rel',
         'admin.metadataLinkRelPlaceholder': 'metadata-rel',
@@ -71,6 +71,8 @@ const plugin: PluginDefinition = {
         'admin.noneRemovesSecretHint':
           'none으로 저장하면 기존 Client Secret은 삭제됩니다.',
         'admin.scopes': 'Scopes',
+        'admin.scopesHint':
+          'Generic OAuth2/IndieAuth에서 access token이 필요 없으면 비워두세요.',
         'admin.allowedEmailDomains': '허용 이메일 도메인',
         'admin.authorizationHintParameter': 'Authorization hint parameter',
         'admin.authorizationHintParameterPlaceholder': 'me',
@@ -299,7 +301,7 @@ const plugin: PluginDefinition = {
         'admin.authorizationEndpoint': 'Authorization endpoint',
         'admin.tokenEndpoint': 'Token endpoint',
         'admin.tokenEndpointHint':
-          'Leave blank to exchange the code at the authorization endpoint.',
+          'When scopes are empty, code exchange is sent to the authorization endpoint for IndieAuth login-only flows.',
         'admin.userInfoEndpoint': 'UserInfo endpoint',
         'admin.metadataLinkRel': 'Metadata link rel',
         'admin.metadataLinkRelPlaceholder': 'metadata-rel',
@@ -316,6 +318,8 @@ const plugin: PluginDefinition = {
         'admin.noneRemovesSecretHint':
           'Saving as none removes the current Client Secret.',
         'admin.scopes': 'Scopes',
+        'admin.scopesHint':
+          'Leave empty for Generic OAuth2/IndieAuth login-only flows that do not need an access token.',
         'admin.allowedEmailDomains': 'Allowed email domains',
         'admin.authorizationHintParameter': 'Authorization hint parameter',
         'admin.authorizationHintParameterPlaceholder': 'me',
