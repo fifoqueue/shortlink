@@ -87,7 +87,7 @@ yarn dev -- --host 0.0.0.0 --port 3000
 - 플러그인: CAPTCHA, 속도 제한, OIDC SSO, 사용자 관리, 향상된 추적 등 플러그인 설정
 - 링크 관리: 저장된 링크 검색, 수정, 삭제, 통계 확인
 
-이 레포지토리가 제공하는 코어 플러그인은 `src/plugins/<plugin-id>/`에 두고, 서버별 유저 플러그인은 `src/user-plugins/<plugin-id>/`에 둡니다. 유저 플러그인은 기본적으로 git 추적에서 제외됩니다. 플러그인 개발 계약은 [docs/plugin-development.md](docs/plugin-development.md)를 참고하세요.
+이 레포지토리가 제공하는 코어 플러그인은 `src/plugins/<plugin-id>/`에 두고, 서버별 유저 플러그인은 `src/user-plugins/<plugin-id>/`에 둡니다. 유저 플러그인은 기본적으로 git 추적에서 제외됩니다. 빌드 시점 플러그인 개발 계약은 [docs/plugin-development.md](docs/plugin-development.md)를, Docker 이미지 재빌드 없이 로드할 런타임 플러그인 ABI 설계는 [docs/runtime-plugin-abi.md](docs/runtime-plugin-abi.md)를 참고하세요.
 
 ## 리버스 프록시와 실제 IP
 
@@ -159,7 +159,9 @@ pm2 restart ecosystem.config.cjs --update-env
 
 이 레포지토리의 [Dockerfile](Dockerfile)은 SvelteKit adapter-node 산출물을 빌드한 뒤 production 의존성만 포함하는 Alpine 기반 런타임 이미지를 만듭니다. 컨테이너 프로세스는 root가 아닌 UID/GID `10001:10001`로 실행됩니다.
 
-유저 플러그인을 Docker에서 사용하려면 플러그인 소스를 `src/user-plugins/<plugin-id>/`에 둔 상태로 이미지를 빌드해야 합니다. Svelte 컴포넌트와 플러그인 모듈은 빌드 시점에 번들링되므로, 이미 빌드된 이미지에 런타임 volume으로 `src/user-plugins`만 마운트해도 새 플러그인은 적용되지 않습니다.
+빌드 시점 유저 플러그인을 Docker에서 사용하려면 플러그인 소스를 `src/user-plugins/<plugin-id>/`에 둔 상태로 이미지를 빌드해야 합니다. Svelte 컴포넌트와 플러그인 모듈은 빌드 시점에 번들링되므로, 이미 빌드된 이미지에 런타임 volume으로 `src/user-plugins`만 마운트해도 새 플러그인은 적용되지 않습니다.
+
+Docker 이미지 재빌드 없이 플러그인을 추가하려면 런타임 ABI 형식으로 빌드한 플러그인을 `/app/user-plugins/<plugin-id>/`에 마운트합니다. 이 경우 `manifest.json`과 `server.mjs`가 필요하고, `USER_PLUGIN_WATCH=true`이면 파일 변경을 주기적으로 감지합니다.
 
 이미지를 직접 빌드하려면 다음처럼 실행합니다.
 
@@ -186,7 +188,7 @@ docker pull ghcr.io/fifoqueue/shortlink:latest
 ```
 
 PostgreSQL까지 포함한 예시는 [docs/docker-compose.yaml](docs/docker-compose.yaml)을 참고하세요. 처음 실행하기 전에 `AUTH_SESSION_SECRET`, `POSTGRES_PASSWORD`, `PRIVATE_BASE_URL`은 운영 환경에 맞게 바꾸세요.
-샘플 compose 파일은 기본적으로 GHCR 이미지를 사용합니다. 유저 플러그인을 포함한 커스텀 이미지를 쓰려면 compose 파일의 `build` 예시 주석을 참고해 로컬에서 빌드하세요.
+샘플 compose 파일은 기본적으로 GHCR 이미지와 `/app/user-plugins` 런타임 플러그인 volume을 사용합니다. 빌드 시점 유저 플러그인을 포함한 커스텀 이미지를 쓰려면 compose 파일의 `build` 예시 주석을 참고해 로컬에서 빌드하세요.
 
 ## 데이터베이스
 

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import AdminShell from '$lib/components/AdminShell.svelte';
+  import RuntimePluginFrame from '$lib/components/RuntimePluginFrame.svelte';
+  import RuntimePluginSchemaForm from '$lib/components/RuntimePluginSchemaForm.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import ToggleField from '$lib/components/ToggleField.svelte';
   import { adminSections } from '$lib/admin-sections';
@@ -9,6 +11,8 @@
     PluginActivationStatus,
     PluginLocaleStrings,
     PluginMeta,
+    RuntimePluginAdminSchema,
+    RuntimePluginUiDescriptor,
     PluginState,
   } from '$lib/plugin-contracts';
   import type { SiteLocale } from '$lib/config';
@@ -30,6 +34,8 @@
         disable: PluginActivationStatus;
       };
       adminData: unknown;
+      runtimeAdminUi: RuntimePluginUiDescriptor | null;
+      runtimeAdminSchema: RuntimePluginAdminSchema | null;
       permissions: {
         isAdmin: boolean;
         admin: { sections: string[] };
@@ -92,8 +98,7 @@
   {/if}
 
   <section class="plugin-panel">
-    {#if data.handlesAdminActions && registered?.admin}
-      {@const PluginAdmin = registered.admin}
+    {#if data.handlesAdminActions && (registered?.admin || data.runtimeAdminUi || data.runtimeAdminSchema)}
       {#if data.plugin.required}
         <p class="core-note">{text.admin.plugins.cannotDisableCore}</p>
       {:else}
@@ -115,13 +120,28 @@
       {/if}
       {#if data.state.enabled}
         <div class:separated={!data.plugin.required} class="plugin-fields">
-          <PluginAdmin
-            config={data.state.config}
-            adminData={data.adminData}
-            locale={data.locale}
-            fallbackLocale={data.defaultLocale}
-            strings={data.pluginStrings}
-          />
+          {#if registered?.admin}
+            {@const PluginAdmin = registered.admin}
+            <PluginAdmin
+              config={data.state.config}
+              adminData={data.adminData}
+              locale={data.locale}
+              fallbackLocale={data.defaultLocale}
+              strings={data.pluginStrings}
+            />
+          {:else if data.runtimeAdminSchema}
+            <RuntimePluginSchemaForm schema={data.runtimeAdminSchema} />
+          {:else if data.runtimeAdminUi?.mode === 'iframe' && data.runtimeAdminUi.src}
+            <RuntimePluginFrame
+              src={data.runtimeAdminUi.src}
+              pluginId={data.plugin.id}
+              config={data.state.config}
+              adminData={data.adminData}
+              locale={data.locale}
+              fallbackLocale={data.defaultLocale}
+              strings={data.pluginStrings}
+            />
+          {/if}
         </div>
       {:else}
         <p class="disabled-note">{text.admin.plugins.disabledNote}</p>
@@ -148,6 +168,22 @@
           {@const PluginAdmin = registered.admin}
           <div class="plugin-fields">
             <PluginAdmin
+              config={data.state.config}
+              adminData={data.adminData}
+              locale={data.locale}
+              fallbackLocale={data.defaultLocale}
+              strings={data.pluginStrings}
+            />
+          </div>
+        {:else if data.runtimeAdminSchema}
+          <div class="plugin-fields">
+            <RuntimePluginSchemaForm schema={data.runtimeAdminSchema} />
+          </div>
+        {:else if data.runtimeAdminUi?.mode === 'iframe' && data.runtimeAdminUi.src}
+          <div class="plugin-fields">
+            <RuntimePluginFrame
+              src={data.runtimeAdminUi.src}
+              pluginId={data.plugin.id}
               config={data.state.config}
               adminData={data.adminData}
               locale={data.locale}

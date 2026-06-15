@@ -22,6 +22,8 @@ import type {
   PluginAdminPermissionContext,
   PluginActivationStatus,
   PluginDefinition,
+  RuntimePluginAdminSchema,
+  RuntimePluginUiDescriptor,
   PluginState,
 } from '$lib/plugin-contracts';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
@@ -174,6 +176,28 @@ export const load: PageServerLoad = async ({
   const adminData = definition.loadAdminData
     ? await definition.loadAdminData({ state: storedState, url, settings })
     : null;
+  const pluginStrings = pluginLocaleStrings(
+    definition,
+    locals.locale,
+    settings.i18n.defaultLocale,
+  );
+  const runtimeAdminUi = definition.runtime?.admin;
+  const runtimeAdminSchema =
+    runtimeAdminUi?.mode === 'schema'
+      ? ((await definition.adminSchema?.({
+          state,
+          locale: locals.locale,
+          fallbackLocale: settings.i18n.defaultLocale,
+          strings: pluginStrings,
+          adminData,
+        })) ??
+        runtimeAdminUi.schema ??
+        null)
+      : null;
+  const runtimeAdminUiData: RuntimePluginUiDescriptor | null =
+    runtimeAdminUi ?? null;
+  const runtimeAdminSchemaData: RuntimePluginAdminSchema | null =
+    runtimeAdminSchema;
   const activation = await activationStatus(
     definition,
     storedState,
@@ -190,14 +214,12 @@ export const load: PageServerLoad = async ({
       locals.locale,
       settings.i18n.defaultLocale,
     ),
-    pluginStrings: pluginLocaleStrings(
-      definition,
-      locals.locale,
-      settings.i18n.defaultLocale,
-    ),
+    pluginStrings,
     state,
     activation,
     adminData,
+    runtimeAdminUi: runtimeAdminUiData,
+    runtimeAdminSchema: runtimeAdminSchemaData,
     permissions,
     theme: settings.theme,
     customHead: settings.seo.customHead,

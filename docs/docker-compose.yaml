@@ -1,12 +1,15 @@
 services:
   app:
     image: ghcr.io/fifoqueue/shortlink:latest
-    # User plugins are bundled at build time. To include local
-    # src/user-plugins, comment out "image" above, uncomment this build block,
-    # and run: docker compose -f docs/docker-compose.yaml up -d --build
+    # Runtime ABI plugins can be copied into ./user-plugins without rebuilding
+    # the image. Build-time src/user-plugins still require a custom image; for
+    # that case, comment out "image" above, uncomment this build block, and run:
+    # docker compose -f docs/docker-compose.yaml up -d --build
     # build:
     #   context: ..
     #   dockerfile: Dockerfile
+    volumes:
+      - ../user-plugins:/app/user-plugins:ro
     restart: unless-stopped
     depends_on:
       postgres:
@@ -23,6 +26,8 @@ services:
       PRIVATE_BASE_URL: https://go.example.com
       AUTH_SESSION_SECRET: replace-with-a-long-random-secret
       SHUTDOWN_TIMEOUT: 1
+      USER_PLUGIN_DIR: /app/user-plugins
+      USER_PLUGIN_WATCH: 'true'
     security_opt:
       - no-new-privileges:true
     cap_drop:

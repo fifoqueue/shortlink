@@ -6,6 +6,7 @@
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import type { SiteLocale, SiteSettings } from '$lib/config';
+  import type { RuntimePluginSlotRender } from '$lib/plugin-contracts';
   import { siteThemeStyle } from '$lib/theme-vars';
   import { publicPluginRegistry } from '../../plugins/public-registry';
   import { uiText } from '$lib/i18n/ui-text';
@@ -26,6 +27,7 @@
       emailVerificationEnabled: boolean;
       registrationAllowed: boolean;
       registrationUnavailableReason: string;
+      runtimeSlots: RuntimePluginSlotRender[];
     };
     form?: {
       ok?: boolean;
@@ -108,6 +110,7 @@
           registry={publicPluginRegistry}
           states={data.plugins}
           slot="signup-extra"
+          runtimeSlots={data.runtimeSlots}
           locale={data.locale}
           fallbackLocale={data.defaultLocale}
         />

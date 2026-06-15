@@ -98,19 +98,43 @@ async function loadIntegrations(
   const integrations = await Promise.all(
     pluginDefinitions.map(async (definition) => {
       const state = settings.plugins[definition.meta.id];
-      if (!state?.enabled || !definition.loadUserAdminData) return null;
+      if (!state?.enabled) return null;
+      const runtimeUi = definition.runtime?.userAdmin;
+      if (!definition.loadUserAdminData && !runtimeUi) return null;
+      const strings = pluginLocaleStrings(definition, locale, fallbackLocale);
+      const data = definition.loadUserAdminData
+        ? await definition.loadUserAdminData({
+            userId,
+            state,
+            url,
+            locale,
+            fallbackLocale,
+            strings,
+          })
+        : null;
+      const runtimeSchema =
+        runtimeUi?.mode === 'schema'
+          ? ((await definition.userAdminSchema?.({
+              userId,
+              state,
+              url,
+              locale,
+              fallbackLocale,
+              strings,
+              data,
+            })) ??
+            runtimeUi.schema ??
+            null)
+          : null;
       return {
         pluginId: definition.meta.id,
         pluginName: localizedPluginMeta(definition, locale, fallbackLocale)
           .name,
-        data: await definition.loadUserAdminData({
-          userId,
-          state,
-          url,
-          locale,
-          fallbackLocale,
-          strings: pluginLocaleStrings(definition, locale, fallbackLocale),
-        }),
+        config: state.config,
+        strings,
+        runtimeUi: runtimeUi ?? null,
+        runtimeSchema,
+        data,
       };
     }),
   );

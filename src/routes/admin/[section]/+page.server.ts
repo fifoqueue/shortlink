@@ -63,6 +63,7 @@ import {
   type ThemeTokens,
 } from '$lib/config';
 import { localeFromValue } from '$lib/i18n';
+import { localizedPluginMeta } from '$lib/i18n/plugin';
 import { parseOutboundProxyUrl } from '$lib/server/outbound-http';
 import {
   formatText,
@@ -79,6 +80,7 @@ import {
   shortUrl,
 } from '$lib/server/url';
 import { clearPluginSessions } from '../../../plugins/auth-registry';
+import { pluginDefinitions } from '../../../plugins/server';
 
 function parseColor(value: string, fallback: string) {
   return /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
@@ -557,6 +559,13 @@ export const load: PageServerLoad = async ({
     locale: locals.locale,
     section,
     settings,
+    plugins: pluginDefinitions.map((definition) =>
+      localizedPluginMeta(
+        definition,
+        locals.locale,
+        settings.i18n.defaultLocale,
+      ),
+    ),
     permissions,
     themePresets,
     search,

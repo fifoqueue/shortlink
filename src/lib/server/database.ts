@@ -4,6 +4,8 @@ import { Sequelize } from 'sequelize';
 import { initModels } from './models';
 import type { DatabaseMigration } from './migrations/types';
 import { runServerShutdownTasks } from './shutdown';
+import { refreshRuntimePlugins } from '../../plugins/server';
+import { getRuntimePluginMigrations } from './runtime-plugins';
 
 export {
   AppSettingModel,
@@ -105,11 +107,10 @@ registerShutdownHook();
 
 function databaseMigrations() {
   return [
-    ...Object.values(coreMigrationModules),
-    ...Object.values(pluginMigrationModules),
-  ]
-    .map((module) => module.default)
-    .sort((left, right) => left.id.localeCompare(right.id));
+    ...Object.values(coreMigrationModules).map((module) => module.default),
+    ...Object.values(pluginMigrationModules).map((module) => module.default),
+    ...getRuntimePluginMigrations(),
+  ].sort((left, right) => left.id.localeCompare(right.id));
 }
 
 async function runDatabaseMigrations(sequelize: Sequelize) {
@@ -128,6 +129,7 @@ async function syncDatabase(sequelize: Sequelize) {
 }
 
 export async function ensureDatabase() {
+  await refreshRuntimePlugins();
   const sequelize = getDatabase();
   initModels(sequelize);
 

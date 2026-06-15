@@ -74,6 +74,10 @@ export function setPluginStateNormalizer(
   cachedSettings = undefined;
 }
 
+export function invalidateSettingsCache() {
+  cachedSettings = undefined;
+}
+
 function merge<T>(defaults: T, value: unknown): T {
   if (!isRecord(defaults) || !isRecord(value)) return clone(defaults);
 

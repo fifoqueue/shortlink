@@ -11,6 +11,7 @@ import { getSettings, stringValue } from '$lib/server/settings';
 import { effectivePermissionsForEvent } from '$lib/server/permissions';
 import {
   getPublicPluginStates,
+  loadRuntimePluginSlots,
   verifyFormSubmissionPlugins,
 } from '../../plugins/server';
 import { getAuthLoginMethods } from '../../plugins/auth-registry';
@@ -69,6 +70,12 @@ export const load: PageServerLoad = async ({
       availability.reason,
       settings.i18n.defaultLocale,
     ),
+    runtimeSlots: await loadRuntimePluginSlots({
+      states: settings.plugins,
+      locale: locals.locale,
+      fallbackLocale: settings.i18n.defaultLocale,
+      user: null,
+    }),
   };
 };
 

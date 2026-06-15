@@ -29,8 +29,8 @@ ENV NODE_ENV=production \
 
 RUN addgroup -S -g 10001 shortlink \
   && adduser -S -D -h /home/shortlink -u 10001 -G shortlink shortlink \
-  && mkdir -p /home/shortlink \
-  && chown shortlink:shortlink /home/shortlink
+  && mkdir -p /home/shortlink /app/user-plugins \
+  && chown shortlink:shortlink /home/shortlink /app/user-plugins
 
 COPY --from=production-deps --chown=shortlink:shortlink /app/node_modules ./node_modules
 COPY --from=build --chown=shortlink:shortlink /app/build ./build

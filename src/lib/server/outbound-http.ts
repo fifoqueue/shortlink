@@ -254,6 +254,10 @@ export function registerOutboundProxyProtocol(
   });
 }
 
+export function unregisterOutboundProxyProtocol(protocol: string) {
+  registeredProxyProtocols.delete(normalizeProtocol(protocol));
+}
+
 function proxyProtocolDefinition(protocol: string) {
   return registeredProxyProtocols.get(normalizeProtocol(protocol));
 }

@@ -4,6 +4,8 @@
   import CopyValue from '$lib/components/CopyValue.svelte';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import RuntimePluginFrame from '$lib/components/RuntimePluginFrame.svelte';
+  import RuntimePluginSchemaForm from '$lib/components/RuntimePluginSchemaForm.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import { keepFormValues } from '$lib/forms';
@@ -56,21 +58,6 @@
   } = $props();
 
   const text = $derived(uiText(data.locale, data.defaultLocale));
-  const accountIntegrations = $derived(
-    data.integrations.flatMap((integration) => {
-      const registered = accountPluginRegistry.find(
-        (plugin) => plugin.definition.meta.id === integration.pluginId,
-      );
-      if (!registered?.account) return [];
-      return [
-        {
-          component: registered.account,
-          definition: registered.definition,
-          integration,
-        },
-      ];
-    }),
-  );
   let copiedValue = $state<string | null>(null);
 
   async function copyIssuedToken(value: string, label: string) {
@@ -198,19 +185,56 @@
     </form>
   </section>
 
-  {#each accountIntegrations as integration (integration.integration.pluginId)}
-    {@const PluginAccount = integration.component}
-    <PluginAccount
-      config={{}}
-      integrationData={integration.integration.data}
-      locale={data.locale}
-      fallbackLocale={data.defaultLocale}
-      strings={pluginLocaleStrings(
-        integration.definition,
-        data.locale,
-        data.defaultLocale,
-      )}
-    />
+  {#each data.integrations as integration (integration.pluginId)}
+    {@const registered = accountPluginRegistry.find(
+      (plugin) => plugin.definition.meta.id === integration.pluginId,
+    )}
+    {#if registered?.account}
+      {@const PluginAccount = registered.account}
+      <PluginAccount
+        config={integration.config ?? {}}
+        integrationData={integration.data}
+        locale={data.locale}
+        fallbackLocale={data.defaultLocale}
+        strings={pluginLocaleStrings(
+          registered.definition,
+          data.locale,
+          data.defaultLocale,
+        )}
+      />
+    {:else if integration.runtimeSchema}
+      <section>
+        <h2>{integration.pluginName}</h2>
+        <form
+          method="POST"
+          action="?/pluginAction"
+          use:enhance={keepFormValues}
+        >
+          <input type="hidden" name="pluginId" value={integration.pluginId} />
+          <input type="hidden" name="pluginAction" value="save" />
+          <RuntimePluginSchemaForm schema={integration.runtimeSchema} />
+          <button type="submit">{text.common.save}</button>
+        </form>
+      </section>
+    {:else if integration.runtimeUi?.mode === 'iframe' && integration.runtimeUi.src}
+      <section>
+        <h2>{integration.pluginName}</h2>
+        <form method="POST" action="?/pluginAction" use:enhance>
+          <RuntimePluginFrame
+            src={integration.runtimeUi.src}
+            pluginId={integration.pluginId}
+            config={integration.config ?? {}}
+            adminData={integration.data}
+            locale={data.locale}
+            fallbackLocale={data.defaultLocale}
+            strings={integration.strings ?? {}}
+            pluginFieldName="pluginId"
+            pluginFieldValue={integration.pluginId}
+            actionFieldName="pluginAction"
+          />
+        </form>
+      </section>
+    {/if}
   {/each}
 
   <section>

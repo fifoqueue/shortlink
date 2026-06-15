@@ -12,6 +12,7 @@ import {
 } from '../../plugins/auth-registry';
 import {
   getPublicPluginStates,
+  loadRuntimePluginSlots,
   verifyFormSubmissionPlugins,
 } from '../../plugins/server';
 
@@ -88,6 +89,12 @@ export const load: PageServerLoad = async ({
           identifier,
         }),
       ),
+    runtimeSlots: await loadRuntimePluginSlots({
+      states: settings.plugins,
+      locale: locals.locale,
+      fallbackLocale: settings.i18n.defaultLocale,
+      user: null,
+    }),
   };
 };
 

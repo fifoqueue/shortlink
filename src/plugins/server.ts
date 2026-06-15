@@ -6,6 +6,8 @@ import type {
   PluginDefinition,
   PluginGuardResult,
   PluginProtectedAction,
+  PluginSlot,
+  RuntimePluginSlotRender,
   PluginState,
 } from '$lib/plugin-contracts';
 import { defaultSiteLocale, type SiteLocale } from '$lib/config';
@@ -13,7 +15,12 @@ import { pluginLocaleStrings } from '$lib/i18n/plugin';
 import {
   registerOutboundProxyProtocol,
   registerOutboundProxyResolver,
+  unregisterOutboundProxyProtocol,
 } from '$lib/server/outbound-http';
+import {
+  getRuntimePluginDefinitions,
+  refreshRuntimePlugins as refreshRuntimePluginDefinitions,
+} from '$lib/server/runtime-plugins';
 import {
   assertUniquePluginId,
   pluginFolderFromPath,
@@ -63,9 +70,11 @@ const serverModules = import.meta.glob<ServerPluginModule>(
     eager: true,
   },
 );
+const builtInProxyProtocols = new Set(['http', 'https', 'socks5', 'socks5h']);
+const registeredPluginProxyProtocols = new Set<string>();
 const seenPluginIds = new Set<string>();
 
-export const pluginDefinitions = Object.entries(modules)
+const staticPluginDefinitions = Object.entries(modules)
   .map(([path, module]) => {
     const folder = pluginFolderFromPath(path);
     const definition = module.default;
@@ -86,84 +95,147 @@ export const pluginDefinitions = Object.entries(modules)
       left.meta.name.localeCompare(right.meta.name),
   );
 
-for (const definition of pluginDefinitions) {
-  for (const protocol of definition.outboundProxyProtocols ?? []) {
-    registerOutboundProxyProtocol({
-      protocol: protocol.protocol,
-      defaultPort: protocol.defaultPort,
-      request: async (input) => {
-        const state = input.settings.plugins[definition.meta.id];
-        if (!state?.enabled || !definition.handleOutboundProxyRequest) {
-          throw new Error(
-            `Outbound proxy protocol "${protocol.protocol}" is not available.`,
-          );
-        }
+export let pluginDefinitions = [...staticPluginDefinitions];
 
-        const result = await definition.handleOutboundProxyRequest({
-          url: input.url,
-          method: input.method,
-          headers: input.headers,
-          body: new Uint8Array(
-            input.body.buffer,
-            input.body.byteOffset,
-            input.body.byteLength,
-          ),
-          proxy: {
-            protocol: input.proxy.protocol,
-            host: input.proxy.host,
-            port: input.proxy.port,
-            username: input.proxy.username,
-            password: input.proxy.password,
-            rawUrl: input.proxy.rawUrl,
-            searchParams: input.proxy.searchParams,
-          },
-          purpose: input.purpose,
-          signal: input.signal,
-          timeoutMs: input.timeoutMs,
-          state,
-          settings: input.settings,
-        });
+function sortPluginDefinitions(definitions: PluginDefinition[]) {
+  return [...definitions].sort(
+    (left, right) =>
+      (left.meta.order ?? 100) - (right.meta.order ?? 100) ||
+      left.meta.name.localeCompare(right.meta.name),
+  );
+}
 
-        return {
-          url: result.url,
-          status: result.status,
-          statusText: result.statusText ?? '',
-          headers: result.headers ?? {},
-          body: result.body ?? '',
-        };
-      },
-      connect: async (input) => {
-        const state = input.settings.plugins[definition.meta.id];
-        if (!state?.enabled || !definition.handleOutboundProxyConnect) {
-          throw new Error(
-            `Outbound proxy protocol "${protocol.protocol}" cannot open raw sockets.`,
-          );
-        }
-
-        return definition.handleOutboundProxyConnect({
-          host: input.host,
-          port: input.port,
-          secure: input.secure,
-          servername: input.servername,
-          proxy: {
-            protocol: input.proxy.protocol,
-            host: input.proxy.host,
-            port: input.proxy.port,
-            username: input.proxy.username,
-            password: input.proxy.password,
-            rawUrl: input.proxy.rawUrl,
-            searchParams: input.proxy.searchParams,
-          },
-          purpose: input.purpose,
-          signal: input.signal,
-          timeoutMs: input.timeoutMs,
-          state,
-          settings: input.settings,
-        });
-      },
-    });
+function assertUniqueRuntimePluginIds(definitions: PluginDefinition[]) {
+  const seen = new Set<string>();
+  for (const definition of definitions) {
+    assertUniquePluginId(seen, definition.meta.id, definition.meta.id);
   }
 }
+
+function syncOutboundProxyProtocols() {
+  for (const protocol of registeredPluginProxyProtocols) {
+    unregisterOutboundProxyProtocol(protocol);
+  }
+  registeredPluginProxyProtocols.clear();
+
+  const pluginProtocols = new Set<string>();
+  for (const definition of pluginDefinitions) {
+    for (const protocol of definition.outboundProxyProtocols ?? []) {
+      const normalized = protocol.protocol
+        .trim()
+        .replace(/:$/, '')
+        .toLowerCase();
+      if (builtInProxyProtocols.has(normalized)) {
+        throw new Error(
+          `Plugin "${definition.meta.id}" cannot replace built-in outbound proxy protocol "${normalized}".`,
+        );
+      }
+      if (pluginProtocols.has(normalized)) {
+        throw new Error(
+          `Duplicate outbound proxy protocol "${normalized}" was registered by plugins.`,
+        );
+      }
+      pluginProtocols.add(normalized);
+      registeredPluginProxyProtocols.add(normalized);
+      registerOutboundProxyProtocol({
+        protocol: protocol.protocol,
+        defaultPort: protocol.defaultPort,
+        request: async (input) => {
+          const state = input.settings.plugins[definition.meta.id];
+          if (!state?.enabled || !definition.handleOutboundProxyRequest) {
+            throw new Error(
+              `Outbound proxy protocol "${protocol.protocol}" is not available.`,
+            );
+          }
+
+          const result = await definition.handleOutboundProxyRequest({
+            url: input.url,
+            method: input.method,
+            headers: input.headers,
+            body: new Uint8Array(
+              input.body.buffer,
+              input.body.byteOffset,
+              input.body.byteLength,
+            ),
+            proxy: {
+              protocol: input.proxy.protocol,
+              host: input.proxy.host,
+              port: input.proxy.port,
+              username: input.proxy.username,
+              password: input.proxy.password,
+              rawUrl: input.proxy.rawUrl,
+              searchParams: input.proxy.searchParams,
+            },
+            purpose: input.purpose,
+            signal: input.signal,
+            timeoutMs: input.timeoutMs,
+            state,
+            settings: input.settings,
+          });
+
+          return {
+            url: result.url,
+            status: result.status,
+            statusText: result.statusText ?? '',
+            headers: result.headers ?? {},
+            body: result.body ?? '',
+          };
+        },
+        connect: async (input) => {
+          const state = input.settings.plugins[definition.meta.id];
+          if (!state?.enabled || !definition.handleOutboundProxyConnect) {
+            throw new Error(
+              `Outbound proxy protocol "${protocol.protocol}" cannot open raw sockets.`,
+            );
+          }
+
+          return definition.handleOutboundProxyConnect({
+            host: input.host,
+            port: input.port,
+            secure: input.secure,
+            servername: input.servername,
+            proxy: {
+              protocol: input.proxy.protocol,
+              host: input.proxy.host,
+              port: input.proxy.port,
+              username: input.proxy.username,
+              password: input.proxy.password,
+              rawUrl: input.proxy.rawUrl,
+              searchParams: input.proxy.searchParams,
+            },
+            purpose: input.purpose,
+            signal: input.signal,
+            timeoutMs: input.timeoutMs,
+            state,
+            settings: input.settings,
+          });
+        },
+      });
+    }
+  }
+}
+
+export async function refreshRuntimePlugins(input: { force?: boolean } = {}) {
+  const changed = await refreshRuntimePluginDefinitions({
+    force: input.force,
+    reservedPluginIds: staticPluginDefinitions.map(
+      (definition) => definition.meta.id,
+    ),
+  });
+  if (!changed && pluginDefinitions.length !== staticPluginDefinitions.length) {
+    return false;
+  }
+  const next = sortPluginDefinitions([
+    ...staticPluginDefinitions,
+    ...getRuntimePluginDefinitions(),
+  ]);
+  assertUniqueRuntimePluginIds(next);
+  pluginDefinitions = next;
+  syncOutboundProxyProtocols();
+  return changed;
+}
+
+syncOutboundProxyProtocols();
 
 registerOutboundProxyResolver(async (input) => {
   for (const definition of pluginDefinitions) {
@@ -247,6 +319,57 @@ export function getPublicPluginStates(
       ];
     }),
   );
+}
+
+export async function loadRuntimePluginSlots(input: {
+  states: Record<string, PluginState>;
+  locale: SiteLocale;
+  fallbackLocale: SiteLocale;
+  user: AuthenticatedUser | null;
+}) {
+  const slots: RuntimePluginSlotRender[] = [];
+  for (const definition of pluginDefinitions) {
+    const state = input.states[definition.meta.id];
+    if (!state?.enabled || !definition.runtime?.slots) continue;
+    for (const [slot, descriptor] of Object.entries(
+      definition.runtime.slots,
+    ) as Array<
+      [PluginSlot, NonNullable<typeof definition.runtime.slots>[PluginSlot]]
+    >) {
+      if (!descriptor) continue;
+      const strings = pluginLocaleStrings(
+        definition,
+        input.locale,
+        input.fallbackLocale,
+      );
+      const schema =
+        descriptor.mode === 'schema'
+          ? ((await definition.slotSchema?.({
+              slot,
+              state,
+              locale: input.locale,
+              fallbackLocale: input.fallbackLocale,
+              strings,
+              user: input.user,
+            })) ?? descriptor.schema)
+          : undefined;
+      const ui = {
+        ...descriptor,
+        schema: descriptor.mode === 'schema' ? schema : descriptor.schema,
+      };
+      if (ui.mode === 'schema' && !ui.schema) continue;
+      if (ui.mode === 'iframe' && !ui.src) continue;
+      slots.push({
+        pluginId: definition.meta.id,
+        pluginName: definition.meta.name,
+        slot,
+        ui,
+        config: state.config,
+        strings,
+      });
+    }
+  }
+  return slots;
 }
 
 export function parsePluginStates(

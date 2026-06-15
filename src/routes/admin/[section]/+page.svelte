@@ -34,11 +34,12 @@
     type ThemeTokens,
   } from '$lib/config';
   import { keepFormValues } from '$lib/forms';
-  import { localizedPluginMeta } from '$lib/i18n/plugin';
   import { formatText, uiText } from '$lib/i18n/ui-text';
-  import type { AdminPluginAccessPermission } from '$lib/plugin-contracts';
+  import type {
+    AdminPluginAccessPermission,
+    PluginMeta,
+  } from '$lib/plugin-contracts';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
-  import { adminPluginRegistry } from '../../../plugins/admin-registry';
 
   type AdminLink = {
     id: number;
@@ -79,6 +80,7 @@
     locale: SiteLocale;
     section: string;
     settings: SiteSettings;
+    plugins: PluginMeta[];
     permissions: {
       isAdmin: boolean;
       links: {
@@ -584,13 +586,12 @@
     return false;
   }
 
-  function canViewPlugin(plugin: (typeof adminPluginRegistry)[number]) {
-    const accessPermissions =
-      plugin.definition.meta.adminAccessPermissions ?? [];
+  function canViewPlugin(meta: PluginMeta) {
+    const accessPermissions = meta.adminAccessPermissions ?? [];
     return (
       data.permissions.isAdmin ||
       data.permissions.admin.plugins.includes('*') ||
-      data.permissions.admin.plugins.includes(plugin.definition.meta.id) ||
+      data.permissions.admin.plugins.includes(meta.id) ||
       accessPermissions.some(hasAdminAccessPermission)
     );
   }
@@ -1688,12 +1689,7 @@
     </form>
   {:else if activeSection === 'plugins'}
     <section class="plugin-grid">
-      {#each adminPluginRegistry.filter(canViewPlugin) as plugin (plugin.definition.meta.id)}
-        {@const meta = localizedPluginMeta(
-          plugin.definition,
-          data.locale,
-          data.settings.i18n.defaultLocale,
-        )}
+      {#each data.plugins.filter(canViewPlugin) as meta (meta.id)}
         {@const state = data.settings.plugins[meta.id]}
         <article class="plugin-card">
           <div class="plugin-heading">

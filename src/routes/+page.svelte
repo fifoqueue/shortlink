@@ -18,7 +18,10 @@
   } from '$lib/search';
   import { siteThemeStyle } from '$lib/theme-vars';
   import { formatText, uiText } from '$lib/i18n/ui-text';
-  import type { AuthenticatedUser } from '$lib/plugin-contracts';
+  import type {
+    AuthenticatedUser,
+    RuntimePluginSlotRender,
+  } from '$lib/plugin-contracts';
   import { publicPluginRegistry } from '../plugins/public-registry';
 
   type LinkItem = {
@@ -91,6 +94,7 @@
       totalPages: number;
     };
     auth: { enabled: boolean; setupRequired: boolean };
+    runtimeSlots: RuntimePluginSlotRender[];
   };
   type ActionData = {
     ok?: boolean;
@@ -245,6 +249,7 @@
     registry={publicPluginRegistry}
     states={data.settings.plugins}
     slot="top"
+    runtimeSlots={data.runtimeSlots}
     user={data.user}
     {locale}
     fallbackLocale={data.settings.i18n.defaultLocale}
@@ -419,6 +424,7 @@
             registry={publicPluginRegistry}
             states={data.settings.plugins}
             slot="form-extra"
+            runtimeSlots={data.runtimeSlots}
             user={data.user}
             {locale}
             fallbackLocale={data.settings.i18n.defaultLocale}
@@ -450,6 +456,7 @@
             registry={publicPluginRegistry}
             states={data.settings.plugins}
             slot="form-footer"
+            runtimeSlots={data.runtimeSlots}
             user={data.user}
             {locale}
             fallbackLocale={data.settings.i18n.defaultLocale}
@@ -559,6 +566,7 @@
       registry={publicPluginRegistry}
       states={data.settings.plugins}
       slot="footer"
+      runtimeSlots={data.runtimeSlots}
       user={data.user}
       {locale}
       fallbackLocale={data.settings.i18n.defaultLocale}

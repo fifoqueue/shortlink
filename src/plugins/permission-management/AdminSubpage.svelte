@@ -6,6 +6,8 @@
   import { translateContent } from '$lib/i18n/translate-content';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
+  import RuntimePluginFrame from '$lib/components/RuntimePluginFrame.svelte';
+  import RuntimePluginSchemaForm from '$lib/components/RuntimePluginSchemaForm.svelte';
   import ToggleField from '$lib/components/ToggleField.svelte';
   import {
     defaultSiteLocale,
@@ -202,21 +204,6 @@
   const members = $derived(data.kind === 'group' ? data.members : undefined);
   const addableUsers = $derived(
     data.kind === 'group' ? data.addableUsers : undefined,
-  );
-  const userAdminIntegrations = $derived(
-    (integrations ?? []).flatMap((integration) => {
-      const registered = userAdminPluginRegistry.find(
-        (plugin) => plugin.definition.meta.id === integration.pluginId,
-      );
-      if (!registered?.userAdmin) return [];
-      return [
-        {
-          component: registered.userAdmin,
-          definition: registered.definition,
-          integration,
-        },
-      ];
-    }),
   );
   const selectableCidrKeys = $derived(
     (cidrs?.cidrs ?? []).map((rule) => rule.cidr),
@@ -625,19 +612,60 @@
         </form>
       </section>
 
-      {#each userAdminIntegrations as integration (integration.integration.pluginId)}
-        {@const UserAdmin = integration.component}
-        <UserAdmin
-          config={{}}
-          integrationData={integration.integration.data}
-          {locale}
-          {fallbackLocale}
-          strings={pluginLocaleStrings(
-            integration.definition,
-            locale,
-            fallbackLocale,
-          )}
-        />
+      {#each integrations ?? [] as integration (integration.pluginId)}
+        {@const registered = userAdminPluginRegistry.find(
+          (plugin) => plugin.definition.meta.id === integration.pluginId,
+        )}
+        {#if registered?.userAdmin}
+          {@const UserAdmin = registered.userAdmin}
+          <UserAdmin
+            config={integration.config ?? {}}
+            integrationData={integration.data}
+            {locale}
+            {fallbackLocale}
+            strings={pluginLocaleStrings(
+              registered.definition,
+              locale,
+              fallbackLocale,
+            )}
+          />
+        {:else if integration.runtimeSchema}
+          <section>
+            <h2>{integration.pluginName}</h2>
+            <form
+              method="POST"
+              action="?/integrationAction"
+              use:enhance={keepFormValues}
+            >
+              <input
+                type="hidden"
+                name="integrationPlugin"
+                value={integration.pluginId}
+              />
+              <input type="hidden" name="integrationAction" value="save" />
+              <RuntimePluginSchemaForm schema={integration.runtimeSchema} />
+              <button type="submit">{t('admin.save')}</button>
+            </form>
+          </section>
+        {:else if integration.runtimeUi?.mode === 'iframe' && integration.runtimeUi.src}
+          <section>
+            <h2>{integration.pluginName}</h2>
+            <form method="POST" action="?/integrationAction" use:enhance>
+              <RuntimePluginFrame
+                src={integration.runtimeUi.src}
+                pluginId={integration.pluginId}
+                config={integration.config ?? {}}
+                adminData={integration.data}
+                {locale}
+                {fallbackLocale}
+                strings={integration.strings ?? {}}
+                pluginFieldName="integrationPlugin"
+                pluginFieldValue={integration.pluginId}
+                actionFieldName="integrationAction"
+              />
+            </form>
+          </section>
+        {/if}
       {/each}
 
       <section>

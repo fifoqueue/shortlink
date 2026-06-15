@@ -12,7 +12,11 @@ import {
   shouldApplyClientHintResponseHeaders,
 } from '$lib/server/client-hints';
 import { getClientIp } from '$lib/server/client-ip';
-import { getSettings, setPluginStateNormalizer } from '$lib/server/settings';
+import {
+  getSettings,
+  invalidateSettingsCache,
+  setPluginStateNormalizer,
+} from '$lib/server/settings';
 import {
   isDefaultShortLinkDomain,
   shortLinkDomainOrigin,
@@ -22,6 +26,7 @@ import {
   collectClickMetadataPlugins,
   handleRequestPlugins,
   normalizePluginStates,
+  refreshRuntimePlugins,
 } from './plugins/server';
 
 setPluginStateNormalizer(normalizePluginStates);
@@ -41,6 +46,7 @@ const appRouteSegments = new Set([
   'logout',
   'privacy',
   'robots.txt',
+  'runtime-plugins',
   'signup',
   'sitemap.xml',
   'terms',
@@ -89,6 +95,9 @@ function defaultDomainRedirect(
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (await refreshRuntimePlugins()) {
+    invalidateSettingsCache();
+  }
   const settings = await getSettings();
   const locale = localeFromMetadata({
     acceptLanguage: event.request.headers.get('accept-language'),

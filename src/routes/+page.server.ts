@@ -36,6 +36,7 @@ import { registrationAvailability } from '$lib/server/registration';
 import {
   applyCreateUrlPlugins,
   getPublicPluginStates,
+  loadRuntimePluginSlots,
   verifyFormSubmissionPlugins,
 } from '../plugins/server';
 import { getAuthLoginMethods } from '../plugins/auth-registry';
@@ -208,6 +209,12 @@ export const load: PageServerLoad = async ({
       enabled: authEnabled,
       setupRequired: registration.setupRequired,
     },
+    runtimeSlots: await loadRuntimePluginSlots({
+      states: settings.plugins,
+      locale: locals.locale,
+      fallbackLocale: settings.i18n.defaultLocale,
+      user: locals.user,
+    }),
   };
 };
 

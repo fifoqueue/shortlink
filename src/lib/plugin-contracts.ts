@@ -38,6 +38,91 @@ export interface PluginLocalizedText {
   strings?: PluginLocaleStrings;
 }
 
+export type RuntimePluginAbi = 'shortlink.runtime-plugin.v1';
+export type RuntimePluginTrust = 'trusted' | 'untrusted';
+export type RuntimePluginUiMode = 'iframe' | 'schema';
+
+export interface RuntimePluginUiDescriptor {
+  mode: RuntimePluginUiMode;
+  src?: string;
+  schema?: RuntimePluginAdminSchema;
+}
+
+export interface RuntimePluginFrameInit {
+  type: 'shortlink:init';
+  pluginId: string;
+  locale: string;
+  fallbackLocale: string;
+  strings: Record<string, string>;
+  config: PluginConfig;
+  adminData?: unknown;
+}
+
+export type RuntimePluginFrameMessage =
+  | { type: 'shortlink:resize'; height: number }
+  | {
+      type: 'shortlink:set-fields';
+      fields: Record<string, string | string[] | boolean | number | null>;
+    }
+  | {
+      type: 'shortlink:submit-action';
+      action: string;
+      fields?: Record<string, unknown>;
+    }
+  | { type: 'shortlink:toast'; ok?: boolean; message: string };
+
+export interface RuntimePluginAdminSchema {
+  fields: RuntimePluginAdminField[];
+}
+
+export type RuntimePluginAdminField =
+  | RuntimePluginTextField
+  | RuntimePluginTextareaField
+  | RuntimePluginNumberField
+  | RuntimePluginCheckboxField
+  | RuntimePluginSelectField;
+
+interface RuntimePluginBaseField {
+  name: string;
+  label: string;
+  help?: string;
+  required?: boolean;
+}
+
+export interface RuntimePluginTextField extends RuntimePluginBaseField {
+  type: 'text' | 'password' | 'url';
+  value?: string;
+  placeholder?: string;
+  maxlength?: number;
+}
+
+export interface RuntimePluginTextareaField extends RuntimePluginBaseField {
+  type: 'textarea';
+  value?: string;
+  placeholder?: string;
+  rows?: number;
+  maxlength?: number;
+}
+
+export interface RuntimePluginNumberField extends RuntimePluginBaseField {
+  type: 'number';
+  value?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface RuntimePluginCheckboxField extends RuntimePluginBaseField {
+  type: 'checkbox';
+  checked?: boolean;
+}
+
+export interface RuntimePluginSelectField extends RuntimePluginBaseField {
+  type: 'select';
+  value?: string;
+  options: Array<{ value: string; label: string }>;
+}
+
 export interface PluginActivationStatus {
   allowed: boolean;
   reason?: string;
@@ -213,6 +298,16 @@ export interface AuthPluginModule {
 export interface PluginDefinition {
   meta: PluginMeta;
   translations?: Partial<Record<SiteLocale, PluginLocalizedText>>;
+  runtime?: {
+    abi: RuntimePluginAbi;
+    directory: string;
+    trust: RuntimePluginTrust;
+    admin?: RuntimePluginUiDescriptor;
+    account?: RuntimePluginUiDescriptor;
+    userAdmin?: RuntimePluginUiDescriptor;
+    slots?: Partial<Record<PluginSlot, RuntimePluginUiDescriptor>>;
+  };
+  auth?: Partial<Omit<AuthPluginModule, 'id'>>;
   defaultConfig: PluginConfig;
   parseConfig: (
     form: FormData,
@@ -226,6 +321,40 @@ export interface PluginDefinition {
     },
   ) => PluginConfig;
   prepareAdminConfig?: (config: PluginConfig) => PluginConfig;
+  adminSchema?: (input: {
+    state: PluginState;
+    locale: SiteLocale;
+    fallbackLocale: SiteLocale;
+    strings: PluginLocaleStrings;
+    adminData: unknown;
+  }) => RuntimePluginAdminSchema | Promise<RuntimePluginAdminSchema>;
+  accountSchema?: (input: {
+    user: AuthenticatedUser;
+    state: PluginState;
+    url: URL;
+    locale: SiteLocale;
+    fallbackLocale: SiteLocale;
+    strings: PluginLocaleStrings;
+    data: unknown;
+    permissions: PluginPermissionContext;
+  }) => RuntimePluginAdminSchema | Promise<RuntimePluginAdminSchema>;
+  userAdminSchema?: (input: {
+    userId: number;
+    state: PluginState;
+    url: URL;
+    locale: SiteLocale;
+    fallbackLocale: SiteLocale;
+    strings: PluginLocaleStrings;
+    data: unknown;
+  }) => RuntimePluginAdminSchema | Promise<RuntimePluginAdminSchema>;
+  slotSchema?: (input: {
+    slot: PluginSlot;
+    state: PluginState;
+    locale: SiteLocale;
+    fallbackLocale: SiteLocale;
+    strings: PluginLocaleStrings;
+    user: AuthenticatedUser | null;
+  }) => RuntimePluginAdminSchema | Promise<RuntimePluginAdminSchema>;
   validateConfig?: (
     config: PluginConfig,
     context?: PluginLocaleContext,
@@ -461,7 +590,20 @@ export interface PluginComponentProps {
 export interface PluginIntegrationData {
   pluginId: string;
   pluginName: string;
+  config?: PluginConfig;
+  strings?: PluginLocaleStrings;
+  runtimeUi?: RuntimePluginUiDescriptor | null;
+  runtimeSchema?: RuntimePluginAdminSchema | null;
   data: unknown;
+}
+
+export interface RuntimePluginSlotRender {
+  pluginId: string;
+  pluginName: string;
+  slot: PluginSlot;
+  ui: RuntimePluginUiDescriptor;
+  config: PluginConfig;
+  strings: PluginLocaleStrings;
 }
 
 export interface RegisteredPlugin {

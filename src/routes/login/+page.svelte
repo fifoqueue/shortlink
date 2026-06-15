@@ -8,6 +8,7 @@
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import { siteThemeStyle } from '$lib/theme-vars';
   import type { SiteLocale, SiteSettings } from '$lib/config';
+  import type { RuntimePluginSlotRender } from '$lib/plugin-contracts';
   import { publicPluginRegistry } from '../../plugins/public-registry';
   import { uiText } from '$lib/i18n/ui-text';
 
@@ -46,6 +47,7 @@
       resendVerificationAvailable: boolean;
       passwordResetAvailable: boolean;
       providers: LoginProvider[];
+      runtimeSlots: RuntimePluginSlotRender[];
     };
     form?: { message?: string };
   } = $props();
@@ -155,6 +157,7 @@
           registry={publicPluginRegistry}
           states={data.plugins}
           slot="login-extra"
+          runtimeSlots={data.runtimeSlots}
           locale={data.locale}
           fallbackLocale={data.defaultLocale}
         />

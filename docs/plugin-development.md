@@ -1,24 +1,34 @@
 # Plugin Development Guide
 
-이 문서는 이 저장소에 들어갈 `src/user-plugins/{pluginId}` 유저 플러그인을 작성하는 개발자를 위한 문서다. 사이트 운영자가 관리자 화면에서 어떤 값을 넣어야 하는지 설명하지 않는다. 플러그인이 코어와 어떤 파일명, 타입, 훅, 폼 규칙, i18n 규칙으로 연결되는지만 다룬다.
+이 문서는 이 프로젝트에 들어갈 플러그인을 작성하는 개발자를 위한 문서다. 사이트 운영자가 관리자 화면에서 어떤 값을 넣어야 하는지 설명하지 않는다. 플러그인이 코어와 어떤 파일명, 타입, 훅, 폼 규칙, i18n 규칙으로 연결되는지만 다룬다.
 
-현재 플러그인 시스템은 빌드 시점 자동 발견 방식이다. 코어 플러그인은 `src/plugins/*`, 유저 플러그인은 `src/user-plugins/*`의 직접 하위 디렉터리에 있는 정해진 파일명을 `import.meta.glob`으로 찾는다. 프로덕션에서 파일을 복사해 넣는다고 런타임에 새 플러그인이 로드되지 않는다. 플러그인을 추가, 삭제, 이름 변경하면 새 빌드가 필요하다.
+플러그인은 두 방식으로 만들 수 있다.
+
+- 빌드 시점 플러그인: `src/user-plugins/{pluginId}`에 TypeScript/Svelte 소스로 넣고 앱을 다시 빌드한다. 코어 플러그인인 `src/plugins/*`와 같은 구조를 쓴다.
+- 런타임 ABI 플러그인: `USER_PLUGIN_DIR`의 직접 하위 디렉터리에 `manifest.json`과 빌드된 assets/server bundle을 넣고 앱 재빌드 없이 로드한다. 상세 ABI는 [runtime-plugin-abi.md](./runtime-plugin-abi.md)가 기준이다.
+
+새 플러그인이 서버 훅, 인증 훅, DB migration처럼 앱 프로세스 안에서 실행되는 코드가 필요하면 빌드 시점 플러그인 또는 `trust: "trusted"` 런타임 플러그인을 사용한다. 비신뢰 플러그인을 받아야 하면 `trust: "untrusted"` 런타임 플러그인으로 만들고, manifest/schema/iframe assets만 제공한다.
 
 ## 기준 API
 
 플러그인 개발자가 안정적으로 의존할 수 있는 계약은 다음 파일이다.
 
 - `$lib/plugin-contracts`
+- `$lib/runtime-plugin-abi`
 - `$lib/i18n/plugin`
-- `$lib/server/outbound-http` (`server.ts` 전용)
+- `$lib/server/outbound-http` (빌드 시점 플러그인의 `server.ts` 전용)
 - `$plugins/utils`
 - 이 문서에 명시된 파일명과 route
 
 그 외 `src/routes/*`, `src/lib/server/models/*`, 특정 플러그인의 내부 helper는 코어 구현 상세다. 참고 구현을 읽을 수는 있지만, 새 플러그인이 그 내부 파일에 직접 기대면 코어 리팩터링 때 쉽게 깨진다. 서버 DB 모델이나 라우트 내부 helper가 꼭 필요하면 플러그인 API를 먼저 확장한다.
 
+런타임 ABI 플러그인은 `$lib/*`를 import하지 않는 것을 전제로 한다. `trust: "trusted"` 플러그인의 `server.mjs`는 factory 인자로 전달되는 SDK를 사용하고, `trust: "untrusted"` 플러그인은 서버 JavaScript 자체를 제공하지 않는다.
+
 ## 파일 구조
 
-최소 플러그인은 `plugin.ts` 하나만 있으면 된다.
+### 빌드 시점 플러그인
+
+최소 빌드 시점 플러그인은 `plugin.ts` 하나만 있으면 된다.
 
 ```text
 src/user-plugins/example/
@@ -55,9 +65,66 @@ src/user-plugins/example/
 - `plugin.ts`, `Admin.svelte`, `slots/*.svelte`에는 서버 전용 import를 넣지 않는다.
 - DB, 파일 시스템, 환경 변수, secret, private key 접근은 `server.ts`나 `auth.ts`에 둔다.
 
+### 런타임 ABI 플러그인
+
+런타임 플러그인은 원본 `.ts`/`.svelte` 소스가 아니라 manifest와 빌드된 산출물을 배포한다.
+
+```text
+user-plugins/example/
+  manifest.json
+  server.mjs              # trust: "trusted"에서만 허용
+  migrations/             # trust: "trusted"에서만 허용
+    001-create-table.mjs
+  public/
+    admin.html
+    account.html
+    slots/
+      footer.html
+```
+
+`manifest.json`의 최소 형태:
+
+```json
+{
+  "abi": "shortlink.runtime-plugin.v1",
+  "id": "example",
+  "name": "Example",
+  "description": "Runtime plugin example.",
+  "version": "1.0.0",
+  "category": "display",
+  "trust": "untrusted",
+  "assets": "./public",
+  "defaultConfig": {
+    "message": ""
+  },
+  "admin": {
+    "mode": "schema",
+    "schema": {
+      "fields": [
+        {
+          "type": "text",
+          "name": "message",
+          "label": "Message"
+        }
+      ]
+    }
+  }
+}
+```
+
+런타임 플러그인 규칙:
+
+- `manifest.json`의 `id`는 폴더명과 같아야 한다.
+- `abi`는 `shortlink.runtime-plugin.v1`이어야 한다.
+- `trust`는 `trusted` 또는 `untrusted`다. 생략하면 `trusted`다.
+- `untrusted`는 `entry`와 `migrations/*.mjs`를 가질 수 없다. 코어가 서버 코드를 import하지 않는다.
+- `trusted`는 `entry`의 `server.mjs` default factory를 실행할 수 있고, migration과 서버 훅을 제공할 수 있다.
+- `assets`, iframe `entry`, slot `entry`는 플러그인 디렉터리 밖을 가리킬 수 없다.
+- schema UI 필드 타입은 `text`, `password`, `url`, `textarea`, `number`, `checkbox`, `select`만 지원한다.
+
 ## 자동 로딩 구조
 
-현재 레지스트리는 네 개다.
+빌드 시점 플러그인 레지스트리는 네 개다.
 
 | 파일                             | 자동 로드 대상                                                                             | 용도                                           |
 | -------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
@@ -71,6 +138,10 @@ src/user-plugins/example/
 서버, 관리자, 공개 슬롯 레지스트리는 `meta.order` 오름차순, 그 다음 `meta.name` 순으로 정렬된다. URL 변환, 요청 훅, 클릭 메타데이터, 공개 슬롯처럼 여러 플러그인이 같은 흐름에 참여하는 경우 이 정렬을 따른다.
 
 인증 레지스트리는 현재 `auth.ts` 발견 결과를 별도 정렬하지 않는다. 여러 인증 플러그인이 동시에 `getUser()`나 `authenticatePassword()`를 제공할 때 어느 플러그인이 먼저 성공할지에 의존하지 않는다.
+
+런타임 ABI 플러그인은 `src/lib/server/runtime-plugins.ts`가 `USER_PLUGIN_DIR`에서 읽는다. 로드된 runtime `PluginDefinition`은 `src/plugins/server.ts`의 `pluginDefinitions`에 빌드 시점 플러그인과 병합된다. 관리자 UI, 공개 슬롯, 계정 UI, 사용자 관리자 UI는 Svelte 컴포넌트가 아니라 runtime schema/iframe renderer로 렌더링된다.
+
+`USER_PLUGIN_WATCH=true`이면 런타임 플러그인 디렉터리를 주기적으로 다시 스캔한다. Node ESM 모듈은 완전 unload가 되지 않으므로 trusted 플러그인을 자주 교체하는 운영에서는 앱 재시작을 권장한다.
 
 ## 설정 저장
 
@@ -100,7 +171,7 @@ src/user-plugins/example/
 - `meta.required === true`인 플러그인은 항상 `enabled: true`다.
 - 현재 코드에 없는 플러그인 ID는 런타임 상태에서 제외된다. 설정 저장 시 현재 플러그인 목록에 없는 `plugins:*` row는 정리될 수 있다.
 
-유저 플러그인 전용 DB migration은 `src/user-plugins/{pluginId}/migrations/*.migration.ts`에 둔다. 각 파일은 `$lib/server/migrations/types`의 `DatabaseMigration`을 default export한다. 코어는 이 경로를 generic glob으로 읽을 뿐이며, 특정 플러그인 ID나 schema를 알지 않는다.
+빌드 시점 유저 플러그인 전용 DB migration은 `src/user-plugins/{pluginId}/migrations/*.migration.ts`에 둔다. 각 파일은 `$lib/server/migrations/types`의 `DatabaseMigration`을 default export한다. 코어는 이 경로를 generic glob으로 읽을 뿐이며, 특정 플러그인 ID나 schema를 알지 않는다.
 
 ```ts
 import type { DatabaseMigration } from '$lib/server/migrations/types';
@@ -120,9 +191,11 @@ export default migration;
 
 마이그레이션 `id`는 전체 프로젝트에서 유일해야 한다. 플러그인 ID를 prefix로 붙이면 충돌을 피하기 쉽다.
 
+런타임 trusted 플러그인은 `migrations/*.mjs`를 사용할 수 있다. 형식은 [runtime-plugin-abi.md](./runtime-plugin-abi.md)의 `RuntimePluginMigration`을 따른다. 런타임 untrusted 플러그인은 migration을 가질 수 없다.
+
 ## `plugin.ts`
 
-`plugin.ts`는 `PluginDefinition`을 default export한다.
+이 섹션은 빌드 시점 플러그인 기준이다. `plugin.ts`는 `PluginDefinition`을 default export한다.
 
 ```ts
 import type { PluginDefinition } from '$lib/plugin-contracts';
@@ -392,7 +465,7 @@ transformCreateUrl(url, form, config) {
 
 ## `server.ts`
 
-`server.ts`는 서버 전용 훅을 default export한다. 타입은 `Partial<PluginDefinition>`이다.
+이 섹션은 빌드 시점 플러그인 기준이다. `server.ts`는 서버 전용 훅을 default export한다. 타입은 `Partial<PluginDefinition>`이다.
 
 ```ts
 import type { PluginDefinition } from '$lib/plugin-contracts';
@@ -680,7 +753,7 @@ handleRequest({ event, state, user, isAdmin, ip }) {
 
 ### 서버 외부 요청과 아웃바운드 프록시
 
-서버에서 외부 HTTP 요청을 보내는 플러그인은 `server.ts`에서 `$lib/server/outbound-http`의 `outboundFetch()`를 사용한다. `fetch()`를 직접 호출하면 사이트의 아웃바운드 프록시 설정과 플러그인 프록시 resolver를 우회한다.
+빌드 시점 플러그인이 서버에서 외부 HTTP 요청을 보내면 `server.ts`에서 `$lib/server/outbound-http`의 `outboundFetch()`를 사용한다. `fetch()`를 직접 호출하면 사이트의 아웃바운드 프록시 설정과 플러그인 프록시 resolver를 우회한다.
 
 ```ts
 import { outboundFetch } from '$lib/server/outbound-http';
@@ -712,6 +785,30 @@ const socket = await outboundConnect({
   purpose: 'example-socket',
 });
 ```
+
+런타임 trusted 플러그인은 `$lib/server/outbound-http`를 import하지 않는다. factory 인자로 받은 SDK의 `api.http.outboundFetch()`를 사용한다.
+
+```js
+export default function createPlugin(api) {
+  return {
+    async verifyFormSubmission({ state, settings }) {
+      const response = await api.http.outboundFetch(
+        'https://api.example.test/check',
+        {
+          method: 'POST',
+          body: JSON.stringify({ enabled: state.enabled }),
+          settings,
+          purpose: 'example-check',
+          timeoutMs: 10_000,
+        },
+      );
+      return { allowed: response.ok };
+    },
+  };
+}
+```
+
+현재 런타임 SDK는 raw socket connect helper를 노출하지 않는다. raw socket이 필요한 프록시 프로토콜 구현은 빌드 시점 플러그인으로 작성하거나 ABI 확장을 먼저 제안한다.
 
 플러그인이 아웃바운드 프록시 프로토콜 자체를 추가하려면 `server.ts`에서 다음 훅을 제공한다.
 
@@ -818,7 +915,7 @@ getClickMetadataSearchFields({ isAdmin, isOwner }) {
 
 ## `Admin.svelte`
 
-`Admin.svelte`는 `PluginComponentProps`를 받는다.
+이 섹션은 빌드 시점 플러그인 기준이다. `Admin.svelte`는 `PluginComponentProps`를 받는다.
 
 ```svelte
 <script lang="ts">
@@ -863,7 +960,7 @@ getClickMetadataSearchFields({ isAdmin, isOwner }) {
 
 ## 공개 슬롯
 
-공개 슬롯 컴포넌트도 `PluginComponentProps`를 받는다.
+이 섹션은 빌드 시점 플러그인 기준이다. 공개 슬롯 컴포넌트도 `PluginComponentProps`를 받는다.
 
 ```svelte
 <script lang="ts">
@@ -893,9 +990,34 @@ getClickMetadataSearchFields({ isAdmin, isOwner }) {
 
 공개 슬롯에는 `getPublicPluginStates()` 결과가 들어간다. 즉 `publicConfig()`가 반환한 값만 믿어야 한다. 서버 전용 값이나 secret이 필요하면 설계가 잘못된 것이다.
 
+런타임 ABI 플러그인은 Svelte 슬롯 파일을 제공하지 않는다. `manifest.json`의 `slots`에 schema/iframe descriptor를 선언한다.
+
+```json
+{
+  "slots": {
+    "form-extra": {
+      "mode": "schema",
+      "schema": {
+        "fields": [
+          {
+            "type": "checkbox",
+            "name": "agree",
+            "label": "Agree"
+          }
+        ]
+      }
+    },
+    "footer": {
+      "mode": "iframe",
+      "entry": "./public/footer.html"
+    }
+  }
+}
+```
+
 ## `auth.ts`
 
-인증 플러그인은 `AuthPluginModule`을 default export한다.
+이 섹션은 빌드 시점 플러그인 기준이다. 인증 플러그인은 `AuthPluginModule`을 default export한다.
 
 ```ts
 import type { AuthPluginModule } from '$lib/plugin-contracts';
@@ -967,6 +1089,100 @@ export default auth;
 ```
 
 `provider`와 `subject`는 안정적인 식별자여야 한다. OIDC 같은 외부 인증에서는 callback state에 nonce, returnTo, account-link 대상 user id를 넣고 callback에서 반드시 검증한다.
+
+런타임 trusted 플러그인은 별도 `auth.ts` 파일을 쓰지 않는다. `server.mjs` factory 반환 객체의 `auth` 필드에 같은 의미의 인증 훅을 제공한다. 런타임 untrusted 플러그인은 인증 훅을 제공할 수 없다.
+
+## Runtime `server.mjs`
+
+런타임 trusted 플러그인의 서버 entry는 default factory를 export한다.
+
+```js
+export default function createPlugin(api) {
+  return {
+    meta: {
+      id: 'example',
+      name: 'Example',
+      description: 'Runtime plugin example.',
+      version: '1.0.0',
+      category: 'display',
+    },
+    defaultConfig: {
+      message: '',
+    },
+    parseConfig(form, current) {
+      return {
+        message: api.form.string(form, 'message', current.message ?? ''),
+      };
+    },
+    adminSchema({ state }) {
+      return {
+        fields: [
+          {
+            type: 'text',
+            name: 'message',
+            label: 'Message',
+            value: String(state.config.message ?? ''),
+          },
+        ],
+      };
+    },
+  };
+}
+```
+
+factory 반환 객체는 `PluginDefinition`과 같은 의미지만, 런타임 ABI에서는 코어 내부 import를 하지 않는 것을 전제로 한다. 서버 외부 요청은 `api.http.outboundFetch()`를 사용한다.
+
+런타임 trusted factory에서 사용할 수 있는 schema hook:
+
+- `adminSchema`
+- `accountSchema`
+- `userAdminSchema`
+- `slotSchema`
+
+`accountSchema`는 `/account` integration UI를, `userAdminSchema`는 사용자 관리자 integration UI를, `slotSchema`는 manifest `slots` 중 schema slot을 동적으로 렌더링할 때 사용한다. 정적 schema만 필요하면 `manifest.json`에 직접 `schema`를 넣는다.
+
+런타임 untrusted 플러그인은 `server.mjs`를 제공하지 않는다. 설정 파싱은 manifest의 `defaultConfig` 타입을 기준으로 한 기본 파서를 사용한다. 체크박스는 boolean, number 기본값은 number, 배열 기본값은 string array로 처리된다.
+
+## Runtime iframe UI
+
+runtime iframe은 plugin assets 안의 HTML 파일이어야 한다. host는 iframe에 초기 상태를 보낸다.
+
+```js
+window.addEventListener('message', (event) => {
+  if (event.data?.type !== 'shortlink:init') return;
+  const { pluginId, locale, fallbackLocale, strings, config, adminData } =
+    event.data;
+});
+```
+
+iframe에서 host form에 값을 넣으려면 `shortlink:set-fields`를 보낸다.
+
+```js
+parent.postMessage(
+  {
+    type: 'shortlink:set-fields',
+    fields: {
+      message: document.querySelector('[name="message"]').value,
+    },
+  },
+  '*',
+);
+```
+
+iframe에서 action 제출을 트리거하려면 `shortlink:submit-action`을 보낸다.
+
+```js
+parent.postMessage(
+  {
+    type: 'shortlink:submit-action',
+    action: 'save',
+    fields: { message: 'hello' },
+  },
+  '*',
+);
+```
+
+host는 메시지를 보낸 window가 해당 iframe인지 확인한다. iframe은 `sandbox="allow-forms allow-scripts"`로 렌더링되므로 top navigation, same-origin script access, popup 권한에 의존하지 않는다.
 
 ## 유틸
 

@@ -38,19 +38,44 @@ async function loadIntegrations(
   const integrations = await Promise.all(
     pluginDefinitions.map(async (definition) => {
       const state = settings.plugins[definition.meta.id];
-      if (!state?.enabled || !definition.loadAccountData) return null;
+      if (!state?.enabled) return null;
+      const runtimeUi = definition.runtime?.account;
+      if (!definition.loadAccountData && !runtimeUi) return null;
+      const strings = pluginLocaleStrings(definition, locale, fallbackLocale);
+      const data = definition.loadAccountData
+        ? await definition.loadAccountData({
+            user,
+            state,
+            url,
+            locale,
+            fallbackLocale,
+            strings,
+            permissions,
+          })
+        : null;
+      const runtimeSchema =
+        runtimeUi?.mode === 'schema'
+          ? ((await definition.accountSchema?.({
+              user,
+              state,
+              url,
+              locale,
+              fallbackLocale,
+              strings,
+              data,
+              permissions,
+            })) ??
+            runtimeUi.schema ??
+            null)
+          : null;
       return {
         pluginId: definition.meta.id,
         pluginName: definition.meta.name,
-        data: await definition.loadAccountData({
-          user,
-          state,
-          url,
-          locale,
-          fallbackLocale,
-          strings: pluginLocaleStrings(definition, locale, fallbackLocale),
-          permissions,
-        }),
+        config: state.config,
+        strings,
+        runtimeUi: runtimeUi ?? null,
+        runtimeSchema,
+        data,
       };
     }),
   );

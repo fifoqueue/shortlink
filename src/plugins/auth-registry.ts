@@ -10,9 +10,9 @@ import { defaultSiteLocale, type SiteLocale } from '$lib/config';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
 import { authProviderKey } from '$lib/server/permissions';
 import { assertUniquePluginId, pluginFolderFromPath } from './utils';
+import { pluginDefinitions } from './server';
 
 type AuthModule = { default: AuthPluginModule };
-type PluginModule = { default: PluginDefinition };
 type AuthProviderAllowList = readonly string[] | null | undefined;
 
 const modules = import.meta.glob<AuthModule>(
@@ -21,29 +21,9 @@ const modules = import.meta.glob<AuthModule>(
     eager: true,
   },
 );
-const pluginModules = import.meta.glob<PluginModule>(
-  ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
-  {
-    eager: true,
-  },
-);
-
-const pluginDefinitionsById = new Map<string, PluginDefinition>();
-const seenPluginDefinitionIds = new Set<string>();
-for (const [path, module] of Object.entries(pluginModules)) {
-  const folder = pluginFolderFromPath(path);
-  const definition = module.default;
-  if (definition.meta.id !== folder) {
-    throw new Error(
-      `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
-    );
-  }
-  assertUniquePluginId(seenPluginDefinitionIds, definition.meta.id, path);
-  pluginDefinitionsById.set(definition.meta.id, definition);
-}
 const seenAuthPluginIds = new Set<string>();
 
-const authPlugins = Object.entries(modules).map(([path, module]) => {
+const staticAuthPlugins = Object.entries(modules).map(([path, module]) => {
   const authPlugin = module.default;
   const folder = pluginFolderFromPath(path);
   if (authPlugin.id !== folder) {
@@ -55,6 +35,38 @@ const authPlugins = Object.entries(modules).map(([path, module]) => {
   return authPlugin;
 });
 
+function definitionFor(pluginId: string): PluginDefinition | undefined {
+  return pluginDefinitions.find(
+    (definition) => definition.meta.id === pluginId,
+  );
+}
+
+function runtimeAuthPlugins(): AuthPluginModule[] {
+  return pluginDefinitions.flatMap((definition) => {
+    if (!definition.auth || typeof definition.auth.getUser !== 'function') {
+      return [];
+    }
+    return [
+      {
+        id: definition.meta.id,
+        getUser: definition.auth.getUser,
+        clearSession: definition.auth.clearSession,
+        getLoginMethods: definition.auth.getLoginMethods,
+        getAccountLinkMethods: definition.auth.getAccountLinkMethods,
+        authenticatePassword: definition.auth.authenticatePassword,
+        startLogin: definition.auth.startLogin,
+        finishLogin: definition.auth.finishLogin,
+        startAccountLink: definition.auth.startAccountLink,
+        finishAccountLink: definition.auth.finishAccountLink,
+      } satisfies AuthPluginModule,
+    ];
+  });
+}
+
+function authPlugins() {
+  return [...staticAuthPlugins, ...runtimeAuthPlugins()];
+}
+
 function stateFor(states: Record<string, PluginState>, pluginId: string) {
   const state = states[pluginId];
   return state?.enabled ? state : null;
@@ -65,7 +77,7 @@ function localeContext(
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
 ): PluginLocaleContext {
-  const definition = pluginDefinitionsById.get(pluginId);
+  const definition = definitionFor(pluginId);
   return {
     locale,
     fallbackLocale,
@@ -138,7 +150,7 @@ export async function getPluginUser(
   cookies: Cookies,
   states: Record<string, PluginState>,
 ): Promise<AuthenticatedUser | null> {
-  for (const authPlugin of authPlugins) {
+  for (const authPlugin of authPlugins()) {
     const state = states[authPlugin.id];
     if (!state?.enabled) continue;
     const user = await authPlugin.getUser(cookies, state.config);
@@ -148,7 +160,7 @@ export async function getPluginUser(
 }
 
 export function hasEnabledAuthPlugin(states: Record<string, PluginState>) {
-  return authPlugins.some((plugin) => states[plugin.id]?.enabled);
+  return authPlugins().some((plugin) => states[plugin.id]?.enabled);
 }
 
 export function getAuthLoginMethods(
@@ -157,7 +169,7 @@ export function getAuthLoginMethods(
   fallbackLocale: SiteLocale = locale,
   allowedProviders?: AuthProviderAllowList,
 ) {
-  return authPlugins.flatMap((plugin) => {
+  return authPlugins().flatMap((plugin) => {
     const state = stateFor(states, plugin.id);
     if (!state) return [];
     return loginMethods(
@@ -184,7 +196,7 @@ export async function authenticatePluginPassword(
   fallbackLocale: SiteLocale = locale,
   allowedProviders?: AuthProviderAllowList,
 ) {
-  for (const plugin of authPlugins) {
+  for (const plugin of authPlugins()) {
     const state = stateFor(states, plugin.id);
     if (
       !state ||
@@ -210,7 +222,7 @@ export async function clearPluginSessions(
   states: Record<string, PluginState>,
 ) {
   await Promise.all(
-    authPlugins.map(async (plugin) => {
+    authPlugins().map(async (plugin) => {
       const state = states[plugin.id];
       if (state && plugin.clearSession) {
         await plugin.clearSession(cookies);
@@ -231,7 +243,7 @@ export async function startPluginLogin(
   requestParams?: URLSearchParams,
   allowedProviders?: AuthProviderAllowList,
 ) {
-  const plugin = authPlugins.find((item) => item.id === pluginId);
+  const plugin = authPlugins().find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
   const context = localeContext(pluginId, locale, fallbackLocale);
   if (
@@ -261,7 +273,7 @@ export async function finishPluginLogin(
   fallbackLocale: SiteLocale = locale,
   allowedProviders?: AuthProviderAllowList,
 ) {
-  const plugin = authPlugins.find((item) => item.id === pluginId);
+  const plugin = authPlugins().find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
   if (!plugin?.finishLogin || !state?.enabled) return null;
   return plugin.finishLogin(
@@ -286,7 +298,7 @@ export async function startPluginAccountLink(
   requestParams?: URLSearchParams,
   allowedProviders?: AuthProviderAllowList,
 ) {
-  const plugin = authPlugins.find((item) => item.id === pluginId);
+  const plugin = authPlugins().find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
   const context = localeContext(pluginId, locale, fallbackLocale);
   if (
@@ -318,7 +330,7 @@ export async function finishPluginAccountLink(
   fallbackLocale: SiteLocale = locale,
   allowedProviders?: AuthProviderAllowList,
 ) {
-  const plugin = authPlugins.find((item) => item.id === pluginId);
+  const plugin = authPlugins().find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
   if (!plugin?.finishAccountLink || !state) return null;
   return plugin.finishAccountLink(
