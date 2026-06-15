@@ -31,7 +31,13 @@ const coreMigrationModules = import.meta.glob<{ default: DatabaseMigration }>(
 );
 const pluginMigrationModules = import.meta.glob<{
   default: DatabaseMigration;
-}>('../../plugins/*/migrations/*.migration.ts', { eager: true });
+}>(
+  [
+    '../../plugins/*/migrations/*.migration.ts',
+    '../../user-plugins/*/migrations/*.migration.ts',
+  ],
+  { eager: true },
+);
 
 function createSequelize() {
   if (!env.DATABASE_URL) {

@@ -14,7 +14,11 @@ import {
   registerOutboundProxyProtocol,
   registerOutboundProxyResolver,
 } from '$lib/server/outbound-http';
-import { pluginFolderFromPath } from './utils';
+import {
+  assertUniquePluginId,
+  pluginFolderFromPath,
+  pluginModuleFromFolder,
+} from './utils';
 
 type PluginModule = { default: PluginDefinition };
 type ServerPluginModule = {
@@ -47,12 +51,19 @@ type ServerPluginModule = {
   >;
 };
 
-const modules = import.meta.glob<PluginModule>('./*/plugin.ts', {
-  eager: true,
-});
-const serverModules = import.meta.glob<ServerPluginModule>('./*/server.ts', {
-  eager: true,
-});
+const modules = import.meta.glob<PluginModule>(
+  ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
+  {
+    eager: true,
+  },
+);
+const serverModules = import.meta.glob<ServerPluginModule>(
+  ['./*/server.ts', '../user-plugins/*/server.ts'],
+  {
+    eager: true,
+  },
+);
+const seenPluginIds = new Set<string>();
 
 export const pluginDefinitions = Object.entries(modules)
   .map(([path, module]) => {
@@ -63,9 +74,10 @@ export const pluginDefinitions = Object.entries(modules)
         `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
       );
     }
+    assertUniquePluginId(seenPluginIds, definition.meta.id, path);
     return {
       ...definition,
-      ...serverModules[`./${folder}/server.ts`]?.default,
+      ...pluginModuleFromFolder(serverModules, folder, 'server.ts')?.default,
     };
   })
   .sort(

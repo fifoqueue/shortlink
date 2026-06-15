@@ -1,8 +1,8 @@
 # Plugin Development Guide
 
-이 문서는 이 저장소에 들어갈 `src/plugins/{pluginId}` 플러그인을 작성하는 개발자를 위한 문서다. 사이트 운영자가 관리자 화면에서 어떤 값을 넣어야 하는지 설명하지 않는다. 플러그인이 코어와 어떤 파일명, 타입, 훅, 폼 규칙, i18n 규칙으로 연결되는지만 다룬다.
+이 문서는 이 저장소에 들어갈 `src/user-plugins/{pluginId}` 유저 플러그인을 작성하는 개발자를 위한 문서다. 사이트 운영자가 관리자 화면에서 어떤 값을 넣어야 하는지 설명하지 않는다. 플러그인이 코어와 어떤 파일명, 타입, 훅, 폼 규칙, i18n 규칙으로 연결되는지만 다룬다.
 
-현재 플러그인 시스템은 빌드 시점 자동 발견 방식이다. `src/plugins/*`의 직접 하위 디렉터리에 있는 정해진 파일명을 `import.meta.glob`으로 찾는다. 프로덕션에서 파일을 복사해 넣는다고 런타임에 새 플러그인이 로드되지 않는다. 플러그인을 추가, 삭제, 이름 변경하면 새 빌드가 필요하다.
+현재 플러그인 시스템은 빌드 시점 자동 발견 방식이다. 코어 플러그인은 `src/plugins/*`, 유저 플러그인은 `src/user-plugins/*`의 직접 하위 디렉터리에 있는 정해진 파일명을 `import.meta.glob`으로 찾는다. 프로덕션에서 파일을 복사해 넣는다고 런타임에 새 플러그인이 로드되지 않는다. 플러그인을 추가, 삭제, 이름 변경하면 새 빌드가 필요하다.
 
 ## 기준 API
 
@@ -11,7 +11,7 @@
 - `$lib/plugin-contracts`
 - `$lib/i18n/plugin`
 - `$lib/server/outbound-http` (`server.ts` 전용)
-- `src/plugins/utils.ts`
+- `$plugins/utils`
 - 이 문서에 명시된 파일명과 route
 
 그 외 `src/routes/*`, `src/lib/server/models/*`, 특정 플러그인의 내부 helper는 코어 구현 상세다. 참고 구현을 읽을 수는 있지만, 새 플러그인이 그 내부 파일에 직접 기대면 코어 리팩터링 때 쉽게 깨진다. 서버 DB 모델이나 라우트 내부 helper가 꼭 필요하면 플러그인 API를 먼저 확장한다.
@@ -21,14 +21,14 @@
 최소 플러그인은 `plugin.ts` 하나만 있으면 된다.
 
 ```text
-src/plugins/example/
+src/user-plugins/example/
   plugin.ts
 ```
 
 필요한 확장 표면만 추가한다.
 
 ```text
-src/plugins/example/
+src/user-plugins/example/
   plugin.ts             # 필수. 메타데이터, 기본 설정, 브라우저 안전 설정 처리
   server.ts             # 선택. 서버 전용 훅과 관리자/계정 action
   auth.ts               # 선택. 로그인, 세션, redirect 인증, 계정 연결
@@ -59,12 +59,12 @@ src/plugins/example/
 
 현재 레지스트리는 네 개다.
 
-| 파일                             | 자동 로드 대상                                                 | 용도                                           |
-| -------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
-| `src/plugins/server.ts`          | `./*/plugin.ts`, `./*/server.ts`                               | 서버 훅, 설정 정규화, 요청 훅, 클릭 메타데이터 |
-| `src/plugins/admin-registry.ts`  | `./*/plugin.ts`, `./*/Admin.svelte`, `./*/AdminSubpage.svelte` | 관리자 페이지 컴포넌트                         |
-| `src/plugins/public-registry.ts` | `./*/plugin.ts`, `./*/slots/*.svelte`                          | 공개 슬롯 컴포넌트                             |
-| `src/plugins/auth-registry.ts`   | `./*/auth.ts`, `./*/plugin.ts`                                 | 로그인/세션/계정 연결                          |
+| 파일                             | 자동 로드 대상                                                                             | 용도                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| `src/plugins/server.ts`          | `src/plugins/*`, `src/user-plugins/*`의 `plugin.ts`, `server.ts`                           | 서버 훅, 설정 정규화, 요청 훅, 클릭 메타데이터 |
+| `src/plugins/admin-registry.ts`  | `src/plugins/*`, `src/user-plugins/*`의 `plugin.ts`, `Admin.svelte`, `AdminSubpage.svelte` | 관리자 페이지 컴포넌트                         |
+| `src/plugins/public-registry.ts` | `src/plugins/*`, `src/user-plugins/*`의 `plugin.ts`, `slots/*.svelte`                      | 공개 슬롯 컴포넌트                             |
+| `src/plugins/auth-registry.ts`   | `src/plugins/*`, `src/user-plugins/*`의 `auth.ts`, `plugin.ts`                             | 로그인/세션/계정 연결                          |
 
 `server.ts`는 `plugin.ts`의 `PluginDefinition` 위에 서버 전용 훅을 병합한다. 같은 훅 이름을 양쪽에 두면 `server.ts`가 이긴다. 그래도 원칙은 단순하다. 브라우저에 들어갈 수 있는 코드는 `plugin.ts`, 서버 전용 코드는 `server.ts`다.
 
@@ -100,7 +100,7 @@ src/plugins/example/
 - `meta.required === true`인 플러그인은 항상 `enabled: true`다.
 - 현재 코드에 없는 플러그인 ID는 런타임 상태에서 제외된다. 설정 저장 시 현재 플러그인 목록에 없는 `plugins:*` row는 정리될 수 있다.
 
-플러그인 전용 DB migration은 `src/plugins/{pluginId}/migrations/*.migration.ts`에 둔다. 각 파일은 `$lib/server/migrations/types`의 `DatabaseMigration`을 default export한다. 코어는 이 경로를 generic glob으로 읽을 뿐이며, 특정 플러그인 ID나 schema를 알지 않는다.
+유저 플러그인 전용 DB migration은 `src/user-plugins/{pluginId}/migrations/*.migration.ts`에 둔다. 각 파일은 `$lib/server/migrations/types`의 `DatabaseMigration`을 default export한다. 코어는 이 경로를 generic glob으로 읽을 뿐이며, 특정 플러그인 ID나 schema를 알지 않는다.
 
 ```ts
 import type { DatabaseMigration } from '$lib/server/migrations/types';
@@ -126,7 +126,7 @@ export default migration;
 
 ```ts
 import type { PluginDefinition } from '$lib/plugin-contracts';
-import { pluginChecked, pluginString } from '../utils';
+import { pluginChecked, pluginString } from '$plugins/utils';
 
 const plugin: PluginDefinition = {
   meta: {
@@ -317,7 +317,7 @@ parseConfig(
 필드 이름은 직접 만들지 말고 `fieldName()`, `pluginString()`, `pluginChecked()`를 사용한다.
 
 ```ts
-import { fieldName, pluginChecked, pluginString } from '../utils';
+import { fieldName, pluginChecked, pluginString } from '$plugins/utils';
 
 parseConfig(form, current) {
   return {
@@ -828,7 +828,7 @@ getClickMetadataSearchFields({ isAdmin, isOwner }) {
     PluginComponentProps,
     PluginLocaleKey,
   } from '$lib/plugin-contracts';
-  import { configString, fieldName } from '../utils';
+  import { configString, fieldName } from '$plugins/utils';
 
   let { config, adminData, strings = {} }: PluginComponentProps = $props();
 
@@ -970,7 +970,7 @@ export default auth;
 
 ## 유틸
 
-`src/plugins/utils.ts`에서 제공하는 유틸:
+`$plugins/utils`에서 제공하는 유틸:
 
 ```ts
 fieldName(pluginId, field)       // plugin.example.field

@@ -87,7 +87,7 @@ yarn dev -- --host 0.0.0.0 --port 3000
 - 플러그인: CAPTCHA, 속도 제한, OIDC SSO, 사용자 관리, 향상된 추적 등 플러그인 설정
 - 링크 관리: 저장된 링크 검색, 수정, 삭제, 통계 확인
 
-기본 플러그인은 `src/plugins/<plugin-id>/` 단위로 구성됩니다. 플러그인 개발 계약은 [docs/plugin-development.md](docs/plugin-development.md)를 참고하세요.
+이 레포지토리가 제공하는 코어 플러그인은 `src/plugins/<plugin-id>/`에 두고, 서버별 유저 플러그인은 `src/user-plugins/<plugin-id>/`에 둡니다. 유저 플러그인은 기본적으로 git 추적에서 제외됩니다. 플러그인 개발 계약은 [docs/plugin-development.md](docs/plugin-development.md)를 참고하세요.
 
 ## 리버스 프록시와 실제 IP
 
@@ -154,6 +154,39 @@ pm2 start ecosystem.config.cjs
 yarn build
 pm2 restart ecosystem.config.cjs --update-env
 ```
+
+## Docker 실행
+
+이 레포지토리의 [Dockerfile](Dockerfile)은 SvelteKit adapter-node 산출물을 빌드한 뒤 production 의존성만 포함하는 Alpine 기반 런타임 이미지를 만듭니다. 컨테이너 프로세스는 root가 아닌 UID/GID `10001:10001`로 실행됩니다.
+
+유저 플러그인을 Docker에서 사용하려면 플러그인 소스를 `src/user-plugins/<plugin-id>/`에 둔 상태로 이미지를 빌드해야 합니다. Svelte 컴포넌트와 플러그인 모듈은 빌드 시점에 번들링되므로, 이미 빌드된 이미지에 런타임 volume으로 `src/user-plugins`만 마운트해도 새 플러그인은 적용되지 않습니다.
+
+이미지를 직접 빌드하려면 다음처럼 실행합니다.
+
+```bash
+docker build -t shortlink .
+```
+
+유저 플러그인을 갱신한 뒤에는 이미지를 다시 빌드하고 컨테이너를 재생성하세요.
+
+단독 컨테이너로 실행할 때는 PostgreSQL을 별도로 준비하고 환경 변수를 전달합니다.
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL=postgres://shortlink:password@host.docker.internal:5432/shortlink \
+  -e AUTH_SESSION_SECRET=replace-with-a-long-random-secret \
+  -e PRIVATE_BASE_URL=https://go.example.com \
+  shortlink
+```
+
+GitHub Actions workflow는 `main` 또는 `master`에 push될 때마다 `linux/amd64`, `linux/arm64` 이미지를 GHCR에 게시합니다.
+
+```bash
+docker pull ghcr.io/fifoqueue/shortlink:latest
+```
+
+PostgreSQL까지 포함한 예시는 [docs/docker-compose.yaml](docs/docker-compose.yaml)을 참고하세요. 처음 실행하기 전에 `AUTH_SESSION_SECRET`, `POSTGRES_PASSWORD`, `PRIVATE_BASE_URL`은 운영 환경에 맞게 바꾸세요.
+샘플 compose 파일은 기본적으로 GHCR 이미지를 사용합니다. 유저 플러그인을 포함한 커스텀 이미지를 쓰려면 compose 파일의 `build` 예시 주석을 참고해 로컬에서 빌드하세요.
 
 ## 데이터베이스
 

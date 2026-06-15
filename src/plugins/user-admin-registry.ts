@@ -3,20 +3,28 @@ import type {
   PluginComponentProps,
   PluginDefinition,
 } from '$lib/plugin-contracts';
-import { pluginFolderFromPath } from './utils';
+import {
+  assertUniquePluginId,
+  pluginFolderFromPath,
+  pluginModuleFromFolder,
+} from './utils';
 
 type PluginModule = { default: PluginDefinition };
 type ComponentModule = { default: Component<PluginComponentProps> };
 
-const definitionModules = import.meta.glob<PluginModule>('./*/plugin.ts', {
-  eager: true,
-});
-const userAdminModules = import.meta.glob<ComponentModule>(
-  './*/UserAdmin.svelte',
+const definitionModules = import.meta.glob<PluginModule>(
+  ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
   {
     eager: true,
   },
 );
+const userAdminModules = import.meta.glob<ComponentModule>(
+  ['./*/UserAdmin.svelte', '../user-plugins/*/UserAdmin.svelte'],
+  {
+    eager: true,
+  },
+);
+const seenPluginIds = new Set<string>();
 
 export const userAdminPluginRegistry = Object.entries(definitionModules)
   .map(([path, module]) => {
@@ -27,11 +35,13 @@ export const userAdminPluginRegistry = Object.entries(definitionModules)
         `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
       );
     }
+    assertUniquePluginId(seenPluginIds, definition.meta.id, path);
 
     return {
       definition,
       userAdmin:
-        userAdminModules[`./${folder}/UserAdmin.svelte`]?.default ?? null,
+        pluginModuleFromFolder(userAdminModules, folder, 'UserAdmin.svelte')
+          ?.default ?? null,
     };
   })
   .sort(

@@ -1,0 +1,47 @@
+services:
+  app:
+    image: ghcr.io/fifoqueue/shortlink:latest
+    # User plugins are bundled at build time. To include local
+    # src/user-plugins, comment out "image" above, uncomment this build block,
+    # and run: docker compose -f docs/docker-compose.yaml up -d --build
+    # build:
+    #   context: ..
+    #   dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://shortlink:replace-this-password@postgres:5432/shortlink
+      DATABASE_SSL: 'false'
+      DATABASE_LOGGING: 'false'
+      PRIVATE_BASE_URL: https://go.example.com
+      AUTH_SESSION_SECRET: replace-with-a-long-random-secret
+      SHUTDOWN_TIMEOUT: 1
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shortlink
+      POSTGRES_USER: shortlink
+      POSTGRES_PASSWORD: replace-this-password
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:

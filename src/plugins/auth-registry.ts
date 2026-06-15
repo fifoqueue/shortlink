@@ -9,33 +9,49 @@ import type {
 import { defaultSiteLocale, type SiteLocale } from '$lib/config';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
 import { authProviderKey } from '$lib/server/permissions';
+import { assertUniquePluginId, pluginFolderFromPath } from './utils';
 
 type AuthModule = { default: AuthPluginModule };
 type PluginModule = { default: PluginDefinition };
 type AuthProviderAllowList = readonly string[] | null | undefined;
 
-const modules = import.meta.glob<AuthModule>('./*/auth.ts', {
-  eager: true,
-});
-const pluginModules = import.meta.glob<PluginModule>('./*/plugin.ts', {
-  eager: true,
-});
-
-const pluginDefinitionsById = new Map(
-  Object.entries(pluginModules).map(([, module]) => [
-    module.default.meta.id,
-    module.default,
-  ]),
+const modules = import.meta.glob<AuthModule>(
+  ['./*/auth.ts', '../user-plugins/*/auth.ts'],
+  {
+    eager: true,
+  },
 );
+const pluginModules = import.meta.glob<PluginModule>(
+  ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
+  {
+    eager: true,
+  },
+);
+
+const pluginDefinitionsById = new Map<string, PluginDefinition>();
+const seenPluginDefinitionIds = new Set<string>();
+for (const [path, module] of Object.entries(pluginModules)) {
+  const folder = pluginFolderFromPath(path);
+  const definition = module.default;
+  if (definition.meta.id !== folder) {
+    throw new Error(
+      `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
+    );
+  }
+  assertUniquePluginId(seenPluginDefinitionIds, definition.meta.id, path);
+  pluginDefinitionsById.set(definition.meta.id, definition);
+}
+const seenAuthPluginIds = new Set<string>();
 
 const authPlugins = Object.entries(modules).map(([path, module]) => {
   const authPlugin = module.default;
-  const folder = path.split('/')[1];
+  const folder = pluginFolderFromPath(path);
   if (authPlugin.id !== folder) {
     throw new Error(
       `Auth plugin "${folder}" must use the same id (received "${authPlugin.id}").`,
     );
   }
+  assertUniquePluginId(seenAuthPluginIds, authPlugin.id, path);
   return authPlugin;
 });
 

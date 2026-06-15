@@ -4,23 +4,34 @@ import type {
   PluginDefinition,
   RegisteredPlugin,
 } from '$lib/plugin-contracts';
-import { pluginFolderFromPath } from './utils';
+import {
+  assertUniquePluginId,
+  pluginFolderFromPath,
+  pluginModuleFromFolder,
+} from './utils';
 
 type PluginModule = { default: PluginDefinition };
 type ComponentModule = { default: Component<PluginComponentProps> };
 
-const definitionModules = import.meta.glob<PluginModule>('./*/plugin.ts', {
-  eager: true,
-});
-const adminModules = import.meta.glob<ComponentModule>('./*/Admin.svelte', {
-  eager: true,
-});
-const adminSubpageModules = import.meta.glob<ComponentModule>(
-  './*/AdminSubpage.svelte',
+const definitionModules = import.meta.glob<PluginModule>(
+  ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
   {
     eager: true,
   },
 );
+const adminModules = import.meta.glob<ComponentModule>(
+  ['./*/Admin.svelte', '../user-plugins/*/Admin.svelte'],
+  {
+    eager: true,
+  },
+);
+const adminSubpageModules = import.meta.glob<ComponentModule>(
+  ['./*/AdminSubpage.svelte', '../user-plugins/*/AdminSubpage.svelte'],
+  {
+    eager: true,
+  },
+);
+const seenPluginIds = new Set<string>();
 
 export const adminPluginRegistry: RegisteredPlugin[] = Object.entries(
   definitionModules,
@@ -33,12 +44,19 @@ export const adminPluginRegistry: RegisteredPlugin[] = Object.entries(
         `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
       );
     }
+    assertUniquePluginId(seenPluginIds, definition.meta.id, path);
 
     return {
       definition,
-      admin: adminModules[`./${folder}/Admin.svelte`]?.default ?? null,
+      admin:
+        pluginModuleFromFolder(adminModules, folder, 'Admin.svelte')?.default ??
+        null,
       adminSubpage:
-        adminSubpageModules[`./${folder}/AdminSubpage.svelte`]?.default ?? null,
+        pluginModuleFromFolder(
+          adminSubpageModules,
+          folder,
+          'AdminSubpage.svelte',
+        )?.default ?? null,
       slots: {},
     };
   })

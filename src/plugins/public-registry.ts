@@ -5,17 +5,24 @@ import type {
   PluginSlot,
   RegisteredPlugin,
 } from '$lib/plugin-contracts';
-import { pluginFolderFromPath } from './utils';
+import { assertUniquePluginId, pluginFolderFromPath } from './utils';
 
 type PluginModule = { default: PluginDefinition };
 type ComponentModule = { default: Component<PluginComponentProps> };
 
-const definitionModules = import.meta.glob<PluginModule>('./*/plugin.ts', {
-  eager: true,
-});
-const slotModules = import.meta.glob<ComponentModule>('./*/slots/*.svelte', {
-  eager: true,
-});
+const definitionModules = import.meta.glob<PluginModule>(
+  ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
+  {
+    eager: true,
+  },
+);
+const slotModules = import.meta.glob<ComponentModule>(
+  ['./*/slots/*.svelte', '../user-plugins/*/slots/*.svelte'],
+  {
+    eager: true,
+  },
+);
+const seenPluginIds = new Set<string>();
 
 function slotFromPath(path: string): PluginSlot {
   const filename = path.split('/').at(-1)?.replace('.svelte', '') ?? '';
@@ -33,6 +40,7 @@ export const publicPluginRegistry: RegisteredPlugin[] = Object.entries(
         `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
       );
     }
+    assertUniquePluginId(seenPluginIds, definition.meta.id, path);
 
     const slots: RegisteredPlugin['slots'] = {};
     for (const [slotPath, slotModule] of Object.entries(slotModules)) {

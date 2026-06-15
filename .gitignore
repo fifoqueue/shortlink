@@ -64,6 +64,10 @@ typings/
 # dotenv environment variables file
 .env
 
+# Local user plugins
+src/user-plugins/*
+!src/user-plugins/.gitkeep
+
 # Miscellaneous important file
 .svelte-kit/
 .idea/
