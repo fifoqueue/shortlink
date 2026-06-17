@@ -19,6 +19,7 @@ import {
 } from '$lib/server/settings';
 import {
   isDefaultShortLinkDomain,
+  shortLinkHostnameFromOrigin,
   shortLinkDomainOrigin,
 } from '$lib/server/url';
 import { getPluginUser } from './plugins/auth-registry';
@@ -69,27 +70,38 @@ function staticAssetPath(pathname: string) {
   );
 }
 
-function shortLinkPath(pathname: string) {
-  if (staticAssetPath(pathname)) return false;
+function shortLinkCodeFromPath(pathname: string) {
+  if (staticAssetPath(pathname)) return null;
   const trimmed = pathname.replace(/^\/+|\/+$/g, '');
-  if (!trimmed || trimmed.includes('/')) return false;
+  if (!trimmed || trimmed.includes('/')) return null;
   const segment = decodedPathSegment(trimmed);
-  if (appRouteSegments.has(segment.toLowerCase())) return false;
-  return /^[A-Za-z0-9_-]+$/.test(segment);
+  if (appRouteSegments.has(segment.toLowerCase())) return null;
+  return /^[A-Za-z0-9_-]+$/.test(segment) ? segment : null;
+}
+
+function requestOrigin(url: URL, headers: Headers) {
+  const host = headers.get('host')?.split(',')[0]?.trim();
+  if (!host) return url.origin;
+  try {
+    return `${url.protocol}//${shortLinkHostnameFromOrigin(host)}`;
+  } catch {
+    return url.origin;
+  }
 }
 
 function defaultDomainRedirect(
   settings: Awaited<ReturnType<typeof getSettings>>,
   url: URL,
+  origin: string,
 ) {
   if (!settings.general.defaultDomain) return null;
-  if (isDefaultShortLinkDomain(settings, url.origin)) return null;
-  if (shortLinkPath(url.pathname)) return null;
+  if (isDefaultShortLinkDomain(settings, origin)) return null;
   if (staticAssetPath(url.pathname)) return null;
+  if (shortLinkCodeFromPath(url.pathname)) return null;
 
   const target = new URL(
     `${url.pathname}${url.search}`,
-    shortLinkDomainOrigin(settings.general.defaultDomain, url.origin, settings),
+    shortLinkDomainOrigin(settings.general.defaultDomain, origin, settings),
   );
   return Response.redirect(target, 302);
 }
@@ -99,15 +111,17 @@ export const handle: Handle = async ({ event, resolve }) => {
     invalidateSettingsCache();
   }
   const settings = await getSettings();
+  const origin = requestOrigin(event.url, event.request.headers);
   const locale = localeFromMetadata({
     acceptLanguage: event.request.headers.get('accept-language'),
     cookieLocale: event.cookies.get(localeCookieName),
     fallbackLocale: settings.i18n.defaultLocale,
   });
   event.locals.settings = settings;
+  event.locals.requestOrigin = origin;
   event.locals.locale = locale;
   event.locals.localizedSettings = localizedSettings(settings, locale);
-  const redirectResponse = defaultDomainRedirect(settings, event.url);
+  const redirectResponse = defaultDomainRedirect(settings, event.url, origin);
   if (redirectResponse) return redirectResponse;
   event.locals.user = await getPluginUser(event.cookies, settings.plugins);
   event.locals.isAdmin = event.locals.user?.isAdmin === true;

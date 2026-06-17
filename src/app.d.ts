@@ -8,6 +8,7 @@ declare global {
       isAdmin: boolean;
       locale: SiteLocale;
       localizedSettings: SiteSettings;
+      requestOrigin: string;
       settings: SiteSettings;
       user: AuthenticatedUser | null;
     }

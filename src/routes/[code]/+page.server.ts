@@ -39,7 +39,8 @@ export const load: PageServerLoad = async ({
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
   if (!code) error(404, text.messages.linkNotFound);
 
-  const domain = shortLinkDomainForOrigin(settings, url.origin);
+  const requestOrigin = locals.requestOrigin ?? url.origin;
+  const domain = shortLinkDomainForOrigin(settings, requestOrigin);
   const link = await getRedirectLinkByCode(code, domain);
   if (!link) error(404, text.messages.linkNotFound);
 
@@ -108,7 +109,7 @@ export const load: PageServerLoad = async ({
       mode: 'preview' as const,
       link: publicLink,
       settings: publicSettings,
-      metadata: openGraphMetadata(link, displaySettings, url.origin),
+      metadata: openGraphMetadata(link, displaySettings, requestOrigin),
     };
   }
 
@@ -161,7 +162,8 @@ export const actions: Actions = {
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
     if (!code) error(404, text.messages.linkNotFound);
 
-    const domain = shortLinkDomainForOrigin(settings, url.origin);
+    const requestOrigin = locals.requestOrigin ?? url.origin;
+    const domain = shortLinkDomainForOrigin(settings, requestOrigin);
     const link = await getRedirectLinkByCode(code, domain);
     if (!link) error(404, text.messages.linkNotFound);
 
@@ -203,7 +205,7 @@ export const actions: Actions = {
         maxAge: 60 * 60 * 12,
         path: `/${link.code}`,
         sameSite: 'lax',
-        secure: url.protocol === 'https:',
+        secure: new URL(requestOrigin).protocol === 'https:',
       },
     );
 
