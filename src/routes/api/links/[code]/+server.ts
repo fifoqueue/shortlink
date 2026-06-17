@@ -58,6 +58,7 @@ export const GET: RequestHandler = async ({
     isAdmin: api.principal.isAdmin,
     allowAnyOwner: permissions.links.statsAll,
     owner: { userId: api.principal.id },
+    sharedUserId: api.principal.id,
   });
   if (!access.link) error(404, text.linkNotFound);
   if (!access.allowed) {
@@ -131,19 +132,6 @@ async function updateApiLink(
   const { permissions } = api;
   const text = uiText(settings.i18n.defaultLocale).messages;
   if (!code) error(404, text.linkNotFound);
-  if (
-    permissions.links.editableFields.length === 0 ||
-    (!permissions.links.editAll && !permissions.links.editOwn)
-  ) {
-    return json(
-      {
-        message: text.editOwnOnly,
-        permission_groups: publicPermissionGroupReasons(permissions),
-      },
-      { status: 403 },
-    );
-  }
-
   try {
     const body = recordValue(await request.json().catch(() => ({})));
     const form = formDataFromJson(body);
@@ -173,7 +161,10 @@ async function updateApiLink(
         allowAnyOwner: permissions.links.editAll,
         editableFields: permissions.links.editableFields,
         linkSettings: linkSettingsForPermissions(settings.links, permissions),
-        owner: { userId: api.principal.id },
+        owner: permissions.links.editOwn
+          ? { userId: api.principal.id }
+          : undefined,
+        sharedUserId: api.principal.id,
         domain,
         partial,
       },

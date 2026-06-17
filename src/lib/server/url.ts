@@ -46,10 +46,12 @@ export function normalizeShortLinkDomain(value: string) {
 
 export function shortLinkHostnameFromOrigin(origin: string) {
   try {
-    return new URL(origin).host.toLowerCase();
+    const parsed = new URL(origin);
+    if (parsed.host) return parsed.host.toLowerCase();
   } catch {
-    return normalizeShortLinkDomain(origin);
+    // Fall through for Host header values such as "localhost:5173".
   }
+  return normalizeShortLinkDomain(origin);
 }
 
 export function normalizeShortLinkDomainScheme(

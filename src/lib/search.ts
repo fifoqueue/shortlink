@@ -15,6 +15,13 @@ export type StatsSearchState = {
   query: string;
 };
 
+export type RecipientSearchField = 'all' | 'name' | 'email';
+
+export type RecipientSearchState = {
+  field: RecipientSearchField;
+  query: string;
+};
+
 export const LINK_SEARCH_PARAMS = {
   field: 'searchBy',
   query: 'q',
@@ -25,6 +32,12 @@ export const STATS_SEARCH_PARAMS = {
   query: 'q',
 } as const;
 
+export const RECIPIENT_SEARCH_PARAMS = {
+  field: 'recipientSearchBy',
+  query: 'recipientQ',
+  page: 'recipientPage',
+} as const;
+
 export const LINK_SEARCH_OPTIONS: SearchOption[] = [
   { value: 'code', label: 'Generated slug' },
   { value: 'url', label: 'Destination URL' },
@@ -33,6 +46,12 @@ export const LINK_SEARCH_OPTIONS: SearchOption[] = [
 
 export function isLinkSearchField(value: string): value is LinkSearchField {
   return value === 'code' || value === 'url' || value === 'tags';
+}
+
+export function isRecipientSearchField(
+  value: string,
+): value is RecipientSearchField {
+  return value === 'all' || value === 'name' || value === 'email';
 }
 
 function queryPair(name: string, value: string) {

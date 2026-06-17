@@ -189,6 +189,7 @@ export interface SiteSettings {
     deleteAll: boolean;
     statsAll: boolean;
     statsCsv: boolean;
+    share: boolean;
     healthAll: boolean;
     editableFields: LinkEditFieldKey[];
     trackClicks: boolean;
@@ -499,6 +500,7 @@ export const defaultSettings: SiteSettings = {
     deleteAll: false,
     statsAll: false,
     statsCsv: true,
+    share: true,
     healthAll: false,
     editableFields: [...linkEditFieldKeys],
     trackClicks: true,

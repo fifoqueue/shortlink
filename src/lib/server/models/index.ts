@@ -12,6 +12,11 @@ import {
   initClickEventQueueModel,
 } from './click-event-queue';
 import {
+  LinkAccessGrantModel,
+  LinkAccessShareModel,
+  initLinkAccessShareModels,
+} from './link-access-share';
+import {
   PermissionGroupCidrModel,
   PermissionGroupModel,
   PermissionGroupUserModel,
@@ -26,6 +31,10 @@ export { ApiTokenModel } from './api-token';
 export { AuthRequestLimitModel } from './auth-request-limit';
 export { ClickEventModel } from './click-event';
 export { ClickEventQueueModel } from './click-event-queue';
+export {
+  LinkAccessGrantModel,
+  LinkAccessShareModel,
+} from './link-access-share';
 export {
   PermissionGroupCidrModel,
   PermissionGroupModel,
@@ -44,6 +53,12 @@ export function initModels(sequelize: Sequelize) {
   if (ClickEventModel.sequelize !== sequelize) initClickEventModel(sequelize);
   if (ClickEventQueueModel.sequelize !== sequelize)
     initClickEventQueueModel(sequelize);
+  if (
+    LinkAccessShareModel.sequelize !== sequelize ||
+    LinkAccessGrantModel.sequelize !== sequelize
+  ) {
+    initLinkAccessShareModels(sequelize);
+  }
   if (UserIdentityModel.sequelize !== sequelize)
     initUserIdentityModel(sequelize);
   if (ApiTokenModel.sequelize !== sequelize) initApiTokenModel(sequelize);

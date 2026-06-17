@@ -37,6 +37,12 @@ import type { LinkSearchState } from '$lib/search';
 import { serverMessage } from '$lib/i18n/ui-text';
 import { outboundRequest } from './outbound-http';
 import {
+  activeShareAccessForLinkId,
+  linkShareSummariesByLinkId,
+  sharedLinkIdsForUser,
+  type LinkShareListSummary,
+} from './link-sharing';
+import {
   DEFAULT_PAGE_SIZE,
   normalizedPage,
   normalizedPageSize,
@@ -60,6 +66,7 @@ export interface Link {
   smart: LinkSmartOptions;
   routing: LinkRoutingOptions;
   health: LinkHealth;
+  share: LinkShareListSummary;
 }
 
 export interface LinkPreview {
@@ -191,6 +198,7 @@ export interface UpdateLinkOptions {
   siteSettings?: SiteSettings;
   domain?: string;
   owner?: LinkOwner;
+  sharedUserId?: number | null;
   partial?: boolean;
 }
 
@@ -309,7 +317,16 @@ function healthStatus(value: unknown): LinkHealth['status'] {
     : 'unchecked';
 }
 
-function publicLink(link: ShortLinkModel, owner?: LinkOwner): Link {
+const emptyShareSummary = {
+  recipientCount: 0,
+  access: null,
+} satisfies LinkShareListSummary;
+
+function publicLink(
+  link: ShortLinkModel,
+  owner?: LinkOwner,
+  share: LinkShareListSummary = emptyShareSummary,
+): Link {
   const preview = normalizeStoredPreview(link.preview);
   const output: Link = {
     id: link.id,
@@ -337,6 +354,7 @@ function publicLink(link: ShortLinkModel, owner?: LinkOwner): Link {
       responseBody: (link.health_response_body ?? '').slice(0, 8_000),
       latencyMs: link.health_latency_ms ?? null,
     },
+    share,
   };
   if (owner) output.owned = linkMatchesOwner(link, owner);
   return output;
@@ -581,7 +599,7 @@ function passwordFields(
 const ALL_LINK_EDIT_FIELDS: LinkEditField[] = [...linkEditFieldKeys];
 
 function editableFieldsSet(fields?: LinkEditField[]) {
-  return new Set(fields && fields.length > 0 ? fields : ALL_LINK_EDIT_FIELDS);
+  return new Set(fields === undefined ? ALL_LINK_EDIT_FIELDS : fields);
 }
 
 function normalizeLinkOperationsForUpdate(
@@ -1012,15 +1030,32 @@ export async function listLinks(
   limit = 30,
   owner?: LinkOwner,
   ownedBy?: LinkOwner,
+  sharedWithUserId?: number | null,
 ) {
   await ensureDatabase();
-  const where = owner ? ownerWhere(owner) : undefined;
+  const sharedLinkIds =
+    owner && sharedWithUserId
+      ? await sharedLinkIdsForUser(sharedWithUserId)
+      : [];
+  const where = owner
+    ? sharedLinkIds.length > 0
+      ? {
+          [Op.or]: [ownerWhere(owner), { id: { [Op.in]: sharedLinkIds } }],
+        }
+      : ownerWhere(owner)
+    : undefined;
   const links = await ShortLinkModel.findAll({
     where,
     order: [['id', 'DESC']],
     limit,
   });
-  return links.map((link) => publicLink(link, ownedBy ?? owner));
+  const shareSummaries = await linkShareSummariesByLinkId(
+    links.map((link) => link.id),
+    sharedWithUserId,
+  );
+  return links.map((link) =>
+    publicLink(link, ownedBy ?? owner, shareSummaries.get(link.id)),
+  );
 }
 
 export async function listLinksPage(
@@ -1029,12 +1064,21 @@ export async function listLinksPage(
   owner?: LinkOwner,
   search?: LinkSearchState,
   ownedBy?: LinkOwner,
+  sharedWithUserId?: number | null,
 ) {
   await ensureDatabase();
-  const where = combineWhere(
-    owner ? ownerWhere(owner) : undefined,
-    linkSearchWhere(search),
-  );
+  const sharedLinkIds =
+    owner && sharedWithUserId
+      ? await sharedLinkIdsForUser(sharedWithUserId)
+      : [];
+  const visibilityWhere = owner
+    ? sharedLinkIds.length > 0
+      ? {
+          [Op.or]: [ownerWhere(owner), { id: { [Op.in]: sharedLinkIds } }],
+        }
+      : ownerWhere(owner)
+    : undefined;
+  const where = combineWhere(visibilityWhere, linkSearchWhere(search));
   const totalItems = await ShortLinkModel.count({ where });
   const pagination = paginationMeta({ totalItems, page, pageSize });
   const links = await ShortLinkModel.findAll({
@@ -1043,9 +1087,15 @@ export async function listLinksPage(
     limit: pagination.pageSize,
     offset: pageOffset(pagination),
   });
+  const shareSummaries = await linkShareSummariesByLinkId(
+    links.map((link) => link.id),
+    sharedWithUserId,
+  );
 
   return {
-    items: links.map((link) => publicLink(link, ownedBy ?? owner)),
+    items: links.map((link) =>
+      publicLink(link, ownedBy ?? owner, shareSummaries.get(link.id)),
+    ),
     page: pagination.page,
     pageSize: pagination.pageSize,
     totalItems: pagination.totalItems,
@@ -1240,13 +1290,29 @@ export async function updateLink(
   });
   if (!link) return { status: 'not_found' };
 
+  let sharedEditableFields: LinkEditField[] | null = null;
   if (!options.isAdmin && !options.allowAnyOwner) {
-    if (!options.owner || !linkMatchesOwner(link, options.owner)) {
+    const ownerMatches = options.owner
+      ? linkMatchesOwner(link, options.owner)
+      : false;
+    if (!ownerMatches && options.sharedUserId) {
+      const access = await activeShareAccessForLinkId(
+        link.id,
+        options.sharedUserId,
+      );
+      if (access?.canEdit) {
+        sharedEditableFields = access.editableFields as LinkEditField[];
+      }
+    }
+    if (!ownerMatches && !sharedEditableFields) {
       return { status: 'denied' };
     }
   }
 
-  const editableFields = editableFieldsSet(options.editableFields);
+  const editableFields = editableFieldsSet(
+    sharedEditableFields ?? options.editableFields,
+  );
+  if (editableFields.size === 0) return { status: 'denied' };
   const utmPermissions = utmPermissionsFromEditableFields(editableFields);
   const updates: Record<string, unknown> = {};
   const partial = options.partial === true;
@@ -1594,6 +1660,7 @@ export async function canViewStats(input: {
   isAdmin?: boolean;
   allowAnyOwner?: boolean;
   owner?: LinkOwner;
+  sharedUserId?: number | null;
 }) {
   await ensureDatabase();
   const link = await ShortLinkModel.findOne({
@@ -1601,10 +1668,21 @@ export async function canViewStats(input: {
   });
   if (!link) return { allowed: false, link: undefined };
   const isOwner = input.owner ? linkMatchesOwner(link, input.owner) : false;
+  const sharedAccess = input.sharedUserId
+    ? await activeShareAccessForLinkId(link.id, input.sharedUserId)
+    : null;
   return {
-    allowed: input.isAdmin || input.allowAnyOwner || isOwner,
-    link: publicLink(link),
+    allowed:
+      input.isAdmin ||
+      input.allowAnyOwner ||
+      isOwner ||
+      sharedAccess?.canViewStats === true,
+    link: publicLink(link, input.owner, {
+      recipientCount: 0,
+      access: sharedAccess,
+    }),
     isOwner,
+    isShared: sharedAccess !== null,
   };
 }
 

@@ -57,6 +57,7 @@
     owned?: boolean;
     clicks: number;
     created_at: string;
+    last_clicked_at: string | null;
     smart: {
       expiresAt: string | null;
       maxClicks: number;
@@ -73,6 +74,15 @@
       responseBody: string;
       latencyMs: number | null;
     };
+    share: {
+      recipientCount: number;
+      access: {
+        canEdit: boolean;
+        canViewStats: boolean;
+        editableFields: LinkEditFieldKey[];
+        expiresAt: string | null;
+      } | null;
+    };
   };
 
   type AdminData = {
@@ -88,8 +98,10 @@
         deleteAll: boolean;
         deleteMaxClicks: number;
         editOwn: boolean;
-        viewAll: boolean;
         editAll: boolean;
+        statsAll: boolean;
+        share: boolean;
+        healthAll: boolean;
         editableFields: LinkEditFieldKey[];
       };
       admin: {
@@ -132,6 +144,7 @@
     ['deleteAllLinks', 'deleteAllLinks'],
     ['statsAllLinks', 'statsAllLinks'],
     ['statsCsvLinks', 'statsCsvLinks'],
+    ['shareLinks', 'shareLinks'],
     ['healthAllLinks', 'healthAllLinks'],
   ] as const;
   const linkOptionDefaults = [
@@ -225,6 +238,7 @@
     if (name === 'deleteAllLinks') return data.settings.links.deleteAll;
     if (name === 'statsAllLinks') return data.settings.links.statsAll;
     if (name === 'statsCsvLinks') return data.settings.links.statsCsv;
+    if (name === 'shareLinks') return data.settings.links.share;
     return data.settings.links.healthAll;
   }
 
@@ -551,6 +565,15 @@
     return resolve(`/${link.code}/statistics?${params.toString()}`);
   }
 
+  function adminLinkPermissionHref(link: AdminLink) {
+    if (!canManageAdminLinkPermission(link)) return null;
+    const params = new SvelteURLSearchParams({
+      returnTo: adminLinksPageHref(data.pagination.page),
+    });
+    if (link.domain) params.set('domain', link.domain);
+    return resolve(`/${link.code}/permission?${params.toString()}`);
+  }
+
   const allowedAdminSections = $derived(
     data.permissions.isAdmin
       ? adminSections
@@ -563,19 +586,51 @@
     if (data.permissions.links.deleteAll) return true;
     return (
       data.permissions.links.deleteOwn &&
-      (!data.permissions.links.viewAll || link.owned === true) &&
+      link.owned === true &&
       (data.permissions.links.deleteMaxClicks <= 0 ||
         link.clicks <= data.permissions.links.deleteMaxClicks)
     );
   }
 
-  function canEditAdminLink(link: { owned?: boolean }) {
+  function canViewAdminLinkStats(link: AdminLink) {
     return (
+      data.permissions.links.statsAll ||
+      link.owned === true ||
+      link.share.access?.canViewStats === true
+    );
+  }
+
+  function canCheckAdminLinkHealth(link: AdminLink) {
+    return data.permissions.links.healthAll || link.owned === true;
+  }
+
+  function canManageAdminLinkPermission(link: AdminLink) {
+    return (
+      data.permissions.links.share &&
+      (data.permissions.isAdmin ||
+        data.permissions.links.editAll ||
+        link.owned === true)
+    );
+  }
+
+  function canEditAdminLink(link: AdminLink) {
+    return (
+      (data.permissions.links.editableFields.length > 0 &&
+        (data.permissions.links.editAll ||
+          (data.permissions.links.editOwn && link.owned === true))) ||
+      link.share.access?.canEdit === true
+    );
+  }
+
+  function editableFieldsForAdminLink(link: AdminLink) {
+    if (
       data.permissions.links.editableFields.length > 0 &&
       (data.permissions.links.editAll ||
-        (data.permissions.links.editOwn &&
-          (!data.permissions.links.viewAll || link.owned === true)))
-    );
+        (data.permissions.links.editOwn && link.owned === true))
+    ) {
+      return data.permissions.links.editableFields;
+    }
+    return link.share.access?.editableFields ?? [];
   }
 
   function hasAdminAccessPermission(permission: AdminPluginAccessPermission) {
@@ -1741,9 +1796,13 @@
         updateAction="?/updateLink"
         healthAction="?/checkHealth"
         statsHref={adminLinkStatsHref}
+        permissionHref={adminLinkPermissionHref}
         canDelete={canDeleteAdminLink}
+        canViewStats={canViewAdminLinkStats}
+        canCheckHealth={canCheckAdminLinkHealth}
         canEdit={canEditAdminLink}
         editableFields={data.permissions.links.editableFields}
+        editableFieldsForLink={editableFieldsForAdminLink}
         page={data.pagination.page}
         totalPages={data.pagination.totalPages}
         getPageHref={adminLinksPageHref}

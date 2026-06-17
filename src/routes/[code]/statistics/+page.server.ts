@@ -159,6 +159,7 @@ export const load: PageServerLoad = async ({
     isAdmin: locals.isAdmin,
     allowAnyOwner: permissions.links.statsAll,
     owner,
+    sharedUserId: locals.user?.id,
   });
 
   if (!access.link) error(404, text.messages.linkNotFound);

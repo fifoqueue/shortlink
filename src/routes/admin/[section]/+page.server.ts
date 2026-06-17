@@ -550,6 +550,7 @@ export const load: PageServerLoad = async ({
       owner,
       search,
       currentOwner,
+      locals.user?.id,
     ),
     countLinksByDomain(settings.general.domains),
   ]);
@@ -794,6 +795,7 @@ export const actions: Actions = {
       deleteAll: parseBoolean(form, 'deleteAllLinks'),
       statsAll: parseBoolean(form, 'statsAllLinks'),
       statsCsv: parseBoolean(form, 'statsCsvLinks'),
+      share: parseBoolean(form, 'shareLinks'),
       healthAll: parseBoolean(form, 'healthAllLinks'),
       editableFields: linkEditFieldsFromForm(form),
       trackClicks: parseBoolean(form, 'trackClicks'),
@@ -1017,16 +1019,6 @@ export const actions: Actions = {
         message: text.messages.editNeedsSelection,
       });
     }
-    if (
-      permissions.links.editableFields.length === 0 ||
-      (!permissions.links.editAll && !permissions.links.editOwn)
-    ) {
-      return fail(403, {
-        action: 'updateLink',
-        message: text.admin.messages.linkEditDenied,
-      });
-    }
-
     try {
       const result = await updateShortLink(
         code,
@@ -1040,11 +1032,14 @@ export const actions: Actions = {
           allowAnyOwner: permissions.links.editAll,
           editableFields: permissions.links.editableFields,
           linkSettings: linkSettingsForPermissions(settings.links, permissions),
-          owner: getLinkOwner({
-            cookies,
-            userId: locals.user?.id,
-            ip: clientIp,
-          }),
+          owner: permissions.links.editOwn
+            ? getLinkOwner({
+                cookies,
+                userId: locals.user?.id,
+                ip: clientIp,
+              })
+            : undefined,
+          sharedUserId: locals.user?.id,
           domain,
         },
       );

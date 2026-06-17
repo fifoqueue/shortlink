@@ -42,17 +42,34 @@
     min-height: auto;
     gap: 6px;
     justify-items: start;
-    border: var(--copy-border, 0);
+    border: var(
+      --copy-border,
+      1px solid
+        var(--page-border, var(--admin-border, var(--border, transparent)))
+    );
     border-radius: var(--copy-radius, 12px);
     padding: var(--copy-padding, 13px 15px);
-    background: var(--copy-bg, var(--page-text, var(--admin-text, CanvasText)));
-    color: var(--copy-text, var(--page-bg, var(--admin-bg, Canvas)));
+    background: var(
+      --copy-bg,
+      color-mix(
+        in srgb,
+        var(--page-bg, var(--admin-bg, var(--surface, Canvas))) 62%,
+        var(--page-surface, var(--admin-surface, var(--surface, Canvas)))
+      )
+    );
+    color: var(
+      --copy-text,
+      var(--page-text, var(--admin-text, var(--text, CanvasText)))
+    );
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
   span {
-    color: var(--copy-label, var(--page-muted, var(--admin-muted, GrayText)));
+    color: var(
+      --copy-label,
+      var(--page-muted, var(--admin-muted, var(--muted, GrayText)))
+    );
     font-size: 0.76rem;
     font-weight: 850;
   }
@@ -72,7 +89,7 @@
   em {
     color: var(
       --copy-accent,
-      var(--page-primary, var(--admin-primary, LinkText))
+      var(--page-primary, var(--admin-primary, var(--primary, LinkText)))
     );
     font-size: 0.74rem;
     font-style: normal;

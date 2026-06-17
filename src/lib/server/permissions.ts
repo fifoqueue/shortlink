@@ -87,6 +87,7 @@ export interface PermissionRules {
     deleteAll: boolean | null;
     statsAll: boolean | null;
     statsCsv: boolean | null;
+    share: boolean | null;
     healthAll: boolean | null;
     expiresAtBypass: boolean | null;
     passwordBypass: boolean | null;
@@ -242,6 +243,7 @@ export interface EffectivePermissions {
     deleteAll: boolean;
     statsAll: boolean;
     statsCsv: boolean;
+    share: boolean;
     healthAll: boolean;
     expiresAtBypass: boolean;
     passwordBypass: boolean;
@@ -287,6 +289,7 @@ const emptyRules: PermissionRules = {
     deleteAll: null,
     statsAll: null,
     statsCsv: null,
+    share: null,
     healthAll: null,
     expiresAtBypass: null,
     passwordBypass: null,
@@ -712,6 +715,7 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
       deleteAll: nullableBoolean(links.deleteAll),
       statsAll: nullableBoolean(links.statsAll),
       statsCsv: nullableBoolean(links.statsCsv),
+      share: nullableBoolean(links.share),
       healthAll: nullableBoolean(links.healthAll),
       expiresAtBypass: nullableBoolean(links.expiresAtBypass),
       passwordBypass: nullableBoolean(links.passwordBypass),
@@ -1674,6 +1678,7 @@ function basePermissions(
       deleteAll: settings.links.deleteAll,
       statsAll: settings.links.statsAll,
       statsCsv: settings.links.statsCsv,
+      share: settings.links.share,
       healthAll: settings.links.healthAll,
       expiresAtBypass: false,
       passwordBypass: false,
@@ -1724,6 +1729,7 @@ function adminPermissions(settings: SiteSettings): EffectivePermissions {
       deleteAll: true,
       statsAll: true,
       statsCsv: true,
+      share: true,
       healthAll: true,
       expiresAtBypass: true,
       passwordBypass: true,
@@ -1803,6 +1809,7 @@ function applyGroupRules(
     permissions.links.statsAll = rules.links.statsAll;
   if (rules.links.statsCsv !== null)
     permissions.links.statsCsv = rules.links.statsCsv;
+  if (rules.links.share !== null) permissions.links.share = rules.links.share;
   if (rules.links.healthAll !== null)
     permissions.links.healthAll = rules.links.healthAll;
   if (rules.links.expiresAtBypass !== null)
@@ -2079,6 +2086,7 @@ export function permissionGroupInputFromForm(
     'deleteAll',
     'statsAll',
     'statsCsv',
+    'share',
     'healthAll',
     'expiresAtBypass',
     'passwordBypass',

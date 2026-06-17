@@ -1,6 +1,10 @@
 import { ApiTokenModel } from './api-token';
 import { ClickEventModel } from './click-event';
 import {
+  LinkAccessGrantModel,
+  LinkAccessShareModel,
+} from './link-access-share';
+import {
   PermissionGroupCidrModel,
   PermissionGroupModel,
   PermissionGroupUserModel,
@@ -39,6 +43,45 @@ export function associateModels() {
     ShortLinkModel.belongsTo(UserModel, {
       foreignKey: 'creator_user_id',
       as: 'creator',
+    });
+  }
+  if (!hasAssociation(ShortLinkModel, 'access_share')) {
+    ShortLinkModel.hasOne(LinkAccessShareModel, {
+      foreignKey: 'link_id',
+      as: 'access_share',
+      onDelete: 'CASCADE',
+    });
+  }
+  if (!hasAssociation(LinkAccessShareModel, 'link')) {
+    LinkAccessShareModel.belongsTo(ShortLinkModel, {
+      foreignKey: 'link_id',
+      as: 'link',
+    });
+  }
+  if (!hasAssociation(LinkAccessShareModel, 'grants')) {
+    LinkAccessShareModel.hasMany(LinkAccessGrantModel, {
+      foreignKey: 'share_id',
+      as: 'grants',
+      onDelete: 'CASCADE',
+    });
+  }
+  if (!hasAssociation(LinkAccessGrantModel, 'share')) {
+    LinkAccessGrantModel.belongsTo(LinkAccessShareModel, {
+      foreignKey: 'share_id',
+      as: 'share',
+    });
+  }
+  if (!hasAssociation(UserModel, 'link_access_grants')) {
+    UserModel.hasMany(LinkAccessGrantModel, {
+      foreignKey: 'user_id',
+      as: 'link_access_grants',
+      onDelete: 'CASCADE',
+    });
+  }
+  if (!hasAssociation(LinkAccessGrantModel, 'user')) {
+    LinkAccessGrantModel.belongsTo(UserModel, {
+      foreignKey: 'user_id',
+      as: 'user',
     });
   }
   if (!hasAssociation(UserModel, 'api_tokens')) {

@@ -13,6 +13,8 @@ export {
   AuthRequestLimitModel,
   ClickEventModel,
   ClickEventQueueModel,
+  LinkAccessGrantModel,
+  LinkAccessShareModel,
   PermissionGroupCidrModel,
   PermissionGroupModel,
   PermissionGroupUserModel,

@@ -43,6 +43,7 @@
     owned?: boolean;
     created_at: string;
     clicks: number;
+    last_clicked_at: string | null;
     smart: {
       expiresAt: string | null;
       maxClicks: number;
@@ -58,6 +59,15 @@
       error: string;
       responseBody: string;
       latencyMs: number | null;
+    };
+    share: {
+      recipientCount: number;
+      access: {
+        canEdit: boolean;
+        canViewStats: boolean;
+        editableFields: LinkEditFieldKey[];
+        expiresAt: string | null;
+      } | null;
     };
   };
 
@@ -89,9 +99,13 @@
     updateAction,
     healthAction,
     statsHref,
+    permissionHref = () => null,
     canDelete,
+    canViewStats = () => true,
+    canCheckHealth = () => true,
     canEdit = () => true,
     editableFields = [...linkEditFieldKeys],
+    editableFieldsForLink = () => editableFields,
     deleteDisabledReason = () => '',
     policyMessage = '',
     page,
@@ -113,9 +127,13 @@
     updateAction: string;
     healthAction?: string;
     statsHref: (link: ManagedLinkItem) => string;
+    permissionHref?: (link: ManagedLinkItem) => string | null;
     canDelete: (link: ManagedLinkItem) => boolean;
+    canViewStats?: (link: ManagedLinkItem) => boolean;
+    canCheckHealth?: (link: ManagedLinkItem) => boolean;
     canEdit?: (link: ManagedLinkItem) => boolean;
     editableFields?: LinkEditFieldKey[];
+    editableFieldsForLink?: (link: ManagedLinkItem) => LinkEditFieldKey[];
     deleteDisabledReason?: (link: ManagedLinkItem) => string;
     policyMessage?: string;
     page: number;
@@ -213,12 +231,12 @@
     ].filter(Boolean);
   }
 
-  function fieldEditable(field: LinkEditFieldKey) {
-    return editableFields.includes(field);
+  function fieldEditable(link: ManagedLinkItem, field: LinkEditFieldKey) {
+    return editableFieldsForLink(link).includes(field);
   }
 
   function canEditLink(link: ManagedLinkItem) {
-    return canEdit(link) && editableFields.length > 0;
+    return canEdit(link) && editableFieldsForLink(link).length > 0;
   }
 
   function healthResponseTitle(
@@ -255,11 +273,13 @@
       };
   }
 
-  function editAllowedOptions(): Partial<Record<LinkOptionKey, boolean>> {
+  function editAllowedOptions(
+    link: ManagedLinkItem,
+  ): Partial<Record<LinkOptionKey, boolean>> {
     return Object.fromEntries(
       linkOptionKeys.map((key) => [
         key,
-        key !== 'customCode' && fieldEditable(key as LinkEditFieldKey),
+        key !== 'customCode' && fieldEditable(link, key as LinkEditFieldKey),
       ]),
     ) as Partial<Record<LinkOptionKey, boolean>>;
   }
@@ -307,6 +327,7 @@
   <div class="link-list">
     {#each links as link (link.id)}
       {@const deleteReason = deleteDisabledReason(link)}
+      {@const permissionUrl = permissionHref(link)}
       <article class="link-row">
         <ToggleField
           form={deleteFormId}
@@ -352,6 +373,13 @@
               {/each}
             </div>
           {/if}
+          {#if link.share.recipientCount > 0}
+            <p class="share-summary">
+              {formatText(text.managedLinks.sharedWithCount, {
+                count: link.share.recipientCount,
+              })}
+            </p>
+          {/if}
         </div>
         <div class="meta">
           <span
@@ -373,9 +401,15 @@
               ? text.managedLinks.copied
               : text.managedLinks.copy}
           </button>
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href={statsHref(link)}>{text.managedLinks.stats}</a>
-          {#if healthAction}
+          {#if canViewStats(link)}
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+            <a href={statsHref(link)}>{text.managedLinks.stats}</a>
+          {/if}
+          {#if permissionUrl}
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+            <a href={permissionUrl}>{text.managedLinks.sharePermissions}</a>
+          {/if}
+          {#if healthAction && canCheckHealth(link)}
             <form
               class="inline-form"
               method="POST"
@@ -431,7 +465,7 @@
             >
               <input type="hidden" name="code" value={link.code} />
               <input type="hidden" name="domain" value={link.domain} />
-              {#if fieldEditable('url')}
+              {#if fieldEditable(link, 'url')}
                 <label class="wide">
                   <span>{text.managedLinks.destinationUrl}</span>
                   <input name="url" type="text" value={link.url} required />
@@ -443,7 +477,7 @@
                 mode="edit"
                 collapsible={false}
                 idPrefix={`edit-link-options-${link.id}`}
-                allowedOptions={editAllowedOptions()}
+                allowedOptions={editAllowedOptions(link)}
                 {seo}
                 values={{
                   preview: link.preview,
@@ -603,6 +637,12 @@
   .link-badges .smart {
     border-color: var(--managed-link-border, var(--border));
     color: var(--managed-link-muted, var(--muted));
+  }
+  .share-summary {
+    margin: 8px 0 0;
+    color: var(--managed-link-primary, var(--primary));
+    font-size: 0.74rem;
+    font-weight: 850;
   }
   .meta {
     display: flex;

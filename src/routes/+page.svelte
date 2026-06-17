@@ -57,6 +57,15 @@
       responseBody: string;
       latencyMs: number | null;
     };
+    share: {
+      recipientCount: number;
+      access: {
+        canEdit: boolean;
+        canViewStats: boolean;
+        editableFields: LinkEditFieldKey[];
+        expiresAt: string | null;
+      } | null;
+    };
   };
 
   type PageData = {
@@ -69,8 +78,10 @@
         deleteAll: boolean;
         deleteMaxClicks: number;
         editOwn: boolean;
-        viewAll: boolean;
         editAll: boolean;
+        share: boolean;
+        statsAll: boolean;
+        healthAll: boolean;
         editableFields: LinkEditFieldKey[];
       };
       admin: {
@@ -165,12 +176,40 @@
     return resolve(`/${link.code}/statistics?${params.toString()}`);
   }
 
+  function permissionHref(link: LinkItem) {
+    if (!canManageLinkPermission(link)) return null;
+    const params = new SvelteURLSearchParams({
+      returnTo: pageHref(data.pagination.page),
+    });
+    if (link.domain) params.set('domain', link.domain);
+    return resolve(`/${link.code}/permission?${params.toString()}`);
+  }
+
+  function canManageLinkPermission(link: LinkItem) {
+    return (
+      data.permissions.links.share &&
+      (data.permissions.links.editAll || link.owned === true)
+    );
+  }
+
+  function canViewStatsLink(link: LinkItem) {
+    return (
+      data.permissions.links.statsAll ||
+      link.owned === true ||
+      link.share.access?.canViewStats === true
+    );
+  }
+
+  function canCheckHealthLink(link: LinkItem) {
+    return data.permissions.links.healthAll || link.owned === true;
+  }
+
   function canDeleteLink(link: { clicks: number; owned?: boolean }) {
     const maxClicks = data.permissions.links.deleteMaxClicks;
     return (
       data.permissions.links.deleteAll ||
       (data.permissions.links.deleteOwn &&
-        (!data.permissions.links.viewAll || link.owned === true) &&
+        link.owned === true &&
         (maxClicks <= 0 || link.clicks <= maxClicks))
     );
   }
@@ -178,9 +217,7 @@
   function deleteDisabledReason(link: { clicks: number; owned?: boolean }) {
     if (data.permissions.links.deleteAll) return '';
     if (!data.permissions.links.deleteOwn) return text.home.deleteDisabled;
-    if (data.permissions.links.viewAll && link.owned !== true) {
-      return text.home.deleteViewAllOnly;
-    }
+    if (link.owned !== true) return text.home.deleteSharedOnly;
     if (
       data.permissions.links.deleteMaxClicks > 0 &&
       link.clicks > data.permissions.links.deleteMaxClicks
@@ -205,13 +242,24 @@
     return text.home.deletePolicyDisabled;
   }
 
-  function canEditLink(link: { owned?: boolean }) {
+  function canEditLink(link: LinkItem) {
     return (
+      (data.permissions.links.editableFields.length > 0 &&
+        (data.permissions.links.editAll ||
+          (data.permissions.links.editOwn && link.owned === true))) ||
+      link.share.access?.canEdit === true
+    );
+  }
+
+  function editableFieldsForLink(link: LinkItem) {
+    if (
       data.permissions.links.editableFields.length > 0 &&
       (data.permissions.links.editAll ||
-        (data.permissions.links.editOwn &&
-          (!data.permissions.links.viewAll || link.owned === true)))
-    );
+        (data.permissions.links.editOwn && link.owned === true))
+    ) {
+      return data.permissions.links.editableFields;
+    }
+    return link.share.access?.editableFields ?? [];
   }
 </script>
 
@@ -504,9 +552,13 @@
           deleteAction="?/deleteLinks"
           updateAction="?/updateLink"
           {statsHref}
+          {permissionHref}
           canDelete={canDeleteLink}
+          canViewStats={canViewStatsLink}
+          canCheckHealth={canCheckHealthLink}
           canEdit={canEditLink}
           editableFields={data.permissions.links.editableFields}
+          {editableFieldsForLink}
           {deleteDisabledReason}
           policyMessage={deletePolicyMessage()}
           page={data.pagination.page}

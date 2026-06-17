@@ -108,6 +108,7 @@
         deleteAll: RuleValue;
         statsAll: RuleValue;
         statsCsv: RuleValue;
+        share: RuleValue;
         healthAll: RuleValue;
         expiresAtBypass: RuleValue;
         passwordBypass: RuleValue;
@@ -181,6 +182,7 @@
     | 'deleteAll'
     | 'statsAll'
     | 'statsCsv'
+    | 'share'
     | 'healthAll'
     | 'expiresAtBypass'
     | 'passwordBypass';
@@ -273,6 +275,7 @@
     ['deleteAll', 'admin.deleteOtherLinks'],
     ['statsAll', 'admin.viewOtherStats'],
     ['statsCsv', 'admin.downloadStatsCsv'],
+    ['share', 'admin.shareLinks'],
     ['healthAll', 'admin.checkOtherLinkHealth'],
     ['expiresAtBypass', 'admin.bypassExpiration'],
     ['passwordBypass', 'admin.bypassPasswords'],

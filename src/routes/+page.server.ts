@@ -138,6 +138,7 @@ export const load: PageServerLoad = async ({
         owner,
         search,
         currentOwner,
+        locals.user?.id,
       )
     : {
         items: [],
@@ -380,29 +381,6 @@ export const actions: Actions = {
       });
     }
 
-    if (
-      !locals.isAdmin &&
-      !permissions.links.editAll &&
-      (!permissions.links.editOwn ||
-        !canAccessOwnLinks(settings, permissions, locals.user))
-    ) {
-      return fail(403, {
-        ok: false,
-        action: 'updateLink',
-        message: text.messages.editDeniedEnvironment,
-      });
-    }
-    if (
-      permissions.links.editableFields.length === 0 ||
-      (!permissions.links.editAll && !permissions.links.editOwn)
-    ) {
-      return fail(403, {
-        ok: false,
-        action: 'updateLink',
-        message: text.messages.editOwnOnly,
-      });
-    }
-
     try {
       const result = await updateShortLink(
         code,
@@ -412,11 +390,16 @@ export const actions: Actions = {
           allowAnyOwner: permissions.links.editAll,
           editableFields: permissions.links.editableFields,
           linkSettings: linkSettingsForPermissions(settings.links, permissions),
-          owner: getLinkOwner({
-            cookies,
-            userId: locals.user?.id,
-            ip: clientIp,
-          }),
+          owner:
+            permissions.links.editOwn &&
+            canAccessOwnLinks(settings, permissions, locals.user)
+              ? getLinkOwner({
+                  cookies,
+                  userId: locals.user?.id,
+                  ip: clientIp,
+                })
+              : undefined,
+          sharedUserId: locals.user?.id,
           domain,
         },
       );
