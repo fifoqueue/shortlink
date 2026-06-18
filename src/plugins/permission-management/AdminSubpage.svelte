@@ -173,6 +173,7 @@
       };
 
   type Tab = 'links' | 'admin' | 'auth' | 'api';
+  type AutoAssignTab = 'email' | 'account';
   type LinkPermissionKey =
     | 'create'
     | 'deleteOwn'
@@ -219,6 +220,7 @@
   let addUserTarget = $state<GroupUser | null>(null);
 
   let activeTab = $state<Tab>('links');
+  let autoAssignTab = $state<AutoAssignTab>('email');
 
   const selectedCidrCount = $derived(
     selectedAllowedCount(selectedCidrKeys, selectableCidrKeys),
@@ -324,6 +326,10 @@
     ['delete', 'admin.deleteApi'],
     ['update', 'admin.updateApi'],
   ] as const satisfies readonly (readonly [string, PluginLocaleKey])[];
+  const autoAssignTabs = [
+    ['email', 'admin.autoAssignEmailTab'],
+    ['account', 'admin.autoAssignAccountTab'],
+  ] as const satisfies readonly (readonly [AutoAssignTab, PluginLocaleKey])[];
 
   function t(key: PluginLocaleKey) {
     return pluginText(strings, key);
@@ -555,14 +561,33 @@
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale);
   }
 
-  function emailDomainCondition(group: Group) {
-    const condition = group.autoAssign.conditions.find(
-      (item) => item.type === 'email-domain',
-    );
-    const domains = condition?.config.domains;
-    return Array.isArray(domains)
-      ? domains.map((domain) => String(domain)).join('\n')
+  function autoAssignCondition(group: Group, type: string) {
+    return group.autoAssign.conditions.find((item) => item.type === type);
+  }
+
+  function autoAssignListItems(group: Group, type: string, key: string) {
+    const value = autoAssignCondition(group, type)?.config[key];
+    return Array.isArray(value)
+      ? value.map((item) => String(item).trim()).filter(Boolean)
+      : [];
+  }
+
+  function emailPatternCondition(group: Group) {
+    return autoAssignListItems(group, 'email-pattern', 'patterns').join('\n');
+  }
+
+  function autoAssignNumberCondition(group: Group, type: string, key: string) {
+    const value = autoAssignCondition(group, type)?.config[key];
+    return typeof value === 'number' || typeof value === 'string'
+      ? String(value)
       : '';
+  }
+
+  function adminStatusCondition(group: Group) {
+    const value = autoAssignCondition(group, 'admin-status')?.config.isAdmin;
+    if (value === true) return 'admin';
+    if (value === false) return 'user';
+    return 'any';
   }
 </script>
 
@@ -786,13 +811,6 @@
               checked={group.autoAssign.enabled}
             />
           </div>
-          <label class="wide">
-            {t('admin.emailDomains')}
-            <small>{t('admin.emailDomainsHelp')}</small>
-            <textarea name="autoAssign.emailDomains" rows="4"
-              >{emailDomainCondition(group)}</textarea
-            >
-          </label>
           <div class="wide">
             <ToggleField
               name="autoAssign.revokeWhenUnmatched"
@@ -801,6 +819,82 @@
             />
             <p class="muted">{t('admin.revokeWhenUnmatchedHelp')}</p>
           </div>
+        </div>
+        <div
+          class="tabs auto-assign-tabs"
+          role="tablist"
+          aria-label={t('admin.automaticAssignment')}
+        >
+          {#each autoAssignTabs as tab (tab[0])}
+            <button
+              type="button"
+              class:active={autoAssignTab === tab[0]}
+              onclick={() => (autoAssignTab = tab[0])}>{t(tab[1])}</button
+            >
+          {/each}
+        </div>
+        <div
+          class="auto-assign-tab-panel"
+          role="tabpanel"
+          hidden={autoAssignTab !== 'email'}
+        >
+          <label>
+            {t('admin.autoAssignEmailPatterns')}
+            <small>{t('admin.autoAssignEmailPatternsHelp')}</small>
+            <textarea name="autoAssign.emailPatterns" rows="4"
+              >{emailPatternCondition(group)}</textarea
+            >
+          </label>
+        </div>
+        <div
+          class="auto-assign-tab-panel"
+          role="tabpanel"
+          hidden={autoAssignTab !== 'account'}
+        >
+          <label>
+            {t('admin.autoAssignAdminStatus')}
+            <select
+              name="autoAssign.adminStatus"
+              value={adminStatusCondition(group)}
+            >
+              <option value="any">{t('admin.autoAssignAny')}</option>
+              <option value="admin">{t('admin.autoAssignAdminsOnly')}</option>
+              <option value="user">
+                {t('admin.autoAssignNonAdminsOnly')}
+              </option>
+            </select>
+          </label>
+          <div class="grid form-grid balanced">
+            <label>
+              {t('admin.autoAssignMinAgeDays')}
+              <input
+                name="autoAssign.accountAgeMinDays"
+                type="number"
+                min="0"
+                max="36500"
+                value={autoAssignNumberCondition(
+                  group,
+                  'account-age-days',
+                  'minDays',
+                )}
+              />
+            </label>
+            <label>
+              {t('admin.autoAssignMaxAgeDays')}
+              <input
+                name="autoAssign.accountAgeMaxDays"
+                type="number"
+                min="0"
+                max="36500"
+                value={autoAssignNumberCondition(
+                  group,
+                  'account-age-days',
+                  'maxDays',
+                )}
+              />
+            </label>
+          </div>
+          <p class="muted">{t('admin.autoAssignAgeHelp')}</p>
         </div>
       </section>
 
@@ -1580,7 +1674,8 @@
     padding-top: 18px;
   }
   section[hidden],
-  .tab-panel[hidden] {
+  .tab-panel[hidden],
+  .auto-assign-tab-panel[hidden] {
     display: none;
   }
   .stack > section:first-of-type {
@@ -1850,6 +1945,18 @@
     border-color: var(--admin-primary);
     background: var(--admin-primary);
     color: var(--admin-primary-contrast);
+  }
+  .auto-assign-tabs {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .auto-assign-tab-panel {
+    display: grid;
+    gap: 14px;
+    border: 1px solid var(--admin-border);
+    border-radius: calc(var(--admin-radius) * 0.55);
+    padding: 14px;
+    background: color-mix(in srgb, var(--admin-surface) 82%, transparent);
   }
   .savebar {
     position: sticky;

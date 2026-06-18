@@ -33,6 +33,7 @@ import {
   searchPermissionGroupUsers,
   updatePermissionGroupSettings,
   authProviderKey,
+  type PermissionGroupAutoAssignCondition,
 } from '$lib/server/permissions';
 import { getAuthLoginMethods } from '../auth-registry';
 import type {
@@ -59,7 +60,10 @@ function groupItem(id: number) {
 
 const GROUP_MEMBER_PAGE_SIZE = 5;
 const GROUP_CIDR_PAGE_SIZE = 6;
-const EMAIL_DOMAIN_CONDITION = 'email-domain';
+const EMAIL_PATTERN_CONDITION = 'email-pattern';
+const ACCOUNT_AGE_CONDITION = 'account-age-days';
+const ADMIN_STATUS_CONDITION = 'admin-status';
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function formIds(form: FormData, name: string) {
   return [
@@ -83,24 +87,15 @@ function formStrings(form: FormData, name: string) {
   ];
 }
 
-function normalizeEmailDomain(value: string) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/^@+/, '')
-    .replace(/^\*\./, '');
-  if (
-    !normalized ||
-    normalized.length > 253 ||
-    normalized.includes('@') ||
-    /\s/.test(normalized)
-  ) {
+function normalizeEmailPattern(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized.length > 320 || /\s/.test(normalized)) {
     return '';
   }
   return normalized;
 }
 
-function emailDomainList(value: unknown, limit = 100) {
+function emailPatternList(value: unknown, limit = 100) {
   const source =
     typeof value === 'string'
       ? value.split(/[\r\n,]/)
@@ -110,46 +105,156 @@ function emailDomainList(value: unknown, limit = 100) {
   return [
     ...new Set(
       source
-        .map((item) => normalizeEmailDomain(String(item)))
+        .map((item) => normalizeEmailPattern(String(item)))
         .filter(Boolean)
         .slice(0, limit),
     ),
   ];
 }
 
-function userEmailDomain(email: string | null | undefined) {
-  const normalized = String(email ?? '')
+function userEmail(email: string | null | undefined) {
+  return String(email ?? '')
     .trim()
     .toLowerCase();
-  const atIndex = normalized.lastIndexOf('@');
-  return atIndex > -1 ? normalized.slice(atIndex + 1) : '';
+}
+
+function wildcardPatternMatches(value: string, pattern: string) {
+  const escaped = pattern
+    .replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
+    .replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`, 'i').test(value);
+}
+
+function emailMatchesPattern(email: string, pattern: string) {
+  if (pattern.startsWith('@')) return email.endsWith(pattern);
+  if (pattern.includes('*')) return wildcardPatternMatches(email, pattern);
+  return email === pattern;
+}
+
+function configInteger(value: unknown, min: number, max: number) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.max(min, Math.min(max, Math.floor(number)));
+}
+
+function formOptionalInteger(
+  form: FormData,
+  name: string,
+  min: number,
+  max: number,
+) {
+  const value = stringValue(form, name);
+  if (!value) return null;
+  return configInteger(value, min, max);
+}
+
+function formChoice<T extends string>(
+  form: FormData,
+  name: string,
+  allowed: readonly T[],
+  fallback: T,
+) {
+  const value = stringValue(form, name);
+  return allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function booleanConfig(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
 }
 
 registerPermissionGroupAutoAssignMatcher(
-  EMAIL_DOMAIN_CONDITION,
+  EMAIL_PATTERN_CONDITION,
   ({ user, condition }) => {
-    const domains = emailDomainList(condition.config.domains);
-    const domain = userEmailDomain(user.email);
-    return domains.some(
-      (allowed) => domain === allowed || domain.endsWith(`.${allowed}`),
+    const patterns = emailPatternList(condition.config.patterns);
+    const email = userEmail(user.email);
+    return (
+      Boolean(email) &&
+      patterns.some((pattern) => emailMatchesPattern(email, pattern))
     );
   },
 );
 
+registerPermissionGroupAutoAssignMatcher(
+  ACCOUNT_AGE_CONDITION,
+  ({ user, condition }) => {
+    const minDays = configInteger(condition.config.minDays, 0, 36500);
+    const maxDays = configInteger(condition.config.maxDays, 0, 36500);
+    if (minDays === null && maxDays === null) return false;
+    const createdAt =
+      user.createdAt instanceof Date
+        ? user.createdAt
+        : new Date(user.createdAt);
+    if (Number.isNaN(createdAt.getTime())) return false;
+    const ageDays = Math.floor((Date.now() - createdAt.getTime()) / DAY_MS);
+    return (
+      (minDays === null || ageDays >= minDays) &&
+      (maxDays === null || ageDays <= maxDays)
+    );
+  },
+);
+
+registerPermissionGroupAutoAssignMatcher(
+  ADMIN_STATUS_CONDITION,
+  ({ user, condition }) => {
+    const isAdmin = booleanConfig(condition.config.isAdmin);
+    return isAdmin === null ? false : user.isAdmin === isAdmin;
+  },
+);
+
 function permissionGroupAutoAssignFromForm(form: FormData) {
-  const domains = emailDomainList(stringValue(form, 'autoAssign.emailDomains'));
+  const patterns = emailPatternList(
+    stringValue(form, 'autoAssign.emailPatterns'),
+  );
+  let minDays = formOptionalInteger(
+    form,
+    'autoAssign.accountAgeMinDays',
+    0,
+    36500,
+  );
+  let maxDays = formOptionalInteger(
+    form,
+    'autoAssign.accountAgeMaxDays',
+    0,
+    36500,
+  );
+  if (minDays !== null && maxDays !== null && maxDays < minDays) {
+    [minDays, maxDays] = [maxDays, minDays];
+  }
+  const adminStatus = formChoice(
+    form,
+    'autoAssign.adminStatus',
+    ['any', 'admin', 'user'] as const,
+    'any',
+  );
+  const conditions: PermissionGroupAutoAssignCondition[] = [];
+  if (patterns.length > 0) {
+    conditions.push({
+      type: EMAIL_PATTERN_CONDITION,
+      config: { patterns },
+    });
+  }
+  if (minDays !== null || maxDays !== null) {
+    conditions.push({
+      type: ACCOUNT_AGE_CONDITION,
+      config: {
+        ...(minDays !== null ? { minDays } : {}),
+        ...(maxDays !== null ? { maxDays } : {}),
+      },
+    });
+  }
+  if (adminStatus !== 'any') {
+    conditions.push({
+      type: ADMIN_STATUS_CONDITION,
+      config: { isAdmin: adminStatus === 'admin' },
+    });
+  }
   return {
     enabled: parseBoolean(form, 'autoAssign.enabled'),
     revokeWhenUnmatched: parseBoolean(form, 'autoAssign.revokeWhenUnmatched'),
-    conditions:
-      domains.length > 0
-        ? [
-            {
-              type: EMAIL_DOMAIN_CONDITION,
-              config: { domains },
-            },
-          ]
-        : [],
+    conditions,
   };
 }
 

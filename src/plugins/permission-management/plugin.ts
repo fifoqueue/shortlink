@@ -86,9 +86,19 @@ const plugin: PluginDefinition = {
         'admin.automaticAssignmentDescription':
           '조건을 만족하는 회원을 이 그룹에 자동으로 추가합니다.',
         'admin.enableAutomaticAssignment': '자동 할당 활성화',
-        'admin.emailDomains': '이메일 도메인',
-        'admin.emailDomainsHelp':
-          '한 줄 또는 쉼표로 구분하세요. example.com은 하위 도메인도 포함합니다.',
+        'admin.autoAssignEmailTab': '이메일',
+        'admin.autoAssignAccountTab': '계정 상태',
+        'admin.autoAssignMinAgeDays': '최소 가입 경과일',
+        'admin.autoAssignMaxAgeDays': '최대 가입 경과일',
+        'admin.autoAssignAgeHelp':
+          '비워두면 해당 제한을 적용하지 않습니다. 두 값을 모두 넣으면 그 사이의 가입 경과일만 매칭합니다.',
+        'admin.autoAssignAdminStatus': '관리자 여부',
+        'admin.autoAssignAny': '제한 없음',
+        'admin.autoAssignAdminsOnly': '관리자만',
+        'admin.autoAssignNonAdminsOnly': '일반 사용자만',
+        'admin.autoAssignEmailPatterns': '이메일 패턴',
+        'admin.autoAssignEmailPatternsHelp':
+          '한 줄 또는 쉼표로 구분하세요. user@example.com, *@example.com, *@*.example.com, admin@* 형식을 사용할 수 있습니다.',
         'admin.revokeWhenUnmatched': '조건 불일치 시 자동 회수',
         'admin.revokeWhenUnmatchedHelp':
           '조건을 더 이상 만족하지 않는 사용자의 자동 할당만 제거합니다. 수동 할당은 유지됩니다.',
@@ -353,9 +363,19 @@ const plugin: PluginDefinition = {
         'admin.automaticAssignmentDescription':
           'Automatically add members who satisfy the configured conditions to this group.',
         'admin.enableAutomaticAssignment': 'Enable automatic assignment',
-        'admin.emailDomains': 'Email domains',
-        'admin.emailDomainsHelp':
-          'Separate by line or comma. example.com also includes subdomains.',
+        'admin.autoAssignEmailTab': 'Email',
+        'admin.autoAssignAccountTab': 'Account status',
+        'admin.autoAssignMinAgeDays': 'Minimum account age',
+        'admin.autoAssignMaxAgeDays': 'Maximum account age',
+        'admin.autoAssignAgeHelp':
+          'Leave a field blank to skip that bound. When both values are set, only users within that account age range match.',
+        'admin.autoAssignAdminStatus': 'Administrator status',
+        'admin.autoAssignAny': 'No restriction',
+        'admin.autoAssignAdminsOnly': 'Administrators only',
+        'admin.autoAssignNonAdminsOnly': 'Non-administrators only',
+        'admin.autoAssignEmailPatterns': 'Email patterns',
+        'admin.autoAssignEmailPatternsHelp':
+          'Separate by line or comma. Supports patterns like user@example.com, *@example.com, *@*.example.com, or admin@*.',
         'admin.revokeWhenUnmatched': 'Automatically revoke when unmatched',
         'admin.revokeWhenUnmatchedHelp':
           'Only automatic assignments are removed when a user no longer matches. Manual assignments stay intact.',
