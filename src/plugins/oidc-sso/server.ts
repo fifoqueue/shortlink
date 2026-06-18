@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { parseBoolean, stringValue } from '$lib/server/settings';
 import type {
   PluginConfig,
@@ -8,6 +9,12 @@ import type {
 } from '$lib/plugin-contracts';
 import { formatText } from '$lib/i18n/ui-text';
 import { pluginText } from '$lib/i18n/plugin';
+import {
+  ensureDatabase,
+  UserIdentityModel,
+  UserModel,
+  UserPasskeyCredentialModel,
+} from '$lib/server/database';
 import {
   listUserIdentities,
   unlinkIdentity,
@@ -30,6 +37,12 @@ import {
 } from './config';
 
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
+const oidcProviderPrefix = 'oidc-sso:';
+
+interface ProviderDeletionImpact {
+  connectedUserCount: number;
+  soleLoginUserCount: number;
+}
 
 function t(
   strings: PluginLocaleStrings | undefined,
@@ -472,6 +485,89 @@ function deleteProvider(
   };
 }
 
+function providerIdentityKey(providerId: string) {
+  return `${oidcProviderPrefix}${providerId}`;
+}
+
+async function providerDeletionImpacts(config: PluginConfig) {
+  const oidc = normalizeOidcConfig(config);
+  const providerKeys = oidc.providers.map((provider) =>
+    providerIdentityKey(provider.id),
+  );
+  const impacts = Object.fromEntries(
+    oidc.providers.map((provider) => [
+      provider.id,
+      {
+        connectedUserCount: 0,
+        soleLoginUserCount: 0,
+      } satisfies ProviderDeletionImpact,
+    ]),
+  ) as Record<string, ProviderDeletionImpact>;
+  if (providerKeys.length === 0) return impacts;
+
+  await ensureDatabase();
+  const identities = await UserIdentityModel.findAll({
+    attributes: ['userId', 'provider'],
+    where: { provider: { [Op.in]: providerKeys } },
+  });
+  const userIds = [...new Set(identities.map((identity) => identity.userId))];
+  if (userIds.length === 0) return impacts;
+
+  const [users, passkeys] = await Promise.all([
+    UserModel.findAll({
+      attributes: ['id', 'email', 'name', 'passwordHash'],
+      where: {
+        id: { [Op.in]: userIds },
+        enabled: true,
+      },
+    }),
+    UserPasskeyCredentialModel.findAll({
+      attributes: ['userId'],
+      group: ['userId'],
+      where: { userId: { [Op.in]: userIds } },
+    }),
+  ]);
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const passkeyUserIds = new Set(passkeys.map((passkey) => passkey.userId));
+  const providerKeysByUserId = new Map<number, Set<string>>();
+  const userIdsByProviderKey = new Map<string, Set<number>>();
+
+  for (const identity of identities) {
+    if (!usersById.has(identity.userId)) continue;
+    if (!providerKeysByUserId.has(identity.userId)) {
+      providerKeysByUserId.set(identity.userId, new Set());
+    }
+    providerKeysByUserId.get(identity.userId)?.add(identity.provider);
+    if (!userIdsByProviderKey.has(identity.provider)) {
+      userIdsByProviderKey.set(identity.provider, new Set());
+    }
+    userIdsByProviderKey.get(identity.provider)?.add(identity.userId);
+  }
+
+  for (const provider of oidc.providers) {
+    const providerKey = providerIdentityKey(provider.id);
+    const connectedUserIds = [...(userIdsByProviderKey.get(providerKey) ?? [])];
+    const soleLoginUserCount = connectedUserIds.filter((userId) => {
+      const user = usersById.get(userId);
+      if (!user) return false;
+      const otherSsoProvider = [
+        ...(providerKeysByUserId.get(user.id) ?? []),
+      ].some((key) => key !== providerKey);
+      const localPasswordLogin =
+        oidc.passwordLoginEnabled && user.passwordHash.startsWith('scrypt:');
+      const passkeyLogin = passkeyUserIds.has(user.id);
+      return !otherSsoProvider && !localPasswordLogin && !passkeyLogin;
+    }).length;
+
+    impacts[provider.id] = {
+      connectedUserCount: connectedUserIds.length,
+      soleLoginUserCount,
+    };
+  }
+
+  return impacts;
+}
+
 function providerIdentifier(
   provider: OidcProvider,
   strings: PluginLocaleStrings,
@@ -492,9 +588,10 @@ function providerIdentifier(
 }
 
 const serverPlugin = {
-  async loadAdminData({ url }) {
+  async loadAdminData({ state, url }) {
     return {
       callbackUrl: `${url.origin}/auth/oidc-sso/callback`,
+      providerDeletionImpacts: await providerDeletionImpacts(state.config),
     };
   },
 

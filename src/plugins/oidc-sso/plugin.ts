@@ -124,7 +124,17 @@ const plugin: PluginDefinition = {
         'admin.delete': '삭제',
         'admin.deleteProviderTitle': '{name} 프로바이더를 삭제할까요?',
         'admin.deleteProviderMessage':
-          '이 프로바이더 설정이 삭제되며, 사용자는 다시 추가하기 전까지 이 경로로 로그인할 수 없습니다.',
+          '이 프로바이더 설정과 로그인 버튼이 삭제됩니다. 기존 SSO 연결 기록은 남지만, 같은 ID로 프로바이더를 다시 추가하기 전까지 이 프로바이더로 로그인하거나 재인증할 수 없습니다.',
+        'admin.deleteProviderConnectionImpact':
+          '현재 활성 사용자 {count}명이 이 프로바이더에 연결되어 있습니다.',
+        'admin.deleteProviderSoleLoginImpact':
+          '그중 {count}명은 이 프로바이더가 유일하게 확인된 로그인 수단입니다. 삭제하면 해당 사용자는 로그인할 수 없습니다.',
+        'admin.deleteProviderNoSoleLoginImpact':
+          '현재 이 프로바이더만 유일한 로그인 수단으로 가진 활성 사용자는 없습니다.',
+        'admin.deleteProviderIdentityRetention':
+          '사용자 연결 데이터는 삭제되지 않으므로, 같은 ID로 프로바이더를 다시 추가하면 기존 연결을 다시 사용할 수 있습니다.',
+        'admin.deleteProviderSoleLoginConsent':
+          '일부 사용자가 로그인할 수 없게 될 수 있음을 이해했습니다.',
         'admin.deleteProviderConfirm': '프로바이더 삭제',
         'admin.addProvider': '새 프로바이더 추가',
         'admin.providerIdPlaceholder': 'zitadel',
@@ -378,7 +388,17 @@ const plugin: PluginDefinition = {
         'admin.delete': 'Delete',
         'admin.deleteProviderTitle': 'Delete {name} provider?',
         'admin.deleteProviderMessage':
-          'This provider configuration will be deleted. Users cannot log in through it until it is added again.',
+          'This provider configuration and login button will be deleted. Existing SSO links are retained, but users cannot log in or reauthenticate through this provider until a provider with the same ID is added again.',
+        'admin.deleteProviderConnectionImpact':
+          '{count} active users are currently linked to this provider.',
+        'admin.deleteProviderSoleLoginImpact':
+          'For {count} of them, this provider is the only confirmed login method. Deleting it will prevent those users from signing in.',
+        'admin.deleteProviderNoSoleLoginImpact':
+          'No active users currently have only this provider as their login method.',
+        'admin.deleteProviderIdentityRetention':
+          'User link records are not deleted, so adding this provider again with the same ID restores those links.',
+        'admin.deleteProviderSoleLoginConsent':
+          'I understand that some users may lose sign-in access.',
         'admin.deleteProviderConfirm': 'Delete provider',
         'admin.addProvider': 'Add new provider',
         'admin.providerIdPlaceholder': 'zitadel',

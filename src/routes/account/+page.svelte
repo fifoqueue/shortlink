@@ -1147,6 +1147,9 @@
     gap: 14px;
     align-items: end;
   }
+  .password-delete :global(.danger-confirm-trigger) {
+    min-height: var(--form-control-height);
+  }
   .security-locked {
     display: grid;
     gap: 14px;

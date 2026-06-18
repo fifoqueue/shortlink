@@ -18,8 +18,22 @@
     PluginLocaleKey,
   } from '$lib/plugin-contracts';
 
+  type DetailPart =
+    | string
+    | {
+        text: string | number;
+        strong?: boolean;
+      };
+
   type AdminData = {
     callbackUrl: string;
+    providerDeletionImpacts?: Record<
+      string,
+      {
+        connectedUserCount: number;
+        soleLoginUserCount: number;
+      }
+    >;
   };
 
   let {
@@ -83,6 +97,47 @@
     providerEmailTrustModes[providerId] = normalizeEmailTrustMode(
       (event.currentTarget as HTMLSelectElement).value,
     );
+  }
+
+  function providerDeletionImpact(providerId: string) {
+    return (
+      data.providerDeletionImpacts?.[providerId] ?? {
+        connectedUserCount: 0,
+        soleLoginUserCount: 0,
+      }
+    );
+  }
+
+  function richCountDetail(text: string, count: number): DetailPart[] {
+    const placeholder = '{count}';
+    if (!text.includes(placeholder)) return [text];
+    const [prefix, ...rest] = text.split(placeholder);
+    return [
+      prefix,
+      { text: count, strong: true },
+      rest.join(placeholder),
+    ].filter((part) => (typeof part === 'string' ? part.length > 0 : true));
+  }
+
+  function providerDeleteDetails(providerId: string) {
+    const impact = providerDeletionImpact(providerId);
+    const details = [
+      richCountDetail(
+        t('admin.deleteProviderConnectionImpact'),
+        impact.connectedUserCount,
+      ),
+      impact.soleLoginUserCount > 0
+        ? {
+            tone: 'danger' as const,
+            parts: richCountDetail(
+              t('admin.deleteProviderSoleLoginImpact'),
+              impact.soleLoginUserCount,
+            ),
+          }
+        : t('admin.deleteProviderNoSoleLoginImpact'),
+      t('admin.deleteProviderIdentityRetention'),
+    ];
+    return details;
   }
 </script>
 
@@ -472,8 +527,11 @@
               name: provider.name,
             })}
             message={t('admin.deleteProviderMessage')}
-            details={[provider.id]}
+            details={providerDeleteDetails(provider.id)}
             confirmLabel={t('admin.deleteProviderConfirm')}
+            requireConsent={providerDeletionImpact(provider.id)
+              .soleLoginUserCount > 0}
+            consentLabel={t('admin.deleteProviderSoleLoginConsent')}
           />
         </form>
       </details>

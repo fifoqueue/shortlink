@@ -1,8 +1,22 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { defaultSiteLocale, type SiteLocale } from '$lib/config';
   import { uiText } from '$lib/i18n/ui-text';
   import ToggleField from './ToggleField.svelte';
+
+  type ConfirmDetailPart =
+    | string
+    | {
+        text: string | number;
+        strong?: boolean;
+      };
+  type ConfirmDetail =
+    | string
+    | ConfirmDetailPart[]
+    | {
+        tone?: 'danger';
+        parts: ConfirmDetailPart[];
+      };
 
   let {
     label,
@@ -25,7 +39,7 @@
     label: string;
     title?: string;
     message?: string;
-    details?: string[];
+    details?: ConfirmDetail[];
     confirmLabel?: string;
     cancelLabel?: string;
     disabled?: boolean;
@@ -48,6 +62,7 @@
   const resolvedConsentLabel = $derived(consentLabel ?? text.common.understood);
   let open = $state(false);
   let consent = $state(false);
+  let confirmedSubmit = false;
   let triggerButton = $state<HTMLButtonElement>();
   let cancelButton = $state<HTMLButtonElement>();
 
@@ -82,6 +97,28 @@
     return triggerButton?.closest('form');
   }
 
+  onMount(() => {
+    if (formId || onconfirm) return;
+    const form = triggerButton?.closest('form');
+    if (!form) return;
+
+    const handleSubmit = (event: SubmitEvent) => {
+      if (confirmedSubmit) {
+        confirmedSubmit = false;
+        return;
+      }
+      if (disabled || onconfirm) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void openDialog();
+    };
+
+    form.addEventListener('submit', handleSubmit, { capture: true });
+    return () => {
+      form.removeEventListener('submit', handleSubmit, { capture: true });
+    };
+  });
+
   function submitConfirmed() {
     if (!canConfirm) return;
     if (onconfirm) {
@@ -100,8 +137,12 @@
     if (value !== undefined) submitter.value = value;
     form.append(submitter);
     open = false;
+    confirmedSubmit = true;
     form.requestSubmit(submitter);
-    window.setTimeout(() => submitter.remove(), 0);
+    window.setTimeout(() => {
+      confirmedSubmit = false;
+      submitter.remove();
+    }, 0);
   }
 </script>
 
@@ -135,8 +176,27 @@
 
       {#if details.length > 0}
         <ul>
-          {#each details as detail (detail)}
-            <li>{detail}</li>
+          {#each details as detail, index (index)}
+            <li
+              class:danger-detail={typeof detail !== 'string' &&
+                !Array.isArray(detail) &&
+                detail.tone === 'danger'}
+            >
+              {#if typeof detail === 'string'}
+                {detail}
+              {:else}
+                {@const parts = Array.isArray(detail) ? detail : detail.parts}
+                {#each parts as part, partIndex (partIndex)}
+                  {#if typeof part === 'string'}
+                    {part}
+                  {:else if part.strong}
+                    <strong>{part.text}</strong>
+                  {:else}
+                    {part.text}
+                  {/if}
+                {/each}
+              {/if}
+            </li>
           {/each}
         </ul>
       {/if}
@@ -283,6 +343,14 @@
     color: var(--confirm-dialog-muted);
     font-size: 0.9rem;
     line-height: 1.6;
+  }
+  li strong {
+    color: var(--confirm-dialog-danger-text);
+    font-weight: 900;
+  }
+  li.danger-detail,
+  li.danger-detail strong {
+    color: var(--confirm-dialog-danger-text);
   }
   ul {
     display: grid;
