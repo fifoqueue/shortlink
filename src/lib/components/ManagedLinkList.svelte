@@ -39,11 +39,11 @@
       themeColor: string;
     };
     tags: string[];
-    short_url: string;
+    shortUrl: string;
     owned?: boolean;
-    created_at: string;
+    createdAt: string;
     clicks: number;
-    last_clicked_at: string | null;
+    lastClickedAt: string | null;
     smart: {
       expiresAt: string | null;
       maxClicks: number;
@@ -346,11 +346,11 @@
           <!-- eslint-disable svelte/no-navigation-without-resolve -->
           <a
             class="short"
-            href={link.short_url}
+            href={link.shortUrl}
             target="_blank"
             rel="noreferrer"
           >
-            {link.short_url}
+            {link.shortUrl}
           </a>
           <!-- eslint-enable svelte/no-navigation-without-resolve -->
           <p class="long">{link.url}</p>
@@ -387,7 +387,7 @@
               count: link.clicks,
             })}</span
           >
-          <span>{new Date(link.created_at).toLocaleDateString()}</span>
+          <span>{new Date(link.createdAt).toLocaleDateString()}</span>
           <span
             class:ok={link.health.status === 'ok'}
             class:broken={link.health.status === 'broken'}
@@ -396,7 +396,7 @@
           </span>
         </div>
         <div class="actions">
-          <button type="button" onclick={() => copy(link.short_url, link)}>
+          <button type="button" onclick={() => copy(link.shortUrl, link)}>
             {copiedLink === linkSelectionValue(link)
               ? text.managedLinks.copied
               : text.managedLinks.copy}
@@ -447,7 +447,7 @@
         </div>
         <div class="qr-wrap">
           <LinkQr
-            value={link.short_url}
+            value={link.shortUrl}
             code={link.code}
             {brandName}
             {accentColor}

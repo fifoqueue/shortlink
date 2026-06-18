@@ -680,11 +680,11 @@ const ko = {
     direct: '직접 접근',
     noUserAgent: 'User-Agent 없음',
     clickFields: {
-      created_at: '클릭 시각',
+      createdAt: '클릭 시각',
       referer: '리퍼러',
-      user_agent: 'User-Agent',
-      ip_address: 'IP 주소',
-      redirect_rule: '리다이렉트 규칙',
+      userAgent: 'User-Agent',
+      ipAddress: 'IP 주소',
+      redirectRule: '리다이렉트 규칙',
     },
   },
   search: {
@@ -1561,11 +1561,11 @@ const en: typeof ko = {
     direct: 'Direct',
     noUserAgent: 'No User-Agent',
     clickFields: {
-      created_at: 'Click time',
+      createdAt: 'Click time',
       referer: 'Referrer',
-      user_agent: 'User-Agent',
-      ip_address: 'IP address',
-      redirect_rule: 'Redirect rule',
+      userAgent: 'User-Agent',
+      ipAddress: 'IP address',
+      redirectRule: 'Redirect rule',
     },
   },
   search: {

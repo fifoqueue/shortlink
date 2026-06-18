@@ -13,11 +13,11 @@ export class ClickEventModel extends Model<
   InferCreationAttributes<ClickEventModel>
 > {
   declare id: CreationOptional<number>;
-  declare queue_id: CreationOptional<number | null>;
-  declare link_id: number;
-  declare created_at: CreationOptional<Date>;
-  declare ip_address: string | null;
-  declare user_agent: string | null;
+  declare queueId: CreationOptional<number | null>;
+  declare linkId: number;
+  declare createdAt: CreationOptional<Date>;
+  declare ipAddress: string | null;
+  declare userAgent: string | null;
   declare referer: string | null;
   declare metadata: CreationOptional<Record<string, unknown>>;
 }
@@ -30,26 +30,26 @@ export function initClickEventModel(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      queue_id: {
+      queueId: {
         type: DataTypes.BIGINT,
         allowNull: true,
       },
-      link_id: {
+      linkId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: ShortLinkModel, key: 'id' },
         onDelete: 'CASCADE',
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
-      ip_address: {
+      ipAddress: {
         type: DataTypes.STRING(64),
         allowNull: true,
       },
-      user_agent: {
+      userAgent: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
@@ -67,6 +67,7 @@ export function initClickEventModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'click_events',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['link_id', 'created_at'] },
         { fields: ['queue_id'], unique: true },

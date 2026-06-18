@@ -271,7 +271,7 @@ function pluginSettingsRows(states: SiteSettings['plugins'], now: Date) {
   return Object.entries(states).map(([pluginId, state]) => ({
     key: pluginSettingsKey(pluginId),
     value: clone(state),
-    updated_at: now,
+    updatedAt: now,
   }));
 }
 
@@ -353,7 +353,7 @@ export async function updateSettings(settings: SiteSettings) {
     AppSettingModel.upsert({
       key: SITE_SETTINGS_KEY,
       value: siteSettingsValue(normalized),
-      updated_at: now,
+      updatedAt: now,
     }),
     ...pluginRows.map((row) => AppSettingModel.upsert(row)),
     ...stalePluginRecords

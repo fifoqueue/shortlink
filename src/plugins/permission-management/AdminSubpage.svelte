@@ -151,8 +151,8 @@
     id: number;
     name: string;
     prefix: string;
-    created_at: string;
-    last_used_at: string | null;
+    createdAt: string;
+    lastUsedAt: string | null;
   };
 
   type AdminData =
@@ -682,8 +682,8 @@
                   <strong>{token.name}</strong>
                   <span>
                     {token.prefix}... · {t('admin.createdAt')}
-                    {dateTimeLabel(token.created_at)} · {t('admin.lastUsedAt')}
-                    {dateTimeLabel(token.last_used_at)}
+                    {dateTimeLabel(token.createdAt)} · {t('admin.lastUsedAt')}
+                    {dateTimeLabel(token.lastUsedAt)}
                   </span>
                 </div>
                 <form

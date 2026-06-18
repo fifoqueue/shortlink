@@ -13,11 +13,11 @@ export class UserIdentityModel extends Model<
   InferCreationAttributes<UserIdentityModel>
 > {
   declare id: CreationOptional<number>;
-  declare user_id: number;
+  declare userId: number;
   declare provider: string;
   declare subject: string;
   declare email: string | null;
-  declare created_at: CreationOptional<Date>;
+  declare createdAt: CreationOptional<Date>;
 }
 
 export function initUserIdentityModel(sequelize: Sequelize) {
@@ -28,7 +28,7 @@ export function initUserIdentityModel(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      user_id: {
+      userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: UserModel, key: 'id' },
@@ -46,7 +46,7 @@ export function initUserIdentityModel(sequelize: Sequelize) {
         type: DataTypes.STRING(320),
         allowNull: true,
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -56,6 +56,7 @@ export function initUserIdentityModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'user_identities',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['provider', 'subject'], unique: true },
         { fields: ['user_id', 'provider'] },

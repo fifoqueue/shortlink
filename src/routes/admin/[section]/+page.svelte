@@ -53,11 +53,11 @@
       themeColor: string;
     };
     tags: string[];
-    short_url: string;
+    shortUrl: string;
     owned?: boolean;
     clicks: number;
-    created_at: string;
-    last_clicked_at: string | null;
+    createdAt: string;
+    lastClickedAt: string | null;
     smart: {
       expiresAt: string | null;
       maxClicks: number;

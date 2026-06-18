@@ -16,8 +16,8 @@
     id: number;
     name: string;
     prefix: string;
-    created_at: string;
-    last_used_at: string | null;
+    createdAt: string;
+    lastUsedAt: string | null;
   };
 
   let {
@@ -110,9 +110,9 @@
             <strong>{token.name}</strong>
             <span>
               {token.prefix}... · {text.account.created}
-              {new Date(token.created_at).toLocaleString()}
-              {token.last_used_at
-                ? ` · ${text.account.lastUsed} ${new Date(token.last_used_at).toLocaleString()}`
+              {new Date(token.createdAt).toLocaleString()}
+              {token.lastUsedAt
+                ? ` · ${text.account.lastUsed} ${new Date(token.lastUsedAt).toLocaleString()}`
                 : ''}
             </span>
           </div>

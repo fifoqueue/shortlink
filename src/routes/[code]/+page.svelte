@@ -23,7 +23,7 @@
   type PageData =
     | {
         mode: 'blocked';
-        reason: 'expired' | 'max_clicks';
+        reason: 'expired' | 'maxClicks';
         title: string;
         link: RedirectPageLink;
         settings: RedirectPageSettings;

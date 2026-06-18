@@ -36,11 +36,11 @@
       themeColor: string;
     };
     tags: string[];
-    short_url: string;
+    shortUrl: string;
     owned?: boolean;
-    created_at: string;
+    createdAt: string;
     clicks: number;
-    last_clicked_at: string | null;
+    lastClickedAt: string | null;
     smart: {
       expiresAt: string | null;
       maxClicks: number;
@@ -483,15 +483,15 @@
               <span>{text.home.linkReady}</span>
               <!-- eslint-disable svelte/no-navigation-without-resolve -->
               <a
-                href={createForm.link.short_url}
+                href={createForm.link.shortUrl}
                 target="_blank"
-                rel="noreferrer">{createForm.link.short_url}</a
+                rel="noreferrer">{createForm.link.shortUrl}</a
               >
               <!-- eslint-enable svelte/no-navigation-without-resolve -->
               <button
                 type="button"
                 onclick={() =>
-                  copy(createForm.link!.short_url, createForm.link!.code)}
+                  copy(createForm.link!.shortUrl, createForm.link!.code)}
               >
                 {copiedCode === createForm.link.code
                   ? text.common.copied

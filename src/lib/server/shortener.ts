@@ -60,9 +60,9 @@ export interface Link {
   owned?: boolean;
   preview: LinkPreview;
   tags: string[];
-  created_at: string;
+  createdAt: string;
   clicks: number;
-  last_clicked_at: string | null;
+  lastClickedAt: string | null;
   smart: LinkSmartOptions;
   routing: LinkRoutingOptions;
   health: LinkHealth;
@@ -135,9 +135,9 @@ export interface PaginatedLinks {
 }
 
 export interface ClickEvent {
-  created_at: string;
+  createdAt: string;
   ip: string | null;
-  user_agent: string | null;
+  userAgent: string | null;
   referer: string | null;
   browser: string;
   metadata: Record<string, unknown>;
@@ -158,7 +158,7 @@ type CreatorVisibility = 'none' | 'name' | 'admin';
 
 export type ClickEventSearch =
   | {
-      field: 'created_at' | 'ip_address' | 'referer' | 'user_agent';
+      field: 'createdAt' | 'ipAddress' | 'referer' | 'userAgent';
       query: string;
     }
   | {
@@ -335,24 +335,24 @@ function publicLink(
     url: link.url,
     preview,
     tags: normalizedTags(link.tags),
-    created_at: link.created_at.toISOString(),
+    createdAt: link.createdAt.toISOString(),
     clicks: link.clicks,
-    last_clicked_at: link.last_clicked_at?.toISOString() ?? null,
+    lastClickedAt: link.lastClickedAt?.toISOString() ?? null,
     smart: {
-      expiresAt: link.expires_at?.toISOString() ?? null,
-      maxClicks: Math.max(0, link.max_clicks ?? 0),
-      passwordProtected: Boolean(link.password_hash && link.password_salt),
+      expiresAt: link.expiresAt?.toISOString() ?? null,
+      maxClicks: Math.max(0, link.maxClicks ?? 0),
+      passwordProtected: Boolean(link.passwordHash && link.passwordSalt),
     },
     routing: {
-      redirectRules: storedRedirectRules(link.redirect_rules),
+      redirectRules: storedRedirectRules(link.redirectRules),
     },
     health: {
-      status: healthStatus(link.health_status),
-      statusCode: link.health_status_code ?? null,
-      checkedAt: link.health_checked_at?.toISOString() ?? null,
-      error: (link.health_error ?? '').slice(0, 500),
-      responseBody: (link.health_response_body ?? '').slice(0, 8_000),
-      latencyMs: link.health_latency_ms ?? null,
+      status: healthStatus(link.healthStatus),
+      statusCode: link.healthStatusCode ?? null,
+      checkedAt: link.healthCheckedAt?.toISOString() ?? null,
+      error: (link.healthError ?? '').slice(0, 500),
+      responseBody: (link.healthResponseBody ?? '').slice(0, 8_000),
+      latencyMs: link.healthLatencyMs ?? null,
     },
     share,
   };
@@ -363,8 +363,8 @@ function publicLink(
 function redirectLink(link: ShortLinkModel): RedirectLink {
   return {
     ...publicLink(link),
-    passwordHash: link.password_hash,
-    passwordSalt: link.password_salt,
+    passwordHash: link.passwordHash,
+    passwordSalt: link.passwordSalt,
   };
 }
 
@@ -576,23 +576,23 @@ function passwordFields(
   if (password) {
     const salt = randomBytes(12).toString('hex');
     return {
-      password_hash: passwordHash(password, salt),
-      password_salt: salt,
+      passwordHash: passwordHash(password, salt),
+      passwordSalt: salt,
     };
   }
 
   if (input.clearPassword) {
     return {
-      password_hash: null,
-      password_salt: null,
+      passwordHash: null,
+      passwordSalt: null,
     };
   }
 
   return existing
     ? {}
     : {
-        password_hash: null,
-        password_salt: null,
+        passwordHash: null,
+        passwordSalt: null,
       };
 }
 
@@ -617,13 +617,10 @@ function normalizeLinkOperationsForUpdate(
   }
 
   if (fields.has('expiresAt') && (!partial || input.expiresAt !== undefined)) {
-    updates.expires_at = normalizeDate(input.expiresAt);
+    updates.expiresAt = normalizeDate(input.expiresAt);
   }
   if (fields.has('maxClicks') && (!partial || input.maxClicks !== undefined)) {
-    updates.max_clicks = normalizeNonNegativeInt(
-      input.maxClicks,
-      2_000_000_000,
-    );
+    updates.maxClicks = normalizeNonNegativeInt(input.maxClicks, 2_000_000_000);
   }
 
   if (
@@ -636,7 +633,7 @@ function normalizeLinkOperationsForUpdate(
   }
 
   if (fields.has('redirectRules') && input.redirectRules !== undefined) {
-    updates.redirect_rules = normalizeRedirectRulesForStorage(
+    updates.redirectRules = normalizeRedirectRulesForStorage(
       input.redirectRules,
       settings,
       options,
@@ -657,11 +654,11 @@ function normalizeLinkOperationsForCreate(
   const tags = normalizedTags(input.tags);
   if (tags.length > 0) fields.tags = tags;
 
-  if (input.expiresAt) fields.expires_at = normalizeFutureDate(input.expiresAt);
+  if (input.expiresAt) fields.expiresAt = normalizeFutureDate(input.expiresAt);
 
   if (input.maxClicks !== undefined && input.maxClicks !== null) {
     const maxClicks = normalizeNonNegativeInt(input.maxClicks, 2_000_000_000);
-    if (maxClicks > 0) fields.max_clicks = maxClicks;
+    if (maxClicks > 0) fields.maxClicks = maxClicks;
   }
 
   const password = (input.password ?? '').trim();
@@ -675,7 +672,7 @@ function normalizeLinkOperationsForCreate(
       settings,
       options,
     );
-    if (redirectRules.length > 0) fields.redirect_rules = redirectRules;
+    if (redirectRules.length > 0) fields.redirectRules = redirectRules;
   }
 
   return fields;
@@ -778,14 +775,14 @@ function anonymizeIp(ip: string) {
 }
 
 function ownerWhere(owner: LinkOwner): WhereOptions {
-  if (owner.userId) return { creator_user_id: owner.userId };
+  if (owner.userId) return { creatorUserId: owner.userId };
 
   const candidates: WhereOptions[] = [];
   if (owner.sessionId) {
-    candidates.push({ creator_session_id: owner.sessionId });
+    candidates.push({ creatorSessionId: owner.sessionId });
   }
   if (owner.ipHash) {
-    candidates.push({ creator_ip_hash: owner.ipHash });
+    candidates.push({ creatorIpHash: owner.ipHash });
   }
 
   if (candidates.length === 0) return { id: -1 };
@@ -816,7 +813,7 @@ function clickEventSearchWhere(
   if (!search || !query) return undefined;
   const like = `%${query}%`;
 
-  if (search.field === 'created_at') {
+  if (search.field === 'createdAt') {
     return sqlWhere(cast(col('created_at'), 'TEXT'), { [Op.like]: like });
   }
 
@@ -876,11 +873,11 @@ function userAgentLabel(value: string | null) {
 
 function clickBrowserLabel(input: {
   metadata: Record<string, unknown>;
-  user_agent: string | null;
+  userAgent: string | null;
 }) {
   return (
     browserLabelFromClientHints(input.metadata) ??
-    userAgentLabel(input.user_agent)
+    userAgentLabel(input.userAgent)
   );
 }
 
@@ -907,8 +904,15 @@ function topEntries(counts: Map<string, number>, limit = 5) {
 
 async function clickInsights(linkId: number, isAdmin?: boolean) {
   const clicks = await ClickEventModel.findAll({
-    where: { link_id: linkId },
-    order: [['created_at', 'DESC']],
+    attributes: [
+      'createdAt',
+      'referer',
+      'metadata',
+      'userAgent',
+      ...(isAdmin ? ['ipAddress'] : []),
+    ],
+    where: { linkId },
+    order: [['createdAt', 'DESC']],
     limit: 1_000,
   });
   const referrers = new Map<string, number>();
@@ -921,7 +925,7 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
   let previous24h = 0;
 
   for (const click of clicks) {
-    const clickedAt = click.created_at.getTime();
+    const clickedAt = click.createdAt.getTime();
     if (clickedAt >= now - oneDayMs) last24h += 1;
     if (clickedAt < now - oneDayMs && clickedAt >= now - oneDayMs * 2) {
       previous24h += 1;
@@ -936,8 +940,8 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
     const country = metadataCountry(click.metadata);
     if (country) countries.set(country, (countries.get(country) ?? 0) + 1);
 
-    if (isAdmin && click.ip_address) {
-      ipCounts.set(click.ip_address, (ipCounts.get(click.ip_address) ?? 0) + 1);
+    if (isAdmin && click.ipAddress) {
+      ipCounts.set(click.ipAddress, (ipCounts.get(click.ipAddress) ?? 0) + 1);
     }
   }
 
@@ -965,19 +969,19 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
 }
 
 function publicClickEvent(
-  { created_at, ip_address, metadata, referer, user_agent }: ClickEventModel,
+  { createdAt, ipAddress, metadata, referer, userAgent }: ClickEventModel,
   options: { isAdmin?: boolean } = {},
 ): ClickEvent {
   return {
-    created_at: created_at.toISOString(),
-    ip: ip_address
+    createdAt: createdAt.toISOString(),
+    ip: ipAddress
       ? options.isAdmin
-        ? ip_address
-        : anonymizeIp(ip_address)
+        ? ipAddress
+        : anonymizeIp(ipAddress)
       : null,
     referer,
-    user_agent,
-    browser: clickBrowserLabel({ metadata, user_agent }),
+    userAgent,
+    browser: clickBrowserLabel({ metadata, userAgent }),
     metadata,
   };
 }
@@ -986,12 +990,12 @@ async function linkCreatorInfo(linkId: number, visibility: CreatorVisibility) {
   if (visibility === 'none') return null;
 
   const link = await ShortLinkModel.findByPk(linkId, {
-    attributes: ['creator_user_id', 'creator_ip_address'],
+    attributes: ['creatorUserId', 'creatorIpAddress'],
   });
   if (!link) return null;
 
-  const creator = link.creator_user_id
-    ? await UserModel.findByPk(link.creator_user_id, {
+  const creator = link.creatorUserId
+    ? await UserModel.findByPk(link.creatorUserId, {
         attributes: ['id', 'name', 'email', 'enabled'],
       })
     : null;
@@ -1014,15 +1018,15 @@ async function linkCreatorInfo(linkId: number, visibility: CreatorVisibility) {
           enabled: creator.enabled,
         }
       : null,
-    ipAddress: link.creator_ip_address,
+    ipAddress: link.creatorIpAddress,
   } satisfies LinkCreatorInfo;
 }
 
 function linkMatchesOwner(link: ShortLinkModel, owner: LinkOwner) {
-  if (owner.userId) return link.creator_user_id === owner.userId;
+  if (owner.userId) return link.creatorUserId === owner.userId;
   return Boolean(
-    (owner.sessionId && link.creator_session_id === owner.sessionId) ||
-    (owner.ipHash && link.creator_ip_hash === owner.ipHash),
+    (owner.sessionId && link.creatorSessionId === owner.sessionId) ||
+    (owner.ipHash && link.creatorIpHash === owner.ipHash),
   );
 }
 
@@ -1145,7 +1149,7 @@ export function linkAccessBlockReason(link: Link) {
   }
 
   if (link.smart.maxClicks > 0 && link.clicks >= link.smart.maxClicks) {
-    return 'max_clicks' as const;
+    return 'maxClicks' as const;
   }
 
   return null;
@@ -1198,10 +1202,10 @@ async function insertLink(
         settings ?? (await getSettings()).links,
         options,
       ),
-      creator_user_id: owner?.userId ?? null,
-      creator_session_id: owner?.sessionId ?? null,
-      creator_ip_hash: owner?.ipHash ?? null,
-      creator_ip_address: owner?.ipAddress ?? null,
+      creatorUserId: owner?.userId ?? null,
+      creatorSessionId: owner?.sessionId ?? null,
+      creatorIpHash: owner?.ipHash ?? null,
+      creatorIpAddress: owner?.ipAddress ?? null,
     });
     return publicLink(link);
   } catch (error) {
@@ -1481,12 +1485,12 @@ export async function checkLinkHealth(
   const settings = options.siteSettings ?? (await getSettings());
   const result = await fetchHealth(link.url, settings);
   await link.update({
-    health_status: result.status,
-    health_status_code: result.statusCode,
-    health_checked_at: new Date(),
-    health_error: result.error,
-    health_response_body: result.responseBody || null,
-    health_latency_ms: result.latencyMs,
+    healthStatus: result.status,
+    healthStatusCode: result.statusCode,
+    healthCheckedAt: new Date(),
+    healthError: result.error,
+    healthResponseBody: result.responseBody || null,
+    healthLatencyMs: result.latencyMs,
   });
 
   return { status: 'checked', link: publicLink(link) };
@@ -1509,7 +1513,7 @@ export async function recordClick(
   try {
     if (data.queueId) {
       const existingClick = await ClickEventModel.findOne({
-        where: { queue_id: data.queueId },
+        where: { queueId: data.queueId },
         transaction,
       });
       if (existingClick) {
@@ -1529,16 +1533,16 @@ export async function recordClick(
 
     const clickedAt = new Date();
     await link.increment('clicks', { transaction });
-    link.last_clicked_at = clickedAt;
-    await link.save({ transaction, fields: ['last_clicked_at'] });
+    link.lastClickedAt = clickedAt;
+    await link.save({ transaction, fields: ['lastClickedAt'] });
 
     await ClickEventModel.create(
       {
-        queue_id: data.queueId ?? null,
-        link_id: link.id,
-        created_at: clickedAt,
-        ip_address: data.ip || null,
-        user_agent: data.userAgent || null,
+        queueId: data.queueId ?? null,
+        linkId: link.id,
+        createdAt: clickedAt,
+        ipAddress: data.ip || null,
+        userAgent: data.userAgent || null,
         referer: data.referer || null,
         metadata: data.metadata ?? {},
       },
@@ -1578,10 +1582,10 @@ export async function listClickEventsForLink(
   await ensureDatabase();
   const clicks = await ClickEventModel.findAll({
     where: combineWhere(
-      { link_id: link.id },
+      { linkId: link.id },
       clickEventSearchWhere(options.search),
     ),
-    order: [['created_at', 'DESC']],
+    order: [['createdAt', 'DESC']],
   });
   return clicks.map((click) => publicClickEvent(click, options));
 }
@@ -1602,13 +1606,13 @@ export async function getStatsForLink(
   let totalItems = 0;
   let clicks: ClickEventModel[] = [];
   const clickWhere = combineWhere(
-    { link_id: link.id },
+    { linkId: link.id },
     clickEventSearchWhere(options.search),
   );
   const clickQuery = (page: number) =>
     ClickEventModel.findAll({
       where: clickWhere,
-      order: [['created_at', 'DESC']],
+      order: [['createdAt', 'DESC']],
       limit: pageSize,
       offset: pageOffset({ page, pageSize }),
     });
@@ -1648,7 +1652,7 @@ export async function getStatsForLink(
   return {
     ...link,
     creator,
-    click_events: clickEvents,
+    clickEvents,
     insights,
     pagination: pagination satisfies PaginationMeta,
   };

@@ -13,12 +13,12 @@ export class ApiTokenModel extends Model<
   InferCreationAttributes<ApiTokenModel>
 > {
   declare id: CreationOptional<number>;
-  declare user_id: number;
+  declare userId: number;
   declare name: string;
-  declare token_hash: string;
-  declare token_prefix: string;
-  declare created_at: CreationOptional<Date>;
-  declare last_used_at: Date | null;
+  declare tokenHash: string;
+  declare tokenPrefix: string;
+  declare createdAt: CreationOptional<Date>;
+  declare lastUsedAt: Date | null;
 }
 
 export function initApiTokenModel(sequelize: Sequelize) {
@@ -29,7 +29,7 @@ export function initApiTokenModel(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      user_id: {
+      userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: UserModel, key: 'id' },
@@ -39,21 +39,21 @@ export function initApiTokenModel(sequelize: Sequelize) {
         type: DataTypes.STRING(120),
         allowNull: false,
       },
-      token_hash: {
+      tokenHash: {
         type: DataTypes.STRING(64),
         allowNull: false,
         unique: true,
       },
-      token_prefix: {
+      tokenPrefix: {
         type: DataTypes.STRING(16),
         allowNull: false,
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
-      last_used_at: {
+      lastUsedAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
@@ -62,6 +62,7 @@ export function initApiTokenModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'api_tokens',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['token_hash'], unique: true },
         { fields: ['user_id'] },

@@ -30,12 +30,13 @@
     toggleSelection,
   } from '$lib/selection';
   import { siteThemeStyle } from '$lib/theme-vars';
+  import '$lib/styles/content-page.css';
 
   type LinkSummary = {
     code: string;
     domain: string;
     url: string;
-    short_url: string;
+    shortUrl: string;
   };
 
   type ShareAccess = {
@@ -337,20 +338,24 @@
     {/key}
   {/if}
 
-  <main>
-    <header class="page-header">
+  <main class="content-page">
+    <header class="content-card content-page-header">
       <div>
         {#if data.mode === 'manage'}
-          <a class="back-button" href={resolvePath(data.returnTo ?? '/')}
-            >← {text.common.back}</a
+          <a
+            class="content-back-button"
+            href={resolvePath(data.returnTo ?? '/')}>← {text.common.back}</a
           >
         {:else}
-          <a class="back-button" href={homeHref}>← {text.common.home}</a>
+          <a class="content-back-button" href={homeHref}>← {text.common.home}</a
+          >
         {/if}
-        <h1>
+        <h1 class="content-page-title">
           {formatText(text.linkPermission.title, { code: data.link.code })}
         </h1>
-        <p>{data.mode === 'manage' ? data.link.url : data.link.short_url}</p>
+        <p class="content-page-subtitle">
+          {data.mode === 'manage' ? data.link.url : data.link.shortUrl}
+        </p>
       </div>
       <LocaleSelect locale={data.locale} compact />
     </header>
@@ -362,7 +367,7 @@
           <p>{data.link.url}</p>
         </div>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href={data.link.short_url} target="_blank" rel="noreferrer">
+        <a href={data.link.shortUrl} target="_blank" rel="noreferrer">
           {text.redirect.openLink}
         </a>
       </section>
@@ -733,7 +738,7 @@
             ? text.linkPermission.ownerAcceptedTitle
             : text.linkPermission.acceptedTitle}
         </h1>
-        <span>{data.link.short_url}</span>
+        <span>{data.link.shortUrl}</span>
         <div class="result-actions">
           <a href={homeHref}>{text.linkPermission.openLinkList}</a>
           {#if data.access?.canViewStats && data.statsHref}
@@ -746,7 +751,7 @@
       <section class="result-panel">
         <p>{text.linkPermission.acceptedKicker}</p>
         <h1>{text.linkPermission.inviteExpiredTitle}</h1>
-        <span>{data.link.short_url}</span>
+        <span>{data.link.shortUrl}</span>
         <p>{text.linkPermission.inviteExpiredDescription}</p>
         <div class="result-actions">
           <a href={homeHref}>{text.common.home}</a>
@@ -788,40 +793,12 @@
     --search-radius: 12px;
     --search-surface: color-mix(in srgb, var(--page-bg) 62%, var(--surface));
     --search-text: var(--text);
-    display: grid;
-    width: min(940px, calc(100% - 36px));
-    margin: 0 auto;
-    padding: 48px 0 100px;
-    gap: 18px;
   }
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 20px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 26px;
-    background: var(--surface);
-  }
-  .page-header > div {
-    min-width: 0;
-  }
-  .back-button,
   .link-panel a,
   .invite-actions a,
   .result-actions a {
     color: var(--primary);
     text-decoration: none;
-  }
-  .back-button {
-    appearance: none;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: var(--primary);
-    font-size: 0.82rem;
-    font-weight: 850;
-    cursor: pointer;
   }
   .link-panel a,
   .invite-actions a,
@@ -855,20 +832,11 @@
   p {
     margin-top: 0;
   }
-  .page-header h1 {
-    max-width: 780px;
-    margin: 12px 0 8px;
-    font-size: 2.2rem;
-    font-weight: 650;
-    line-height: 1.15;
-    overflow-wrap: anywhere;
-  }
   h2 {
     margin-bottom: 0;
     font-size: 1.25rem;
     font-weight: 650;
   }
-  .page-header p,
   .result-panel > span {
     margin: 0;
     color: var(--muted);
@@ -1219,21 +1187,10 @@
     font-size: clamp(2.2rem, 6vw, 4rem);
   }
   @media (max-width: 720px) {
-    main {
-      width: min(100% - 28px, 940px);
-      padding-top: 36px;
-    }
-    .page-header,
     .link-panel,
     .panel-head {
       align-items: stretch;
       flex-direction: column;
-    }
-    .page-header {
-      padding: 22px;
-    }
-    .page-header h1 {
-      font-size: 1.9rem;
     }
     .settings-form,
     .field-grid,

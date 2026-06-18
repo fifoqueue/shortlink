@@ -6,7 +6,7 @@
   import { siteThemeStyle } from '$lib/theme-vars';
 
   type LinkSummary = {
-    short_url: string;
+    shortUrl: string;
   };
 
   type ShareAccess = {
@@ -66,7 +66,7 @@
             ? text.linkPermission.ownerAcceptedTitle
             : text.linkPermission.acceptedTitle}
         </h1>
-        <span>{data.link.short_url}</span>
+        <span>{data.link.shortUrl}</span>
         <div class="result-actions">
           <a href={homeHref}>{text.linkPermission.openLinkList}</a>
           {#if data.access?.canViewStats && data.statsHref}
@@ -79,7 +79,7 @@
       <section class="result-panel">
         <p>{text.linkPermission.acceptedKicker}</p>
         <h1>{text.linkPermission.inviteExpiredTitle}</h1>
-        <span>{data.link.short_url}</span>
+        <span>{data.link.shortUrl}</span>
         <p>{text.linkPermission.inviteExpiredDescription}</p>
         <div class="result-actions">
           <a href={homeHref}>{text.common.home}</a>

@@ -17,9 +17,9 @@ export class PermissionGroupModel extends Model<
   declare priority: CreationOptional<number>;
   declare enabled: CreationOptional<boolean>;
   declare rules: CreationOptional<Record<string, unknown>>;
-  declare auto_assign: CreationOptional<Record<string, unknown>>;
-  declare created_at: CreationOptional<Date>;
-  declare updated_at: CreationOptional<Date>;
+  declare autoAssign: CreationOptional<Record<string, unknown>>;
+  declare createdAt: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
 }
 
 export class PermissionGroupUserModel extends Model<
@@ -27,13 +27,13 @@ export class PermissionGroupUserModel extends Model<
   InferCreationAttributes<PermissionGroupUserModel>
 > {
   declare id: CreationOptional<number>;
-  declare group_id: number;
-  declare user_id: number;
-  declare expires_at: Date | null;
+  declare groupId: number;
+  declare userId: number;
+  declare expiresAt: Date | null;
   declare reason: CreationOptional<string>;
-  declare reason_public: CreationOptional<boolean>;
-  declare assignment_source: CreationOptional<string>;
-  declare created_at: CreationOptional<Date>;
+  declare reasonPublic: CreationOptional<boolean>;
+  declare assignmentSource: CreationOptional<string>;
+  declare createdAt: CreationOptional<Date>;
 }
 
 export class PermissionGroupCidrModel extends Model<
@@ -41,13 +41,13 @@ export class PermissionGroupCidrModel extends Model<
   InferCreationAttributes<PermissionGroupCidrModel>
 > {
   declare id: CreationOptional<number>;
-  declare group_id: number;
+  declare groupId: number;
   declare cidr: string;
   declare family: number;
-  declare start_hex: string;
-  declare end_hex: string;
-  declare expires_at: Date | null;
-  declare created_at: CreationOptional<Date>;
+  declare startHex: string;
+  declare endHex: string;
+  declare expiresAt: Date | null;
+  declare createdAt: CreationOptional<Date>;
 }
 
 export function initPermissionGroupModels(sequelize: Sequelize) {
@@ -82,17 +82,17 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: {},
       },
-      auto_assign: {
+      autoAssign: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: {},
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
-      updated_at: {
+      updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -102,6 +102,7 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
       sequelize,
       tableName: 'permission_groups',
       timestamps: false,
+      underscored: true,
       indexes: [{ fields: ['enabled'] }, { fields: ['priority'] }],
     },
   );
@@ -113,19 +114,19 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      group_id: {
+      groupId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: 'permission_groups', key: 'id' },
         onDelete: 'CASCADE',
       },
-      user_id: {
+      userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: 'users', key: 'id' },
         onDelete: 'CASCADE',
       },
-      expires_at: {
+      expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
@@ -134,17 +135,17 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: '',
       },
-      reason_public: {
+      reasonPublic: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
       },
-      assignment_source: {
+      assignmentSource: {
         type: DataTypes.STRING(20),
         allowNull: false,
         defaultValue: 'manual',
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -154,6 +155,7 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
       sequelize,
       tableName: 'permission_group_users',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['group_id', 'user_id'], unique: true },
         { fields: ['user_id'] },
@@ -169,7 +171,7 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      group_id: {
+      groupId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: 'permission_groups', key: 'id' },
@@ -183,19 +185,19 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      start_hex: {
+      startHex: {
         type: DataTypes.STRING(32),
         allowNull: false,
       },
-      end_hex: {
+      endHex: {
         type: DataTypes.STRING(32),
         allowNull: false,
       },
-      expires_at: {
+      expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -205,6 +207,7 @@ export function initPermissionGroupModels(sequelize: Sequelize) {
       sequelize,
       tableName: 'permission_group_cidrs',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['group_id', 'cidr'], unique: true },
         { fields: ['family', 'start_hex', 'end_hex'] },

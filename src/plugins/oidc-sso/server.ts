@@ -535,7 +535,7 @@ const serverPlugin = {
             providerName: provider?.name ?? providerId,
             subject: identity.subject,
             email: identity.email,
-            createdAt: identity.created_at.toISOString(),
+            createdAt: identity.createdAt.toISOString(),
           };
         }),
     };

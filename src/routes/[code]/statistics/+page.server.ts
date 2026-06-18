@@ -28,7 +28,7 @@ import {
 import { uiText } from '$lib/i18n/ui-text';
 
 type StatsSearchTemplate =
-  | { field: 'created_at' | 'ip_address' | 'referer' | 'user_agent' }
+  | { field: 'createdAt' | 'ipAddress' | 'referer' | 'userAgent' }
   | { field: 'metadata'; paths: string[][] };
 
 type StatsSearchSpec = SearchOption & {
@@ -38,9 +38,9 @@ type StatsSearchSpec = SearchOption & {
 function baseSearchSpecs(text: ReturnType<typeof uiText>): StatsSearchSpec[] {
   return [
     {
-      value: 'created_at',
-      label: text.stats.clickFields.created_at,
-      template: { field: 'created_at' },
+      value: 'createdAt',
+      label: text.stats.clickFields.createdAt,
+      template: { field: 'createdAt' },
     },
     {
       value: 'referer',
@@ -48,13 +48,13 @@ function baseSearchSpecs(text: ReturnType<typeof uiText>): StatsSearchSpec[] {
       template: { field: 'referer' },
     },
     {
-      value: 'user_agent',
-      label: text.stats.clickFields.user_agent,
-      template: { field: 'user_agent' },
+      value: 'userAgent',
+      label: text.stats.clickFields.userAgent,
+      template: { field: 'userAgent' },
     },
     {
-      value: 'redirect_rule',
-      label: text.stats.clickFields.redirect_rule,
+      value: 'redirectRule',
+      label: text.stats.clickFields.redirectRule,
       template: {
         field: 'metadata',
         paths: [
@@ -177,9 +177,9 @@ export const load: PageServerLoad = async ({
     ...(locals.isAdmin
       ? [
           {
-            value: 'ip_address',
-            label: text.stats.clickFields.ip_address,
-            template: { field: 'ip_address' as const },
+            value: 'ipAddress',
+            label: text.stats.clickFields.ipAddress,
+            template: { field: 'ipAddress' as const },
           },
         ]
       : []),
@@ -205,7 +205,7 @@ export const load: PageServerLoad = async ({
     search: clickEventSearch(search, searchSpecs),
   });
   if (!stats) error(404, text.messages.linkNotFound);
-  const metadataItems = stats.click_events.map((click) => click.metadata);
+  const metadataItems = stats.clickEvents.map((click) => click.metadata);
   const coreDetails = formatCoreClickMetadataList({
     metadataItems,
     locale: locals.locale,
@@ -221,11 +221,11 @@ export const load: PageServerLoad = async ({
     coreDetails,
     pluginDetails,
   );
-  const clickEvents = stats.click_events.map((click, index) => ({
-    created_at: click.created_at,
+  const clickEvents = stats.clickEvents.map((click, index) => ({
+    createdAt: click.createdAt,
     ip: click.ip,
     browser: click.browser,
-    user_agent: click.user_agent,
+    userAgent: click.userAgent,
     referer: click.referer,
     details: clickDetails[index] ?? [],
   }));
@@ -233,8 +233,8 @@ export const load: PageServerLoad = async ({
   return {
     link: {
       ...stats,
-      click_events: clickEvents,
-      short_url: shortUrl(url.origin, stats.code, stats.domain, settings),
+      clickEvents,
+      shortUrl: shortUrl(url.origin, stats.code, stats.domain, settings),
     },
     locale: locals.locale,
     returnTo:

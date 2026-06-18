@@ -40,11 +40,11 @@ function clickRow(
   details: Array<{ label: string; value: string }>,
 ) {
   return [
-    click.created_at,
+    click.createdAt,
     click.ip ?? '',
     click.browser,
     click.referer ?? '',
-    click.user_agent ?? '',
+    click.userAgent ?? '',
     detailsText(details),
   ];
 }
@@ -119,11 +119,11 @@ export const GET: RequestHandler = async ({
 
   const csv = csvRows([
     [
-      text.stats.clickFields.created_at,
-      text.stats.clickFields.ip_address,
+      text.stats.clickFields.createdAt,
+      text.stats.clickFields.ipAddress,
       text.stats.browser,
       text.stats.clickFields.referer,
-      text.stats.clickFields.user_agent,
+      text.stats.clickFields.userAgent,
       text.stats.metadata,
     ],
     ...clicks.map((click, index) => clickRow(click, clickDetails[index] ?? [])),

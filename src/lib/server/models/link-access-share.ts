@@ -14,14 +14,14 @@ export class LinkAccessShareModel extends Model<
   InferCreationAttributes<LinkAccessShareModel>
 > {
   declare id: CreationOptional<number>;
-  declare link_id: number;
+  declare linkId: number;
   declare token: string;
-  declare expires_at: Date | null;
-  declare can_view_stats: CreationOptional<boolean>;
-  declare editable_fields: CreationOptional<string[]>;
-  declare created_by_user_id: number | null;
-  declare created_at: CreationOptional<Date>;
-  declare updated_at: CreationOptional<Date>;
+  declare expiresAt: Date | null;
+  declare canViewStats: CreationOptional<boolean>;
+  declare editableFields: CreationOptional<string[]>;
+  declare createdByUserId: number | null;
+  declare createdAt: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
 }
 
 export class LinkAccessGrantModel extends Model<
@@ -29,13 +29,13 @@ export class LinkAccessGrantModel extends Model<
   InferCreationAttributes<LinkAccessGrantModel>
 > {
   declare id: CreationOptional<number>;
-  declare share_id: number;
-  declare link_id: number;
-  declare user_id: number;
-  declare expires_at: Date | null;
-  declare can_view_stats: CreationOptional<boolean>;
-  declare editable_fields: CreationOptional<string[]>;
-  declare accepted_at: CreationOptional<Date>;
+  declare shareId: number;
+  declare linkId: number;
+  declare userId: number;
+  declare expiresAt: Date | null;
+  declare canViewStats: CreationOptional<boolean>;
+  declare editableFields: CreationOptional<string[]>;
+  declare acceptedAt: CreationOptional<Date>;
 }
 
 export function initLinkAccessShareModels(sequelize: Sequelize) {
@@ -46,7 +46,7 @@ export function initLinkAccessShareModels(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      link_id: {
+      linkId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: ShortLinkModel, key: 'id' },
@@ -57,33 +57,33 @@ export function initLinkAccessShareModels(sequelize: Sequelize) {
         allowNull: false,
         unique: true,
       },
-      expires_at: {
+      expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
-      can_view_stats: {
+      canViewStats: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
       },
-      editable_fields: {
+      editableFields: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: [],
       },
-      created_by_user_id: {
+      createdByUserId: {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: { model: UserModel, key: 'id' },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
-      updated_at: {
+      updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -93,6 +93,7 @@ export function initLinkAccessShareModels(sequelize: Sequelize) {
       sequelize,
       tableName: 'link_access_shares',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['link_id'], unique: true },
         { fields: ['token'], unique: true },
@@ -108,39 +109,39 @@ export function initLinkAccessShareModels(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      share_id: {
+      shareId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: LinkAccessShareModel, key: 'id' },
         onDelete: 'CASCADE',
       },
-      link_id: {
+      linkId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: ShortLinkModel, key: 'id' },
         onDelete: 'CASCADE',
       },
-      user_id: {
+      userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: UserModel, key: 'id' },
         onDelete: 'CASCADE',
       },
-      expires_at: {
+      expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
-      can_view_stats: {
+      canViewStats: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
       },
-      editable_fields: {
+      editableFields: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: [],
       },
-      accepted_at: {
+      acceptedAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -150,6 +151,7 @@ export function initLinkAccessShareModels(sequelize: Sequelize) {
       sequelize,
       tableName: 'link_access_grants',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['share_id', 'user_id'], unique: true },
         { fields: ['link_id', 'user_id'], unique: true },

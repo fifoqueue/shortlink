@@ -39,17 +39,17 @@ function publicToken(token: ApiTokenModel) {
   return {
     id: token.id,
     name: token.name,
-    prefix: token.token_prefix,
-    created_at: token.created_at.toISOString(),
-    last_used_at: token.last_used_at?.toISOString() ?? null,
+    prefix: token.tokenPrefix,
+    createdAt: token.createdAt.toISOString(),
+    lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
   };
 }
 
 export async function listApiTokens(userId: number) {
   await ensureDatabase();
   const tokens = await ApiTokenModel.findAll({
-    where: { user_id: userId },
-    order: [['created_at', 'DESC']],
+    where: { userId },
+    order: [['createdAt', 'DESC']],
   });
   return tokens.map(publicToken);
 }
@@ -58,10 +58,10 @@ export async function createApiToken(userId: number, name: string) {
   await ensureDatabase();
   const token = `slk_${randomBytes(32).toString('base64url')}`;
   const record = await ApiTokenModel.create({
-    user_id: userId,
+    userId,
     name: name.trim().slice(0, 120) || 'API token',
-    token_hash: hashToken(token),
-    token_prefix: token.slice(0, 12),
+    tokenHash: hashToken(token),
+    tokenPrefix: token.slice(0, 12),
   });
   return {
     token,
@@ -73,7 +73,7 @@ export async function revokeApiToken(userId: number, tokenId: number) {
   await ensureDatabase();
   return (
     (await ApiTokenModel.destroy({
-      where: { id: tokenId, user_id: userId },
+      where: { id: tokenId, userId },
     })) > 0
   );
 }
@@ -97,11 +97,11 @@ export async function authenticateApiToken(
 
       await ensureDatabase();
       const record = await ApiTokenModel.findOne({
-        where: { token_hash: tokenHash },
+        where: { tokenHash },
       });
       if (!record) return null;
 
-      const user = await UserModel.findByPk(record.user_id);
+      const user = await UserModel.findByPk(record.userId);
       if (!user?.enabled) return null;
 
       return {
@@ -111,7 +111,7 @@ export async function authenticateApiToken(
           id: user.id,
           email: user.email,
           name: user.name,
-          isAdmin: user.is_admin === true,
+          isAdmin: user.isAdmin === true,
         },
       } satisfies CachedApiTokenAuth;
     })();
@@ -127,7 +127,7 @@ export async function authenticateApiToken(
     (tokenTouchCache.get(cached.tokenHash) ?? 0) + TOKEN_TOUCH_INTERVAL_MS < now
   ) {
     tokenTouchCache.set(cached.tokenHash, now);
-    await cached.record.update({ last_used_at: new Date(now) });
+    await cached.record.update({ lastUsedAt: new Date(now) });
   }
   return cached.principal;
 }
@@ -148,7 +148,7 @@ function apiErrorBody(message: string, permissions?: EffectivePermissions) {
   return {
     message,
     ...(permissions
-      ? { permission_groups: publicPermissionGroupReasons(permissions) }
+      ? { permissionGroups: publicPermissionGroupReasons(permissions) }
       : {}),
   };
 }

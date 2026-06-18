@@ -766,14 +766,14 @@ function publicGroup(
     description: group.description,
     priority: group.priority,
     enabled: group.enabled,
-    autoAssign: normalizePermissionGroupAutoAssign(group.auto_assign),
+    autoAssign: normalizePermissionGroupAutoAssign(group.autoAssign),
     userIds,
     ipRules,
     userMemberships,
     cidrRules,
     rules: normalizePermissionRules(group.rules),
-    createdAt: group.created_at.toISOString(),
-    updatedAt: group.updated_at.toISOString(),
+    createdAt: group.createdAt.toISOString(),
+    updatedAt: group.updatedAt.toISOString(),
   };
 }
 
@@ -791,41 +791,41 @@ async function loadGroupRelations(groupIds: number[]) {
 
   const [memberships, cidrs] = await Promise.all([
     PermissionGroupUserModel.findAll({
-      where: { group_id: { [Op.in]: groupIds } },
+      where: { groupId: { [Op.in]: groupIds } },
       order: [
-        ['group_id', 'ASC'],
-        ['user_id', 'ASC'],
+        ['groupId', 'ASC'],
+        ['userId', 'ASC'],
       ],
     }),
     PermissionGroupCidrModel.findAll({
-      where: { group_id: { [Op.in]: groupIds } },
+      where: { groupId: { [Op.in]: groupIds } },
       order: [
-        ['group_id', 'ASC'],
+        ['groupId', 'ASC'],
         ['family', 'ASC'],
-        ['start_hex', 'ASC'],
+        ['startHex', 'ASC'],
       ],
     }),
   ]);
 
   for (const membership of memberships) {
-    const list = userMembershipsByGroup.get(membership.group_id) ?? [];
+    const list = userMembershipsByGroup.get(membership.groupId) ?? [];
     list.push({
-      userId: membership.user_id,
-      expiresAt: membership.expires_at?.toISOString() ?? null,
+      userId: membership.userId,
+      expiresAt: membership.expiresAt?.toISOString() ?? null,
       reason: membership.reason,
-      reasonPublic: membership.reason_public === true,
+      reasonPublic: membership.reasonPublic === true,
       assignmentSource:
-        membership.assignment_source === 'automatic' ? 'automatic' : 'manual',
+        membership.assignmentSource === 'automatic' ? 'automatic' : 'manual',
     });
-    userMembershipsByGroup.set(membership.group_id, list);
+    userMembershipsByGroup.set(membership.groupId, list);
   }
   for (const cidr of cidrs) {
-    const list = cidrRulesByGroup.get(cidr.group_id) ?? [];
+    const list = cidrRulesByGroup.get(cidr.groupId) ?? [];
     list.push({
       cidr: cidr.cidr,
-      expiresAt: cidr.expires_at?.toISOString() ?? null,
+      expiresAt: cidr.expiresAt?.toISOString() ?? null,
     });
-    cidrRulesByGroup.set(cidr.group_id, list);
+    cidrRulesByGroup.set(cidr.groupId, list);
   }
 
   return { userMembershipsByGroup, cidrRulesByGroup };
@@ -896,8 +896,8 @@ export async function listPermissionGroupSummaries() {
       enabled: group.enabled,
       userCount: userCounts.get(group.id) ?? 0,
       cidrCount: cidrCounts.get(group.id) ?? 0,
-      createdAt: group.created_at.toISOString(),
-      updatedAt: group.updated_at.toISOString(),
+      createdAt: group.createdAt.toISOString(),
+      updatedAt: group.updatedAt.toISOString(),
     }),
   );
 }
@@ -1041,7 +1041,7 @@ export async function searchPermissionGroupCidrs(input: {
   groupIdCondition(input.groupId);
   const query = (input.query ?? '').trim().slice(0, 120);
   const where: WhereOptions<PermissionGroupCidrModel> = {
-    group_id: input.groupId,
+    groupId: input.groupId,
   };
   if (query) where.cidr = { [Op.iLike]: `%${query}%` };
 
@@ -1055,7 +1055,7 @@ export async function searchPermissionGroupCidrs(input: {
     where,
     order: [
       ['family', 'ASC'],
-      ['start_hex', 'ASC'],
+      ['startHex', 'ASC'],
       ['cidr', 'ASC'],
     ],
     limit: pagination.pageSize,
@@ -1070,7 +1070,7 @@ export async function searchPermissionGroupCidrs(input: {
     totalPages: pagination.totalPages,
     cidrs: rows.map((row) => ({
       cidr: row.cidr,
-      expiresAt: assignmentExpiresAt(row.expires_at),
+      expiresAt: assignmentExpiresAt(row.expiresAt),
     })),
   };
 }
@@ -1187,11 +1187,11 @@ async function replaceGroupAssignments(
 
   await Promise.all([
     PermissionGroupUserModel.destroy({
-      where: { group_id: groupId },
+      where: { groupId },
       transaction,
     }),
     PermissionGroupCidrModel.destroy({
-      where: { group_id: groupId },
+      where: { groupId },
       transaction,
     }),
   ]);
@@ -1201,11 +1201,11 @@ async function replaceGroupAssignments(
     input.userIds.length > 0
       ? PermissionGroupUserModel.bulkCreate(
           input.userIds.map((userId) => ({
-            group_id: groupId,
-            user_id: userId,
-            expires_at: null,
-            assignment_source: 'manual',
-            created_at: createdAt,
+            groupId,
+            userId,
+            expiresAt: null,
+            assignmentSource: 'manual',
+            createdAt,
           })),
           { transaction },
         )
@@ -1213,13 +1213,13 @@ async function replaceGroupAssignments(
     input.cidrs.length > 0
       ? PermissionGroupCidrModel.bulkCreate(
           input.cidrs.map((cidr) => ({
-            group_id: groupId,
+            groupId,
             cidr: cidr.cidr,
             family: cidr.family,
-            start_hex: cidr.startHex,
-            end_hex: cidr.endHex,
-            expires_at: null,
-            created_at: createdAt,
+            startHex: cidr.startHex,
+            endHex: cidr.endHex,
+            expiresAt: null,
+            createdAt,
           })),
           { transaction },
         )
@@ -1239,12 +1239,9 @@ export async function createPermissionGroup(input: PermissionGroupInput) {
         priority: normalized.priority,
         enabled: normalized.enabled,
         rules: normalized.rules as unknown as Record<string, unknown>,
-        auto_assign: normalized.autoAssign as unknown as Record<
-          string,
-          unknown
-        >,
-        created_at: now,
-        updated_at: now,
+        autoAssign: normalized.autoAssign as unknown as Record<string, unknown>,
+        createdAt: now,
+        updatedAt: now,
       },
       { transaction },
     );
@@ -1273,11 +1270,8 @@ export async function updatePermissionGroup(
         priority: normalized.priority,
         enabled: normalized.enabled,
         rules: normalized.rules as unknown as Record<string, unknown>,
-        auto_assign: normalized.autoAssign as unknown as Record<
-          string,
-          unknown
-        >,
-        updated_at: new Date(),
+        autoAssign: normalized.autoAssign as unknown as Record<string, unknown>,
+        updatedAt: new Date(),
       },
       { transaction },
     );
@@ -1309,11 +1303,8 @@ export async function updatePermissionGroupSettings(
         priority: normalized.priority,
         enabled: normalized.enabled,
         rules: normalized.rules as unknown as Record<string, unknown>,
-        auto_assign: normalized.autoAssign as unknown as Record<
-          string,
-          unknown
-        >,
-        updated_at: new Date(),
+        autoAssign: normalized.autoAssign as unknown as Record<string, unknown>,
+        updatedAt: new Date(),
       },
       { transaction },
     );
@@ -1363,25 +1354,25 @@ export async function addPermissionGroupUser(
     const reason = (options.reason ?? '').trim().slice(0, 1000);
     const reasonPublic = reason ? options.reasonPublic === true : false;
     const [membership, created] = await PermissionGroupUserModel.findOrCreate({
-      where: { group_id: groupId, user_id: userId },
+      where: { groupId, userId },
       defaults: {
-        group_id: groupId,
-        user_id: userId,
-        expires_at: expiresAt,
+        groupId,
+        userId,
+        expiresAt,
         reason,
-        reason_public: reasonPublic,
-        assignment_source: 'manual',
-        created_at: new Date(),
+        reasonPublic,
+        assignmentSource: 'manual',
+        createdAt: new Date(),
       },
       transaction,
     });
     if (!created)
       await membership.update(
         {
-          expires_at: expiresAt,
+          expiresAt,
           reason,
-          reason_public: reasonPublic,
-          assignment_source: 'manual',
+          reasonPublic,
+          assignmentSource: 'manual',
         },
         { transaction },
       );
@@ -1415,7 +1406,7 @@ export async function removePermissionGroupUsers(
   ];
   if (uniqueIds.length === 0) return 0;
   return PermissionGroupUserModel.destroy({
-    where: { group_id: groupId, user_id: { [Op.in]: uniqueIds } },
+    where: { groupId, userId: { [Op.in]: uniqueIds } },
   });
 }
 
@@ -1435,23 +1426,23 @@ async function userMatchesAutoAssign(
 
 async function upsertAutomaticMembership(groupId: number, userId: number) {
   const [membership, created] = await PermissionGroupUserModel.findOrCreate({
-    where: { group_id: groupId, user_id: userId },
+    where: { groupId, userId },
     defaults: {
-      group_id: groupId,
-      user_id: userId,
-      expires_at: null,
+      groupId,
+      userId,
+      expiresAt: null,
       reason: '',
-      reason_public: false,
-      assignment_source: 'automatic',
-      created_at: new Date(),
+      reasonPublic: false,
+      assignmentSource: 'automatic',
+      createdAt: new Date(),
     },
   });
 
-  if (!created && membership.assignment_source === 'automatic') {
+  if (!created && membership.assignmentSource === 'automatic') {
     await membership.update({
-      expires_at: null,
+      expiresAt: null,
       reason: '',
-      reason_public: false,
+      reasonPublic: false,
     });
   }
 }
@@ -1466,7 +1457,7 @@ export async function syncAutomaticPermissionGroupMembershipsForUser(
   const groups = await PermissionGroupModel.findAll();
 
   for (const group of groups) {
-    const autoAssign = normalizePermissionGroupAutoAssign(group.auto_assign);
+    const autoAssign = normalizePermissionGroupAutoAssign(group.autoAssign);
     if (await userMatchesAutoAssign(user, autoAssign)) {
       await upsertAutomaticMembership(group.id, user.id);
       continue;
@@ -1474,9 +1465,9 @@ export async function syncAutomaticPermissionGroupMembershipsForUser(
     if (autoAssign.revokeWhenUnmatched) {
       await PermissionGroupUserModel.destroy({
         where: {
-          group_id: group.id,
-          user_id: user.id,
-          assignment_source: 'automatic',
+          groupId: group.id,
+          userId: user.id,
+          assignmentSource: 'automatic',
         },
       });
     }
@@ -1490,12 +1481,12 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
   groupIdCondition(groupId);
   const group = await PermissionGroupModel.findByPk(groupId);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
-  const autoAssign = normalizePermissionGroupAutoAssign(group.auto_assign);
+  const autoAssign = normalizePermissionGroupAutoAssign(group.autoAssign);
 
   if (!autoAssign.enabled) {
     if (autoAssign.revokeWhenUnmatched) {
       await PermissionGroupUserModel.destroy({
-        where: { group_id: group.id, assignment_source: 'automatic' },
+        where: { groupId: group.id, assignmentSource: 'automatic' },
       });
     }
     return;
@@ -1517,11 +1508,11 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
 
   if (!autoAssign.revokeWhenUnmatched) return;
   const where: WhereOptions<PermissionGroupUserModel> = {
-    group_id: group.id,
-    assignment_source: 'automatic',
+    groupId: group.id,
+    assignmentSource: 'automatic',
   };
   if (matchedUserIds.length > 0) {
-    where.user_id = { [Op.notIn]: matchedUserIds };
+    where.userId = { [Op.notIn]: matchedUserIds };
   }
   await PermissionGroupUserModel.destroy({ where });
 }
@@ -1542,15 +1533,15 @@ export async function addPermissionGroupCidr(
     });
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     const [rule, created] = await PermissionGroupCidrModel.findOrCreate({
-      where: { group_id: groupId, cidr: cidr.cidr },
+      where: { groupId, cidr: cidr.cidr },
       defaults: {
-        group_id: groupId,
+        groupId,
         cidr: cidr.cidr,
         family: cidr.family,
-        start_hex: cidr.startHex,
-        end_hex: cidr.endHex,
-        expires_at: expiresAt,
-        created_at: new Date(),
+        startHex: cidr.startHex,
+        endHex: cidr.endHex,
+        expiresAt,
+        createdAt: new Date(),
       },
       transaction,
     });
@@ -1558,9 +1549,9 @@ export async function addPermissionGroupCidr(
       await rule.update(
         {
           family: cidr.family,
-          start_hex: cidr.startHex,
-          end_hex: cidr.endHex,
-          expires_at: expiresAt,
+          startHex: cidr.startHex,
+          endHex: cidr.endHex,
+          expiresAt,
         },
         { transaction },
       );
@@ -1591,7 +1582,7 @@ export async function removePermissionGroupCidrs(
   ];
   if (uniqueCidrs.length === 0) return 0;
   return PermissionGroupCidrModel.destroy({
-    where: { group_id: groupId, cidr: { [Op.in]: uniqueCidrs } },
+    where: { groupId, cidr: { [Op.in]: uniqueCidrs } },
   });
 }
 

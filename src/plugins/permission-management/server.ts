@@ -204,7 +204,7 @@ function userSummary(
     item: userItem(user.id),
     email: user.email,
     name: user.name,
-    isAdmin: user.is_admin === true,
+    isAdmin: user.isAdmin === true,
     enabled: user.enabled === true,
   };
 }
@@ -267,7 +267,7 @@ async function assertCanManageUser(
   }
   if (!targetId) return;
   const target = await getUserById(targetId);
-  if (target?.is_admin) {
+  if (target?.isAdmin) {
     throw new Error(t(strings, 'server.adminUserManageRequiresRoot'));
   }
   if (!actor) throw new Error(t(strings, 'server.manageUsersDenied'));
@@ -371,9 +371,9 @@ const serverPlugin = {
           id: user.id,
           email: user.email,
           name: user.name,
-          isAdmin: user.is_admin === true,
+          isAdmin: user.isAdmin === true,
           enabled: user.enabled === true,
-          createdAt: user.created_at.toISOString(),
+          createdAt: user.createdAt.toISOString(),
         },
         apiTokens,
       };

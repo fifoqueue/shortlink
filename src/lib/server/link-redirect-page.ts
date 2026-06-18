@@ -18,7 +18,7 @@ type RedirectLink = {
   };
 };
 
-export type LinkBlockReason = 'expired' | 'max_clicks';
+export type LinkBlockReason = 'expired' | 'maxClicks';
 
 export function publicRedirectSettings(settings: SiteSettings) {
   return {

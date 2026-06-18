@@ -572,7 +572,7 @@ export const load: PageServerLoad = async ({
     search,
     links: linkPage.items.map((link) => ({
       ...link,
-      short_url: shortUrl(url.origin, link.code, link.domain, settings),
+      shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
     })),
     domainLinkCounts,
     pagination: {

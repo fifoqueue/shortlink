@@ -18,23 +18,23 @@ export class ShortLinkModel extends Model<
   declare preview: CreationOptional<Record<string, unknown>>;
   declare tags: CreationOptional<string[]>;
   declare clicks: CreationOptional<number>;
-  declare creator_user_id: number | null;
-  declare creator_session_id: string | null;
-  declare creator_ip_hash: string | null;
-  declare creator_ip_address: string | null;
-  declare created_at: CreationOptional<Date>;
-  declare last_clicked_at: Date | null;
-  declare expires_at: Date | null;
-  declare max_clicks: CreationOptional<number>;
-  declare password_hash: string | null;
-  declare password_salt: string | null;
-  declare redirect_rules: CreationOptional<Record<string, unknown>[]>;
-  declare health_status: CreationOptional<string>;
-  declare health_status_code: number | null;
-  declare health_checked_at: Date | null;
-  declare health_error: string | null;
-  declare health_response_body: string | null;
-  declare health_latency_ms: number | null;
+  declare creatorUserId: number | null;
+  declare creatorSessionId: string | null;
+  declare creatorIpHash: string | null;
+  declare creatorIpAddress: string | null;
+  declare createdAt: CreationOptional<Date>;
+  declare lastClickedAt: Date | null;
+  declare expiresAt: Date | null;
+  declare maxClicks: CreationOptional<number>;
+  declare passwordHash: string | null;
+  declare passwordSalt: string | null;
+  declare redirectRules: CreationOptional<Record<string, unknown>[]>;
+  declare healthStatus: CreationOptional<string>;
+  declare healthStatusCode: number | null;
+  declare healthCheckedAt: Date | null;
+  declare healthError: string | null;
+  declare healthResponseBody: string | null;
+  declare healthLatencyMs: number | null;
 }
 
 export function initShortLinkModel(sequelize: Sequelize) {
@@ -72,78 +72,78 @@ export function initShortLinkModel(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: 0,
       },
-      creator_user_id: {
+      creatorUserId: {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: { model: 'users', key: 'id' },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      creator_session_id: {
+      creatorSessionId: {
         type: DataTypes.STRING(64),
         allowNull: true,
       },
-      creator_ip_hash: {
+      creatorIpHash: {
         type: DataTypes.STRING(64),
         allowNull: true,
       },
-      creator_ip_address: {
+      creatorIpAddress: {
         type: DataTypes.STRING(128),
         allowNull: true,
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
-      last_clicked_at: {
+      lastClickedAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
-      expires_at: {
+      expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
-      max_clicks: {
+      maxClicks: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
       },
-      password_hash: {
+      passwordHash: {
         type: DataTypes.STRING(128),
         allowNull: true,
       },
-      password_salt: {
+      passwordSalt: {
         type: DataTypes.STRING(32),
         allowNull: true,
       },
-      redirect_rules: {
+      redirectRules: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: [],
       },
-      health_status: {
+      healthStatus: {
         type: DataTypes.STRING(24),
         allowNull: false,
         defaultValue: 'unchecked',
       },
-      health_status_code: {
+      healthStatusCode: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
-      health_checked_at: {
+      healthCheckedAt: {
         type: DataTypes.DATE,
         allowNull: true,
       },
-      health_error: {
+      healthError: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
-      health_response_body: {
+      healthResponseBody: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
-      health_latency_ms: {
+      healthLatencyMs: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
@@ -152,6 +152,7 @@ export function initShortLinkModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'short_links',
       timestamps: false,
+      underscored: true,
       indexes: [
         { fields: ['created_at'] },
         { fields: ['creator_user_id'] },

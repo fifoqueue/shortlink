@@ -54,12 +54,12 @@ function headersRecord(headers: Headers) {
 
 function requestForQueueItem(item: ClickEventQueueModel) {
   try {
-    return new Request(item.request_url, {
-      headers: item.request_headers,
+    return new Request(item.requestUrl, {
+      headers: item.requestHeaders,
     });
   } catch {
     return new Request('http://localhost/', {
-      headers: item.request_headers,
+      headers: item.requestHeaders,
     });
   }
 }
@@ -83,8 +83,8 @@ async function metadataFor(item: ClickEventQueueModel) {
       ...clientHintMetadata(request),
       ...(await collectClickMetadata({
         request,
-        ip: item.ip_address ?? '',
-        states: item.plugin_states as Record<string, PluginState>,
+        ip: item.ipAddress ?? '',
+        states: item.pluginStates as Record<string, PluginState>,
         settings,
       })),
       ...metadataRecord(item.metadata),
@@ -99,10 +99,10 @@ async function metadataFor(item: ClickEventQueueModel) {
 }
 
 async function processQueueItem(item: ClickEventQueueModel) {
-  await recordClick(item.link_id, {
+  await recordClick(item.linkId, {
     queueId: item.id,
-    ip: item.ip_address,
-    userAgent: item.user_agent,
+    ip: item.ipAddress,
+    userAgent: item.userAgent,
     referer: item.referer,
     metadata: await metadataFor(item),
   });
@@ -112,13 +112,13 @@ async function processQueueItem(item: ClickEventQueueModel) {
 async function scheduleNextPendingAttempt() {
   const next = await ClickEventQueueModel.findOne({
     order: [
-      ['next_attempt_at', 'ASC'],
+      ['nextAttemptAt', 'ASC'],
       ['id', 'ASC'],
     ],
   });
   if (!next) return;
 
-  scheduleDrain(Math.max(0, next.next_attempt_at.getTime() - Date.now()));
+  scheduleDrain(Math.max(0, next.nextAttemptAt.getTime() - Date.now()));
 }
 
 async function processDueQueue(deadline = Infinity) {
@@ -127,7 +127,7 @@ async function processDueQueue(deadline = Infinity) {
   while (Date.now() < Math.min(deadline, drainDeadline)) {
     const items = await ClickEventQueueModel.findAll({
       where: {
-        next_attempt_at: { [Op.lte]: new Date() },
+        nextAttemptAt: { [Op.lte]: new Date() },
       },
       order: [['id', 'ASC']],
       limit: BATCH_SIZE,
@@ -147,8 +147,8 @@ async function processDueQueue(deadline = Infinity) {
         const delay = retryDelayMs(attempts);
         await item.update({
           attempts,
-          last_error: errorMessage(error).slice(0, 2_000),
-          next_attempt_at: new Date(Date.now() + delay),
+          lastError: errorMessage(error).slice(0, 2_000),
+          nextAttemptAt: new Date(Date.now() + delay),
         });
         scheduleDrain(delay);
       }
@@ -227,15 +227,15 @@ export async function enqueueClick(input: {
   try {
     await ensureDatabase();
     await ClickEventQueueModel.create({
-      link_id: input.linkId,
-      request_url: input.request.url,
-      request_headers: headersRecord(input.request.headers),
-      plugin_states: clone(input.settings.plugins),
+      linkId: input.linkId,
+      requestUrl: input.request.url,
+      requestHeaders: headersRecord(input.request.headers),
+      pluginStates: clone(input.settings.plugins),
       metadata: metadataRecord(input.metadata),
-      ip_address: ip || null,
-      user_agent: input.request.headers.get('user-agent'),
+      ipAddress: ip || null,
+      userAgent: input.request.headers.get('user-agent'),
       referer: input.request.headers.get('referer'),
-      next_attempt_at: new Date(),
+      nextAttemptAt: new Date(),
     });
     scheduleDrain(0);
   } catch (error) {

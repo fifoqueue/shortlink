@@ -1012,7 +1012,7 @@ export async function finishLogin(
   }
   const existingIdentity = await findIdentity(providerName, subject);
   let storedUser = existingIdentity
-    ? await getUserById(existingIdentity.user_id)
+    ? await getUserById(existingIdentity.userId)
     : null;
   if (storedUser && !storedUser.enabled) {
     if (provider.emailTrustMode === 'local-verification') {

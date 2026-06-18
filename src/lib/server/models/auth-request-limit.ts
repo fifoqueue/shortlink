@@ -13,10 +13,10 @@ export class AuthRequestLimitModel extends Model<
 > {
   declare id: CreationOptional<number>;
   declare kind: string;
-  declare identifier_hash: string;
-  declare date_key: string;
+  declare identifierHash: string;
+  declare dateKey: string;
   declare count: CreationOptional<number>;
-  declare updated_at: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
 }
 
 export function initAuthRequestLimitModel(sequelize: Sequelize) {
@@ -31,11 +31,11 @@ export function initAuthRequestLimitModel(sequelize: Sequelize) {
         type: DataTypes.STRING(40),
         allowNull: false,
       },
-      identifier_hash: {
+      identifierHash: {
         type: DataTypes.STRING(128),
         allowNull: false,
       },
-      date_key: {
+      dateKey: {
         type: DataTypes.STRING(10),
         allowNull: false,
       },
@@ -44,7 +44,7 @@ export function initAuthRequestLimitModel(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: 0,
       },
-      updated_at: {
+      updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -54,6 +54,7 @@ export function initAuthRequestLimitModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'auth_request_limits',
       timestamps: false,
+      underscored: true,
       indexes: [
         {
           fields: ['kind', 'identifier_hash', 'date_key'],

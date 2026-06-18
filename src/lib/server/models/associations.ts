@@ -21,129 +21,129 @@ function hasAssociation(
 }
 
 export function associateModels() {
-  if (!hasAssociation(ShortLinkModel, 'click_events')) {
+  if (!hasAssociation(ShortLinkModel, 'clickEvents')) {
     ShortLinkModel.hasMany(ClickEventModel, {
-      foreignKey: 'link_id',
-      as: 'click_events',
+      foreignKey: 'linkId',
+      as: 'clickEvents',
     });
   }
   if (!hasAssociation(ClickEventModel, 'link')) {
     ClickEventModel.belongsTo(ShortLinkModel, {
-      foreignKey: 'link_id',
+      foreignKey: 'linkId',
       as: 'link',
     });
   }
-  if (!hasAssociation(UserModel, 'created_links')) {
+  if (!hasAssociation(UserModel, 'createdLinks')) {
     UserModel.hasMany(ShortLinkModel, {
-      foreignKey: 'creator_user_id',
-      as: 'created_links',
+      foreignKey: 'creatorUserId',
+      as: 'createdLinks',
     });
   }
   if (!hasAssociation(ShortLinkModel, 'creator')) {
     ShortLinkModel.belongsTo(UserModel, {
-      foreignKey: 'creator_user_id',
+      foreignKey: 'creatorUserId',
       as: 'creator',
     });
   }
-  if (!hasAssociation(ShortLinkModel, 'access_share')) {
+  if (!hasAssociation(ShortLinkModel, 'accessShare')) {
     ShortLinkModel.hasOne(LinkAccessShareModel, {
-      foreignKey: 'link_id',
-      as: 'access_share',
+      foreignKey: 'linkId',
+      as: 'accessShare',
       onDelete: 'CASCADE',
     });
   }
   if (!hasAssociation(LinkAccessShareModel, 'link')) {
     LinkAccessShareModel.belongsTo(ShortLinkModel, {
-      foreignKey: 'link_id',
+      foreignKey: 'linkId',
       as: 'link',
     });
   }
   if (!hasAssociation(LinkAccessShareModel, 'grants')) {
     LinkAccessShareModel.hasMany(LinkAccessGrantModel, {
-      foreignKey: 'share_id',
+      foreignKey: 'shareId',
       as: 'grants',
       onDelete: 'CASCADE',
     });
   }
   if (!hasAssociation(LinkAccessGrantModel, 'share')) {
     LinkAccessGrantModel.belongsTo(LinkAccessShareModel, {
-      foreignKey: 'share_id',
+      foreignKey: 'shareId',
       as: 'share',
     });
   }
-  if (!hasAssociation(UserModel, 'link_access_grants')) {
+  if (!hasAssociation(UserModel, 'linkAccessGrants')) {
     UserModel.hasMany(LinkAccessGrantModel, {
-      foreignKey: 'user_id',
-      as: 'link_access_grants',
+      foreignKey: 'userId',
+      as: 'linkAccessGrants',
       onDelete: 'CASCADE',
     });
   }
   if (!hasAssociation(LinkAccessGrantModel, 'user')) {
     LinkAccessGrantModel.belongsTo(UserModel, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
       as: 'user',
     });
   }
-  if (!hasAssociation(UserModel, 'api_tokens')) {
+  if (!hasAssociation(UserModel, 'apiTokens')) {
     UserModel.hasMany(ApiTokenModel, {
-      foreignKey: 'user_id',
-      as: 'api_tokens',
+      foreignKey: 'userId',
+      as: 'apiTokens',
     });
   }
   if (!hasAssociation(ApiTokenModel, 'user')) {
     ApiTokenModel.belongsTo(UserModel, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
       as: 'user',
     });
   }
   if (!hasAssociation(UserModel, 'identities')) {
     UserModel.hasMany(UserIdentityModel, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
       as: 'identities',
     });
   }
   if (!hasAssociation(UserIdentityModel, 'user')) {
     UserIdentityModel.belongsTo(UserModel, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
       as: 'user',
     });
   }
   if (!hasAssociation(PermissionGroupModel, 'users')) {
     PermissionGroupModel.hasMany(PermissionGroupUserModel, {
-      foreignKey: 'group_id',
+      foreignKey: 'groupId',
       as: 'users',
       onDelete: 'CASCADE',
     });
   }
   if (!hasAssociation(PermissionGroupUserModel, 'group')) {
     PermissionGroupUserModel.belongsTo(PermissionGroupModel, {
-      foreignKey: 'group_id',
+      foreignKey: 'groupId',
       as: 'group',
     });
   }
-  if (!hasAssociation(UserModel, 'permission_group_memberships')) {
+  if (!hasAssociation(UserModel, 'permissionGroupMemberships')) {
     UserModel.hasMany(PermissionGroupUserModel, {
-      foreignKey: 'user_id',
-      as: 'permission_group_memberships',
+      foreignKey: 'userId',
+      as: 'permissionGroupMemberships',
       onDelete: 'CASCADE',
     });
   }
   if (!hasAssociation(PermissionGroupUserModel, 'user')) {
     PermissionGroupUserModel.belongsTo(UserModel, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
       as: 'user',
     });
   }
   if (!hasAssociation(PermissionGroupModel, 'cidrs')) {
     PermissionGroupModel.hasMany(PermissionGroupCidrModel, {
-      foreignKey: 'group_id',
+      foreignKey: 'groupId',
       as: 'cidrs',
       onDelete: 'CASCADE',
     });
   }
   if (!hasAssociation(PermissionGroupCidrModel, 'group')) {
     PermissionGroupCidrModel.belongsTo(PermissionGroupModel, {
-      foreignKey: 'group_id',
+      foreignKey: 'groupId',
       as: 'group',
     });
   }

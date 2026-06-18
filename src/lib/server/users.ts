@@ -71,7 +71,7 @@ export async function countUsers() {
 
 export async function listUsers() {
   await ensureDatabase();
-  return UserModel.findAll({ order: [['created_at', 'ASC']] });
+  return UserModel.findAll({ order: [['createdAt', 'ASC']] });
 }
 
 export async function searchUsers(
@@ -205,14 +205,14 @@ export async function createUser(input: {
   validatePassword(input.password, input.passwordPolicy);
   const user = await UserModel.create({
     email,
-    pending_email: null,
+    pendingEmail: null,
     name: input.name.trim().slice(0, 120) || email,
-    password_hash: hashPassword(input.password),
-    is_admin: input.isAdmin,
+    passwordHash: hashPassword(input.password),
+    isAdmin: input.isAdmin,
     enabled: input.enabled !== false,
-    email_verified_at: input.emailVerifiedAt ?? null,
-    email_verification_token_hash: input.emailVerificationTokenHash ?? null,
-    email_verification_expires_at: input.emailVerificationExpiresAt ?? null,
+    emailVerifiedAt: input.emailVerifiedAt ?? null,
+    emailVerificationTokenHash: input.emailVerificationTokenHash ?? null,
+    emailVerificationExpiresAt: input.emailVerificationExpiresAt ?? null,
   });
   await syncAutomaticPermissionGroupMembershipsForUser(user.id);
   return user;
@@ -253,8 +253,8 @@ export async function upsertSsoUser(input: {
     const updates: Partial<UserModel> = {
       name,
     };
-    if (input.emailVerifiedAt && !existing.email_verified_at) {
-      updates.email_verified_at = input.emailVerifiedAt;
+    if (input.emailVerifiedAt && !existing.emailVerifiedAt) {
+      updates.emailVerifiedAt = input.emailVerifiedAt;
     }
     await existing.update(updates);
     return existing;
@@ -262,12 +262,12 @@ export async function upsertSsoUser(input: {
 
   const user = await UserModel.create({
     email,
-    pending_email: null,
+    pendingEmail: null,
     name,
-    password_hash: ssoPasswordHash(input.provider, input.subject),
-    is_admin: false,
+    passwordHash: ssoPasswordHash(input.provider, input.subject),
+    isAdmin: false,
     enabled: true,
-    email_verified_at: input.emailVerifiedAt ?? null,
+    emailVerifiedAt: input.emailVerifiedAt ?? null,
   });
   await syncAutomaticPermissionGroupMembershipsForUser(user.id);
   return user;
@@ -295,8 +295,8 @@ export async function createPendingSsoUser(input: {
       input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
   );
   const verification = {
-    email_verification_token_hash: hashEmailVerificationToken(token),
-    email_verification_expires_at: expiresAt,
+    emailVerificationTokenHash: hashEmailVerificationToken(token),
+    emailVerificationExpiresAt: expiresAt,
   };
 
   const existing = await UserModel.findOne({ where: { email } });
@@ -307,23 +307,23 @@ export async function createPendingSsoUser(input: {
     if (user.enabled) {
       throw new Error(serverMessage('ssoExistingAccountLinkRequired'));
     }
-    if (user.password_hash !== passwordHash) {
+    if (user.passwordHash !== passwordHash) {
       throw new Error(serverMessage('userDisabled'));
     }
     await user.update({
       name,
-      pending_email: null,
+      pendingEmail: null,
       ...verification,
     });
   } else {
     user = await UserModel.create({
       email,
-      pending_email: null,
+      pendingEmail: null,
       name,
-      password_hash: passwordHash,
-      is_admin: false,
+      passwordHash,
+      isAdmin: false,
       enabled: false,
-      email_verified_at: null,
+      emailVerifiedAt: null,
       ...verification,
     });
     created = true;
@@ -341,8 +341,8 @@ export async function createPendingSsoUser(input: {
       await user.destroy();
     } else {
       await user.update({
-        email_verification_token_hash: null,
-        email_verification_expires_at: null,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
       });
     }
     throw cause;
@@ -356,7 +356,7 @@ export async function authenticateUser(email: string, password: string) {
   const user = await UserModel.findOne({
     where: { email: normalizeEmail(email), enabled: true },
   });
-  if (!user || !verifyPassword(password, user.password_hash)) return null;
+  if (!user || !verifyPassword(password, user.passwordHash)) return null;
   return user;
 }
 
@@ -364,10 +364,10 @@ export async function ensureCanDeleteUser(id: number) {
   await ensureDatabase();
   const user = await UserModel.findByPk(id);
   if (!user) throw new Error(serverMessage('userNotFound'));
-  if (!user.is_admin) return;
+  if (!user.isAdmin) return;
 
   const adminCount = await UserModel.count({
-    where: { is_admin: true, enabled: true },
+    where: { isAdmin: true, enabled: true },
   });
   if (adminCount <= 1) {
     throw new Error(serverMessage('onlyAdminDeleteDenied'));
@@ -378,10 +378,10 @@ export async function ensureCanLoseAdmin(id: number) {
   await ensureDatabase();
   const user = await UserModel.findByPk(id);
   if (!user) throw new Error(serverMessage('userNotFound'));
-  if (!user.is_admin) return;
+  if (!user.isAdmin) return;
 
   const adminCount = await UserModel.count({
-    where: { is_admin: true, enabled: true },
+    where: { isAdmin: true, enabled: true },
   });
   if (adminCount <= 1) {
     throw new Error(serverMessage('onlyAdminDemoteDenied'));
@@ -402,23 +402,23 @@ export async function updateUser(input: {
   if (!user) throw new Error(serverMessage('userNotFound'));
   const email = await ensureUserEmailAvailable(input.email, user.id);
   const emailChanged = email !== user.email;
-  if ((user.is_admin && !input.isAdmin) || (user.is_admin && !input.enabled)) {
+  if ((user.isAdmin && !input.isAdmin) || (user.isAdmin && !input.enabled)) {
     await ensureCanLoseAdmin(user.id);
   }
   const next: Partial<UserModel> = {
     email,
-    pending_email: null,
+    pendingEmail: null,
     name: input.name.trim().slice(0, 120) || email,
-    is_admin: input.isAdmin,
+    isAdmin: input.isAdmin,
     enabled: input.enabled,
-    email_verification_token_hash: null,
-    email_verification_expires_at: null,
+    emailVerificationTokenHash: null,
+    emailVerificationExpiresAt: null,
   };
   if (input.password !== undefined && input.password !== '') {
     validatePassword(input.password, input.passwordPolicy);
-    next.password_hash = hashPassword(input.password);
-    next.password_reset_token_hash = null;
-    next.password_reset_expires_at = null;
+    next.passwordHash = hashPassword(input.password);
+    next.passwordResetTokenHash = null;
+    next.passwordResetExpiresAt = null;
   }
   await user.update(next);
   if (emailChanged)
@@ -444,7 +444,7 @@ export async function updateOwnProfile(input: {
     return {
       user,
       emailVerificationRequired: false,
-      pendingEmail: user.pending_email,
+      pendingEmail: user.pendingEmail,
     };
   }
 
@@ -456,9 +456,9 @@ export async function updateOwnProfile(input: {
 
   await user.update({
     name,
-    pending_email: email,
-    email_verification_token_hash: hashEmailVerificationToken(token),
-    email_verification_expires_at: expiresAt,
+    pendingEmail: email,
+    emailVerificationTokenHash: hashEmailVerificationToken(token),
+    emailVerificationExpiresAt: expiresAt,
   });
 
   try {
@@ -471,9 +471,9 @@ export async function updateOwnProfile(input: {
     });
   } catch (cause) {
     await user.update({
-      pending_email: null,
-      email_verification_token_hash: null,
-      email_verification_expires_at: null,
+      pendingEmail: null,
+      emailVerificationTokenHash: null,
+      emailVerificationExpiresAt: null,
     });
     throw cause;
   }
@@ -494,18 +494,18 @@ export async function changeOwnPassword(input: {
   await ensureDatabase();
   const user = await UserModel.findByPk(input.id);
   if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
-  const hasLocalPassword = user.password_hash.startsWith('scrypt:');
+  const hasLocalPassword = user.passwordHash.startsWith('scrypt:');
   if (
     hasLocalPassword &&
-    !verifyPassword(input.currentPassword, user.password_hash)
+    !verifyPassword(input.currentPassword, user.passwordHash)
   ) {
     throw new Error(serverMessage('currentPasswordMismatch'));
   }
   validatePassword(input.nextPassword, input.passwordPolicy);
   await user.update({
-    password_hash: hashPassword(input.nextPassword),
-    password_reset_token_hash: null,
-    password_reset_expires_at: null,
+    passwordHash: hashPassword(input.nextPassword),
+    passwordResetTokenHash: null,
+    passwordResetExpiresAt: null,
   });
   return user;
 }
@@ -522,16 +522,16 @@ export async function resendSignupVerificationEmail(input: {
   }
 
   const user = await UserModel.findOne({ where: { email } });
-  if (!user || user.enabled || user.email_verified_at) return false;
+  if (!user || user.enabled || user.emailVerifiedAt) return false;
 
   const token = createEmailVerificationToken();
   const previous = {
-    email_verification_token_hash: user.email_verification_token_hash,
-    email_verification_expires_at: user.email_verification_expires_at,
+    emailVerificationTokenHash: user.emailVerificationTokenHash,
+    emailVerificationExpiresAt: user.emailVerificationExpiresAt,
   };
   await user.update({
-    email_verification_token_hash: hashEmailVerificationToken(token),
-    email_verification_expires_at: new Date(
+    emailVerificationTokenHash: hashEmailVerificationToken(token),
+    emailVerificationExpiresAt: new Date(
       Date.now() +
         input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
     ),
@@ -570,16 +570,16 @@ export async function requestUserPasswordReset(input: {
   }
 
   const user = await UserModel.findOne({ where: { email, enabled: true } });
-  if (!user || !user.password_hash.startsWith('scrypt:')) return false;
+  if (!user || !user.passwordHash.startsWith('scrypt:')) return false;
 
   const token = createPasswordResetToken();
   const previous = {
-    password_reset_token_hash: user.password_reset_token_hash,
-    password_reset_expires_at: user.password_reset_expires_at,
+    passwordResetTokenHash: user.passwordResetTokenHash,
+    passwordResetExpiresAt: user.passwordResetExpiresAt,
   };
   await user.update({
-    password_reset_token_hash: hashPasswordResetToken(token),
-    password_reset_expires_at: new Date(
+    passwordResetTokenHash: hashPasswordResetToken(token),
+    passwordResetExpiresAt: new Date(
       Date.now() +
         input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
     ),
@@ -609,18 +609,18 @@ export async function resetUserPasswordWithToken(input: {
   const tokenHash = hashPasswordResetToken(input.token.trim());
   const user = await UserModel.findOne({
     where: {
-      password_reset_token_hash: tokenHash,
-      password_reset_expires_at: { [Op.gt]: new Date() },
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { [Op.gt]: new Date() },
       enabled: true,
     },
   });
   if (!user) return null;
   validatePassword(input.password, input.passwordPolicy);
   await user.update({
-    password_hash: hashPassword(input.password),
-    password_reset_token_hash: null,
-    password_reset_expires_at: null,
-    session_version: user.session_version + 1,
+    passwordHash: hashPassword(input.password),
+    passwordResetTokenHash: null,
+    passwordResetExpiresAt: null,
+    sessionVersion: user.sessionVersion + 1,
   });
   return user;
 }
@@ -630,30 +630,30 @@ export async function verifyUserEmailToken(token: string) {
   const tokenHash = hashEmailVerificationToken(token.trim());
   const user = await UserModel.findOne({
     where: {
-      email_verification_token_hash: tokenHash,
-      email_verification_expires_at: { [Op.gt]: new Date() },
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationExpiresAt: { [Op.gt]: new Date() },
     },
   });
   if (!user) return null;
 
-  const pendingEmail = normalizeEmail(user.pending_email ?? '');
+  const pendingEmail = normalizeEmail(user.pendingEmail ?? '');
   if (pendingEmail) {
     try {
       await ensureUserEmailAvailable(pendingEmail, user.id);
     } catch {
       await user.update({
-        pending_email: null,
-        email_verification_token_hash: null,
-        email_verification_expires_at: null,
+        pendingEmail: null,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
       });
       return null;
     }
     await user.update({
       email: pendingEmail,
-      pending_email: null,
-      email_verified_at: new Date(),
-      email_verification_token_hash: null,
-      email_verification_expires_at: null,
+      pendingEmail: null,
+      emailVerifiedAt: new Date(),
+      emailVerificationTokenHash: null,
+      emailVerificationExpiresAt: null,
     });
     await syncAutomaticPermissionGroupMembershipsForUser(user.id);
     return { user, purpose: 'email-change' as const };
@@ -661,9 +661,9 @@ export async function verifyUserEmailToken(token: string) {
 
   await user.update({
     enabled: true,
-    email_verified_at: new Date(),
-    email_verification_token_hash: null,
-    email_verification_expires_at: null,
+    emailVerifiedAt: new Date(),
+    emailVerificationTokenHash: null,
+    emailVerificationExpiresAt: null,
   });
   await syncAutomaticPermissionGroupMembershipsForUser(user.id);
   return { user, purpose: 'signup' as const };
@@ -673,7 +673,7 @@ export async function rotateUserSessionVersion(id: number) {
   await ensureDatabase();
   const user = await UserModel.findByPk(id);
   if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
-  await user.update({ session_version: user.session_version + 1 });
+  await user.update({ sessionVersion: user.sessionVersion + 1 });
   return user;
 }
 
@@ -683,23 +683,23 @@ export async function deleteUser(id: number) {
   return getDatabase().transaction(async (transaction) => {
     const links = await ShortLinkModel.findAll({
       attributes: ['id'],
-      where: { creator_user_id: id },
+      where: { creatorUserId: id },
       raw: true,
       transaction,
     });
     const linkIds = links.map((link) => link.id);
     if (linkIds.length > 0) {
       await ClickEventQueueModel.destroy({
-        where: { link_id: { [Op.in]: linkIds } },
+        where: { linkId: { [Op.in]: linkIds } },
         transaction,
       });
       await ClickEventModel.destroy({
-        where: { link_id: { [Op.in]: linkIds } },
+        where: { linkId: { [Op.in]: linkIds } },
         transaction,
       });
     }
     await ShortLinkModel.destroy({
-      where: { creator_user_id: id },
+      where: { creatorUserId: id },
       transaction,
     });
     return UserModel.destroy({ where: { id }, transaction });

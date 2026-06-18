@@ -12,7 +12,7 @@ export class AppSettingModel extends Model<
 > {
   declare key: string;
   declare value: unknown;
-  declare updated_at: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
 }
 
 export function initAppSettingModel(sequelize: Sequelize) {
@@ -26,7 +26,7 @@ export function initAppSettingModel(sequelize: Sequelize) {
         type: DataTypes.JSONB,
         allowNull: false,
       },
-      updated_at: {
+      updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -36,6 +36,7 @@ export function initAppSettingModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'app_settings',
       timestamps: false,
+      underscored: true,
     },
   );
 }

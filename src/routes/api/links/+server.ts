@@ -47,12 +47,12 @@ export const GET: RequestHandler = async ({
     await listLinks(30, owner, currentOwner, api.principal.id)
   ).map((link) => ({
     ...link,
-    short_url: shortUrl(url.origin, link.code, link.domain, settings),
+    shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
   }));
 
   return json({
     links,
-    permission_groups: publicPermissionGroupReasons(permissions),
+    permissionGroups: publicPermissionGroupReasons(permissions),
   });
 };
 
@@ -108,9 +108,9 @@ export const POST: RequestHandler = async ({
       {
         link: {
           ...link,
-          short_url: shortUrl(url.origin, link.code, link.domain, settings),
+          shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
         },
-        permission_groups: publicPermissionGroupReasons(permissions),
+        permissionGroups: publicPermissionGroupReasons(permissions),
       },
       { status: 201 },
     );
@@ -125,7 +125,7 @@ export const POST: RequestHandler = async ({
                 settings.i18n.defaultLocale,
               )
             : text.createFailed,
-        permission_groups: publicPermissionGroupReasons(permissions),
+        permissionGroups: publicPermissionGroupReasons(permissions),
       },
       { status: 400 },
     );
@@ -156,7 +156,7 @@ export const DELETE: RequestHandler = async ({
     return json(
       {
         message: text.deleteNeedsSelection,
-        permission_groups: publicPermissionGroupReasons(permissions),
+        permissionGroups: publicPermissionGroupReasons(permissions),
       },
       { status: 400 },
     );
@@ -182,7 +182,7 @@ export const DELETE: RequestHandler = async ({
         ok: false,
         message: message || text.deleteNoLinks,
         result,
-        permission_groups: publicPermissionGroupReasons(permissions),
+        permissionGroups: publicPermissionGroupReasons(permissions),
       },
       { status: 403 },
     );
@@ -192,6 +192,6 @@ export const DELETE: RequestHandler = async ({
     ok: true,
     message,
     result,
-    permission_groups: publicPermissionGroupReasons(permissions),
+    permissionGroups: publicPermissionGroupReasons(permissions),
   });
 };

@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
     code: result.link.code,
     domain: result.link.domain,
     url: result.link.url,
-    short_url: shortUrl(
+    shortUrl: shortUrl(
       url.origin,
       result.link.code,
       result.link.domain,

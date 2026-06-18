@@ -13,12 +13,13 @@
     type StatsSearchState,
   } from '$lib/search';
   import { formatText, uiText } from '$lib/i18n/ui-text';
+  import '$lib/styles/content-page.css';
 
   type ClickEvent = {
-    created_at: string;
+    createdAt: string;
     ip: string | null;
     browser: string;
-    user_agent: string | null;
+    userAgent: string | null;
     referer: string | null;
     details: Array<{ label: string; value: string }>;
   };
@@ -33,10 +34,10 @@
     code: string;
     domain: string;
     url: string;
-    short_url: string;
-    created_at: string;
+    shortUrl: string;
+    createdAt: string;
     clicks: number;
-    last_clicked_at: string | null;
+    lastClickedAt: string | null;
     creator: {
       name: string;
       account: {
@@ -46,7 +47,7 @@
       } | null;
       ipAddress: string | null;
     } | null;
-    click_events: ClickEvent[];
+    clickEvents: ClickEvent[];
     insights: {
       sampleSize: number;
       last24h: number;
@@ -250,23 +251,25 @@
 <SiteThemeStyles customHead={data.customHead} />
 
 <main
-  class="site-theme"
+  class="site-theme content-page"
   data-theme-mode={data.theme.mode}
   data-theme-preset={data.theme.preset}
   style={siteThemeStyle(data.theme)}
 >
-  <header>
+  <header class="content-card content-page-header">
     <div>
-      <a class="back-button" href={resolvePath(data.returnTo)}
+      <a class="content-back-button" href={resolvePath(data.returnTo)}
         >← {text.common.back}</a
       >
-      <h1>{formatText(text.stats.title, { code: data.link.code })}</h1>
-      <p>{data.link.url}</p>
+      <h1 class="content-page-title">
+        {formatText(text.stats.title, { code: data.link.code })}
+      </h1>
+      <p class="content-page-subtitle">{data.link.url}</p>
     </div>
     <LocaleSelect locale={data.locale} compact />
   </header>
 
-  <section class="summary">
+  <section class="content-card summary">
     <div class="summary-primary">
       <article>
         <span>{text.stats.totalClicks}</span>
@@ -274,13 +277,13 @@
       </article>
       <article>
         <span>{text.stats.createdAt}</span>
-        <strong>{new Date(data.link.created_at).toLocaleDateString()}</strong>
+        <strong>{new Date(data.link.createdAt).toLocaleDateString()}</strong>
       </article>
       <article>
         <span>{text.stats.lastClick}</span>
         <strong>
-          {data.link.last_clicked_at
-            ? new Date(data.link.last_clicked_at).toLocaleString()
+          {data.link.lastClickedAt
+            ? new Date(data.link.lastClickedAt).toLocaleString()
             : text.common.none}
         </strong>
       </article>
@@ -301,7 +304,7 @@
     </div>
   </section>
 
-  <section class="insights">
+  <section class="content-card insights">
     <div class="insight-head">
       <div>
         <h2>{text.stats.insights}</h2>
@@ -312,7 +315,7 @@
         </p>
       </div>
       <LinkQr
-        value={data.link.short_url}
+        value={data.link.shortUrl}
         code={data.link.code}
         brandName={data.siteName}
         accentColor={data.theme.customTokens.primary}
@@ -373,21 +376,21 @@
     {/if}
   </section>
 
-  <section>
+  <section class="content-card">
     <div class="section-heading">
       <div>
         <h2>{hasSearch ? text.stats.searchResults : text.stats.allClicks}</h2>
         <p>
           {formatText(text.home.showingCount, {
             total: data.link.pagination.totalItems,
-            shown: data.link.click_events.length,
+            shown: data.link.clickEvents.length,
             pageSize: data.link.pagination.pageSize,
           })}
         </p>
       </div>
       <div class="section-actions">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href={data.link.short_url} target="_blank" rel="noreferrer"
+        <a href={data.link.shortUrl} target="_blank" rel="noreferrer"
           >{text.stats.openShortLink}</a
         >
         {#if data.canDownloadCsv}
@@ -410,23 +413,23 @@
       locale={data.locale}
     />
 
-    {#if data.link.click_events.length === 0}
+    {#if data.link.clickEvents.length === 0}
       <p class="empty">
         {hasSearch ? text.stats.noSearchResults : text.stats.emptyClicks}
       </p>
     {:else}
       <div class="events">
-        {#each data.link.click_events as click, index (`${click.created_at}-${index}`)}
-          {@const clickedAt = new Date(click.created_at).toLocaleString()}
+        {#each data.link.clickEvents as click, index (`${click.createdAt}-${index}`)}
+          {@const clickedAt = new Date(click.createdAt).toLocaleString()}
           <article>
             <div class="event-metadata">
               {@render copyMetadata(
-                text.stats.clickFields.created_at,
+                text.stats.clickFields.createdAt,
                 clickedAt,
-                `${index}:created_at`,
+                `${index}:createdAt`,
               )}
               {@render copyMetadata(
-                text.stats.clickFields.ip_address,
+                text.stats.clickFields.ipAddress,
                 click.ip,
                 `${index}:ip`,
               )}
@@ -442,9 +445,9 @@
               )}
             </div>
             {@render copyMetadata(
-              text.stats.clickFields.user_agent,
-              click.user_agent,
-              `${index}:user_agent`,
+              text.stats.clickFields.userAgent,
+              click.userAgent,
+              `${index}:userAgent`,
               text.stats.noUserAgent,
             )}
             {#if click.details.length > 0}
@@ -523,58 +526,16 @@
       var(--page-surface)
     );
     --search-text: var(--page-text);
-    display: grid;
-    width: min(940px, calc(100% - 36px));
-    margin: 0 auto;
-    padding: 48px 0 100px;
-    gap: 18px;
-    color: var(--page-text);
-    font-family: var(--font);
-  }
-  main::before {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: var(--page-bg);
-    content: '';
-  }
-  header,
-  section {
-    border: 1px solid var(--page-border);
-    border-radius: var(--page-radius);
-    padding: 26px;
-    background: var(--page-surface);
-  }
-  header {
-    display: flex;
-    justify-content: space-between;
-    gap: 20px;
   }
   a {
     color: var(--page-primary);
     font-weight: 850;
     text-decoration: none;
   }
-  .back-button {
-    appearance: none;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: var(--page-primary);
-    font-size: 0.82rem;
-    font-family: inherit;
-    font-weight: 850;
-    cursor: pointer;
-  }
-  h1 {
-    margin: 12px 0 8px;
-    font-size: 2.2rem;
-  }
   h2,
   p {
     margin: 0;
   }
-  header p,
   .section-heading p,
   .empty {
     color: var(--page-muted);
@@ -870,7 +831,6 @@
     flex: none;
   }
   @media (max-width: 720px) {
-    header,
     .section-heading,
     .insight-head {
       flex-direction: column;

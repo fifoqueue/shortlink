@@ -69,7 +69,7 @@ export function sessionUserFromModel(
     subject,
     name: storedUser.name,
     email: storedUser.email,
-    isAdmin: storedUser.is_admin === true,
+    isAdmin: storedUser.isAdmin === true,
   };
 }
 
@@ -101,7 +101,7 @@ export function createUserSessionFromModel(
     encodeSigned({
       ...user,
       expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000,
-      sessionVersion: storedUser.session_version,
+      sessionVersion: storedUser.sessionVersion,
     }),
     authCookieOptions(SESSION_TTL_SECONDS),
   );
@@ -122,7 +122,7 @@ export async function getUserFromSession(
 
   const storedUser = await getUserById(user.id);
   if (!storedUser?.enabled) return null;
-  if ((user.sessionVersion ?? 0) !== storedUser.session_version) return null;
+  if ((user.sessionVersion ?? 0) !== storedUser.sessionVersion) return null;
 
   return sessionUserFromModel(storedUser, user.provider, user.subject);
 }

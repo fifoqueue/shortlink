@@ -9,8 +9,8 @@ function normalizeEmail(email: string | null | undefined) {
 export async function listUserIdentities(userId: number) {
   await ensureDatabase();
   return UserIdentityModel.findAll({
-    where: { user_id: userId },
-    order: [['created_at', 'ASC']],
+    where: { userId },
+    order: [['createdAt', 'ASC']],
   });
 }
 
@@ -35,14 +35,14 @@ export async function linkIdentity(input: {
       subject: input.subject,
     },
     defaults: {
-      user_id: input.userId,
+      userId: input.userId,
       provider: input.provider,
       subject: input.subject,
       email: normalizeEmail(input.email),
     },
   });
 
-  if (identity.user_id !== input.userId) {
+  if (identity.userId !== input.userId) {
     throw new Error(serverMessage('identityAlreadyLinked'));
   }
 
@@ -59,7 +59,7 @@ export async function unlinkIdentity(input: {
   return UserIdentityModel.destroy({
     where: {
       id: input.identityId,
-      user_id: input.userId,
+      userId: input.userId,
       provider: input.provider,
     },
   });

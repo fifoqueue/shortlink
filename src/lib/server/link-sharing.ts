@@ -69,25 +69,25 @@ function generateShareToken() {
   return `slk_${randomBytes(32).toString('base64url')}`;
 }
 
-function isActiveShare(share: Pick<LinkAccessShareModel, 'expires_at'>) {
-  return !share.expires_at || share.expires_at.getTime() > Date.now();
+function isActiveShare(share: Pick<LinkAccessShareModel, 'expiresAt'>) {
+  return !share.expiresAt || share.expiresAt.getTime() > Date.now();
 }
 
-function isActiveGrant(grant: Pick<LinkAccessGrantModel, 'expires_at'>) {
-  return !grant.expires_at || grant.expires_at.getTime() > Date.now();
+function isActiveGrant(grant: Pick<LinkAccessGrantModel, 'expiresAt'>) {
+  return !grant.expiresAt || grant.expiresAt.getTime() > Date.now();
 }
 
 function activeGrantWhere(): WhereOptions {
   return {
-    [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: new Date() } }],
+    [Op.or]: [{ expiresAt: null }, { expiresAt: { [Op.gt]: new Date() } }],
   };
 }
 
 function linkMatchesOwner(link: ShortLinkModel, owner: LinkOwner) {
-  if (owner.userId) return link.creator_user_id === owner.userId;
+  if (owner.userId) return link.creatorUserId === owner.userId;
   return Boolean(
-    (owner.sessionId && link.creator_session_id === owner.sessionId) ||
-    (owner.ipHash && link.creator_ip_hash === owner.ipHash),
+    (owner.sessionId && link.creatorSessionId === owner.sessionId) ||
+    (owner.ipHash && link.creatorIpHash === owner.ipHash),
   );
 }
 
@@ -137,16 +137,16 @@ function normalizeShareExpiresAt(value: string | Date | null | undefined) {
 }
 
 function publicAccessFromValues(input: {
-  can_view_stats: boolean;
-  editable_fields: unknown;
-  expires_at: Date | null;
+  canViewStats: boolean;
+  editableFields: unknown;
+  expiresAt: Date | null;
 }): LinkShareAccess {
-  const editableFields = normalizeEditableFields(input.editable_fields);
+  const editableFields = normalizeEditableFields(input.editableFields);
   return {
     canEdit: editableFields.length > 0,
-    canViewStats: input.can_view_stats === true,
+    canViewStats: input.canViewStats === true,
     editableFields,
-    expiresAt: input.expires_at?.toISOString() ?? null,
+    expiresAt: input.expiresAt?.toISOString() ?? null,
   };
 }
 
@@ -198,12 +198,13 @@ export async function getShareableLinkAccess(input: {
 export async function sharedLinkIdsForUser(userId: number) {
   await ensureDatabase();
   const grants = await LinkAccessGrantModel.findAll({
+    attributes: ['linkId'],
     where: {
-      user_id: userId,
+      userId,
       ...activeGrantWhere(),
     },
   });
-  return [...new Set(grants.map((grant) => grant.link_id))];
+  return [...new Set(grants.map((grant) => grant.linkId))];
 }
 
 export async function linkShareSummariesByLinkId(
@@ -219,21 +220,28 @@ export async function linkShareSummariesByLinkId(
   if (uniqueLinkIds.length === 0) return summaries;
 
   const grants = await LinkAccessGrantModel.findAll({
+    attributes: [
+      'linkId',
+      'userId',
+      'expiresAt',
+      'canViewStats',
+      'editableFields',
+    ],
     where: {
-      link_id: { [Op.in]: uniqueLinkIds },
+      linkId: { [Op.in]: uniqueLinkIds },
       ...activeGrantWhere(),
     },
   });
   for (const grant of grants) {
-    const summary = summaries.get(grant.link_id);
+    const summary = summaries.get(grant.linkId);
     if (summary) summary.recipientCount += 1;
   }
 
   if (sharedWithUserId) {
     for (const grant of grants.filter(
-      (item) => item.user_id === sharedWithUserId,
+      (item) => item.userId === sharedWithUserId,
     )) {
-      const summary = summaries.get(grant.link_id);
+      const summary = summaries.get(grant.linkId);
       if (summary) summary.access = publicGrantAccess(grant);
     }
   }
@@ -247,9 +255,10 @@ export async function activeShareAccessForLinkId(
 ) {
   await ensureDatabase();
   const grant = await LinkAccessGrantModel.findOne({
+    attributes: ['expiresAt', 'canViewStats', 'editableFields'],
     where: {
-      link_id: linkId,
-      user_id: userId,
+      linkId,
+      userId,
       ...activeGrantWhere(),
     },
   });
@@ -259,29 +268,43 @@ export async function activeShareAccessForLinkId(
 export async function getLinkShareDetails(linkId: number) {
   await ensureDatabase();
   const share = await LinkAccessShareModel.findOne({
-    where: { link_id: linkId },
+    attributes: ['id', 'token', 'expiresAt', 'canViewStats', 'editableFields'],
+    where: { linkId },
   });
 
   const grants = await LinkAccessGrantModel.findAll({
-    where: { link_id: linkId },
-    order: [['accepted_at', 'DESC']],
+    attributes: [
+      'id',
+      'userId',
+      'acceptedAt',
+      'expiresAt',
+      'canViewStats',
+      'editableFields',
+    ],
+    where: { linkId },
+    order: [['acceptedAt', 'DESC']],
   });
   if (!share && grants.length === 0) return null;
 
-  const users = await UserModel.findAll({
-    where: { id: { [Op.in]: grants.map((grant) => grant.user_id) } },
-  });
+  const grantUserIds = [...new Set(grants.map((grant) => grant.userId))];
+  const users =
+    grantUserIds.length > 0
+      ? await UserModel.findAll({
+          attributes: ['id', 'name', 'email'],
+          where: { id: { [Op.in]: grantUserIds } },
+        })
+      : [];
   const usersById = new Map(users.map((user) => [user.id, user]));
   const recipients: LinkShareRecipient[] = [];
   for (const grant of grants) {
-    const user = usersById.get(grant.user_id);
+    const user = usersById.get(grant.userId);
     if (!user) continue;
     recipients.push({
       id: grant.id,
       userId: user.id,
       name: user.name,
       email: user.email,
-      acceptedAt: grant.accepted_at.toISOString(),
+      acceptedAt: grant.acceptedAt.toISOString(),
       active: isActiveGrant(grant),
       access: publicGrantAccess(grant),
     });
@@ -293,10 +316,10 @@ export async function getLinkShareDetails(linkId: number) {
     token: share?.token ?? '',
     inviteActive,
     expiresAt:
-      share && inviteActive ? (share.expires_at?.toISOString() ?? null) : null,
-    canViewStats: share?.can_view_stats !== false,
+      share && inviteActive ? (share.expiresAt?.toISOString() ?? null) : null,
+    canViewStats: share?.canViewStats !== false,
     editableFields: share
-      ? normalizeEditableFields(share.editable_fields)
+      ? normalizeEditableFields(share.editableFields)
       : ['url'],
     recipientCount: recipients.filter((recipient) => recipient.active).length,
     recipients,
@@ -317,13 +340,13 @@ export async function saveLinkShare(input: {
   }
 
   const existing = await LinkAccessShareModel.findOne({
-    where: { link_id: input.linkId },
+    where: { linkId: input.linkId },
   });
   const values = {
-    expires_at: normalizeShareExpiresAt(input.expiresAt),
-    can_view_stats: input.canViewStats,
-    editable_fields: editableFields,
-    updated_at: new Date(),
+    expiresAt: normalizeShareExpiresAt(input.expiresAt),
+    canViewStats: input.canViewStats,
+    editableFields,
+    updatedAt: new Date(),
   };
 
   if (existing) {
@@ -337,9 +360,9 @@ export async function saveLinkShare(input: {
   }
 
   return LinkAccessShareModel.create({
-    link_id: input.linkId,
+    linkId: input.linkId,
     token: await uniqueShareToken(),
-    created_by_user_id: input.createdByUserId ?? null,
+    createdByUserId: input.createdByUserId ?? null,
     ...values,
   });
 }
@@ -347,12 +370,12 @@ export async function saveLinkShare(input: {
 export async function rotateLinkShareToken(linkId: number) {
   await ensureDatabase();
   const share = await LinkAccessShareModel.findOne({
-    where: { link_id: linkId },
+    where: { linkId },
   });
   if (!share) return null;
   await share.update({
     token: await uniqueShareToken(),
-    updated_at: new Date(),
+    updatedAt: new Date(),
   });
   return share;
 }
@@ -360,12 +383,12 @@ export async function rotateLinkShareToken(linkId: number) {
 export async function cancelLinkShare(linkId: number) {
   await ensureDatabase();
   const share = await LinkAccessShareModel.findOne({
-    where: { link_id: linkId },
+    where: { linkId },
   });
   if (!share) return null;
   await share.update({
-    expires_at: new Date(),
-    updated_at: new Date(),
+    expiresAt: new Date(),
+    updatedAt: new Date(),
   });
   return share;
 }
@@ -382,7 +405,7 @@ export async function acceptLinkShareInvite(input: {
   });
   if (!share) return { status: 'not_found' };
 
-  const link = await ShortLinkModel.findByPk(share.link_id);
+  const link = await ShortLinkModel.findByPk(share.linkId);
   if (
     !link ||
     (input.code !== undefined && link.code !== input.code) ||
@@ -393,27 +416,27 @@ export async function acceptLinkShareInvite(input: {
 
   if (!isActiveShare(share)) return { status: 'expired', link };
 
-  if (link.creator_user_id === input.userId) {
+  if (link.creatorUserId === input.userId) {
     return { status: 'owner', link, access: publicShareAccess(share) };
   }
 
   const existingGrant = await LinkAccessGrantModel.findOne({
-    where: { link_id: link.id, user_id: input.userId },
+    where: { linkId: link.id, userId: input.userId },
   });
   const grantValues = {
-    share_id: share.id,
-    link_id: link.id,
-    user_id: input.userId,
-    expires_at: share.expires_at,
-    can_view_stats: share.can_view_stats,
-    editable_fields: normalizeEditableFields(share.editable_fields),
+    shareId: share.id,
+    linkId: link.id,
+    userId: input.userId,
+    expiresAt: share.expiresAt,
+    canViewStats: share.canViewStats,
+    editableFields: normalizeEditableFields(share.editableFields),
   };
 
   if (existingGrant) {
     if (!isActiveGrant(existingGrant)) {
       await existingGrant.update({
         ...grantValues,
-        accepted_at: new Date(),
+        acceptedAt: new Date(),
       });
     }
   } else {
@@ -423,7 +446,7 @@ export async function acceptLinkShareInvite(input: {
   const grant =
     existingGrant ??
     (await LinkAccessGrantModel.findOne({
-      where: { link_id: link.id, user_id: input.userId },
+      where: { linkId: link.id, userId: input.userId },
     }));
   return {
     status: 'accepted',
@@ -446,14 +469,14 @@ export async function saveLinkShareGrant(input: {
   }
 
   const grant = await LinkAccessGrantModel.findOne({
-    where: { id: input.grantId, link_id: input.linkId },
+    where: { id: input.grantId, linkId: input.linkId },
   });
   if (!grant) return null;
 
   await grant.update({
-    expires_at: normalizeShareExpiresAt(input.expiresAt),
-    can_view_stats: input.canViewStats,
-    editable_fields: editableFields,
+    expiresAt: normalizeShareExpiresAt(input.expiresAt),
+    canViewStats: input.canViewStats,
+    editableFields,
   });
   return grant;
 }
@@ -464,7 +487,7 @@ export async function revokeLinkShareGrant(input: {
 }) {
   await ensureDatabase();
   return LinkAccessGrantModel.destroy({
-    where: { id: input.grantId, link_id: input.linkId },
+    where: { id: input.grantId, linkId: input.linkId },
   });
 }
 
@@ -483,7 +506,7 @@ export async function revokeLinkShareGrants(input: {
   return LinkAccessGrantModel.destroy({
     where: {
       id: { [Op.in]: grantIds },
-      link_id: input.linkId,
+      linkId: input.linkId,
     },
   });
 }

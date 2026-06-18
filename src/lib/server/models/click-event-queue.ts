@@ -13,18 +13,18 @@ export class ClickEventQueueModel extends Model<
   InferCreationAttributes<ClickEventQueueModel>
 > {
   declare id: CreationOptional<number>;
-  declare link_id: number;
-  declare request_url: string;
-  declare request_headers: CreationOptional<Record<string, string>>;
-  declare plugin_states: CreationOptional<Record<string, unknown>>;
+  declare linkId: number;
+  declare requestUrl: string;
+  declare requestHeaders: CreationOptional<Record<string, string>>;
+  declare pluginStates: CreationOptional<Record<string, unknown>>;
   declare metadata: CreationOptional<Record<string, unknown>>;
-  declare ip_address: string | null;
-  declare user_agent: string | null;
+  declare ipAddress: string | null;
+  declare userAgent: string | null;
   declare referer: string | null;
   declare attempts: CreationOptional<number>;
-  declare last_error: string | null;
-  declare created_at: CreationOptional<Date>;
-  declare next_attempt_at: CreationOptional<Date>;
+  declare lastError: string | null;
+  declare createdAt: CreationOptional<Date>;
+  declare nextAttemptAt: CreationOptional<Date>;
 }
 
 export function initClickEventQueueModel(sequelize: Sequelize) {
@@ -35,22 +35,22 @@ export function initClickEventQueueModel(sequelize: Sequelize) {
         autoIncrement: true,
         primaryKey: true,
       },
-      link_id: {
+      linkId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: ShortLinkModel, key: 'id' },
         onDelete: 'CASCADE',
       },
-      request_url: {
+      requestUrl: {
         type: DataTypes.TEXT,
         allowNull: false,
       },
-      request_headers: {
+      requestHeaders: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: {},
       },
-      plugin_states: {
+      pluginStates: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: {},
@@ -60,11 +60,11 @@ export function initClickEventQueueModel(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: {},
       },
-      ip_address: {
+      ipAddress: {
         type: DataTypes.STRING(64),
         allowNull: true,
       },
-      user_agent: {
+      userAgent: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
@@ -77,16 +77,16 @@ export function initClickEventQueueModel(sequelize: Sequelize) {
         allowNull: false,
         defaultValue: 0,
       },
-      last_error: {
+      lastError: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
-      next_attempt_at: {
+      nextAttemptAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -96,6 +96,7 @@ export function initClickEventQueueModel(sequelize: Sequelize) {
       sequelize,
       tableName: 'click_event_queue',
       timestamps: false,
+      underscored: true,
       indexes: [{ fields: ['next_attempt_at', 'id'] }, { fields: ['link_id'] }],
     },
   );

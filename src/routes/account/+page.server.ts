@@ -126,7 +126,7 @@ export const load: PageServerLoad = async ({
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
     customHead: displaySettings.seo.customHead,
-    pendingEmail: storedUser?.pending_email ?? null,
+    pendingEmail: storedUser?.pendingEmail ?? null,
     permissionGroups,
     passwordMinLength: settings.auth.password.minLength,
     passwordPolicy: passwordPolicyDescription(

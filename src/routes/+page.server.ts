@@ -149,7 +149,7 @@ export const load: PageServerLoad = async ({
       };
   const links = linkPage.items.map((link) => ({
     ...link,
-    short_url: shortUrl(url.origin, link.code, link.domain, settings),
+    shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
   }));
   const authMethods = getAuthLoginMethods(
     settings.plugins,
@@ -328,7 +328,7 @@ export const actions: Actions = {
         action: 'create',
         link: {
           ...link,
-          short_url: shortUrl(url.origin, link.code, link.domain, settings),
+          shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
         },
       };
     } catch (error) {
@@ -427,7 +427,7 @@ export const actions: Actions = {
         }),
         link: {
           ...result.link,
-          short_url: shortUrl(
+          shortUrl: shortUrl(
             url.origin,
             result.link.code,
             result.link.domain,
