@@ -597,7 +597,7 @@ async function loadRuntimeMigrations(directory: string) {
       .update(await fs.readFile(target))
       .digest('hex');
     const module = (await import(
-      `${pathToFileURL(target).href}?v=${signature}`
+      /* @vite-ignore */ `${pathToFileURL(target).href}?v=${signature}`
     )) as {
       default?: RuntimePluginMigration;
     };
@@ -645,7 +645,7 @@ async function loadRuntimePlugin(
     .update(await fs.readFile(entry))
     .digest('hex');
   const module = (await import(
-    `${pathToFileURL(entry).href}?v=${signature}`
+    /* @vite-ignore */ `${pathToFileURL(entry).href}?v=${signature}`
   )) as RuntimePluginModule;
   if (typeof module.default !== 'function') {
     throw new Error(
