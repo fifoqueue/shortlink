@@ -36,6 +36,10 @@ function ssoPasswordHash(provider: string, subject: string) {
   return `sso:${provider}:${subject}`;
 }
 
+function deletedPasswordHash() {
+  return `deleted:${randomBytes(32).toString('base64url')}`;
+}
+
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString('base64url');
   const hash = scryptSync(password, salt, KEY_LENGTH).toString('base64url');
@@ -504,6 +508,27 @@ export async function changeOwnPassword(input: {
   validatePassword(input.nextPassword, input.passwordPolicy);
   await user.update({
     passwordHash: hashPassword(input.nextPassword),
+    passwordResetTokenHash: null,
+    passwordResetExpiresAt: null,
+  });
+  return user;
+}
+
+export async function deleteOwnPassword(input: {
+  id: number;
+  currentPassword: string;
+}) {
+  await ensureDatabase();
+  const user = await UserModel.findByPk(input.id);
+  if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
+  if (!user.passwordHash.startsWith('scrypt:')) {
+    throw new Error(serverMessage('localPasswordMissing'));
+  }
+  if (!verifyPassword(input.currentPassword, user.passwordHash)) {
+    throw new Error(serverMessage('currentPasswordMismatch'));
+  }
+  await user.update({
+    passwordHash: deletedPasswordHash(),
     passwordResetTokenHash: null,
     passwordResetExpiresAt: null,
   });

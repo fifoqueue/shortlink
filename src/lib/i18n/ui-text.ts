@@ -472,6 +472,15 @@ const ko = {
     nextPassword: '새 비밀번호',
     changePassword: '비밀번호 변경',
     setPassword: '비밀번호 설정',
+    deletePassword: '비밀번호 삭제',
+    deletePasswordDescription:
+      'Passkey 또는 연결된 외부 로그인 계정으로 계속 로그인할 수 있을 때만 비밀번호를 삭제할 수 있습니다.',
+    deletePasswordUnavailable:
+      '비밀번호를 삭제하려면 먼저 Passkey를 등록하거나 외부 로그인 계정을 연결해야 합니다.',
+    deletePasswordTitle: '계정 비밀번호를 삭제할까요?',
+    deletePasswordMessage:
+      '삭제 후에는 비밀번호로 로그인할 수 없으며, 등록된 Passkey 또는 연결된 외부 로그인 계정으로만 로그인할 수 있습니다.',
+    deletePasswordConfirm: '비밀번호 삭제',
     externalPasswordUnavailable:
       '외부 로그인으로 생성된 계정에는 현재 비밀번호가 없습니다. 로컬 로그인도 사용하려면 새 비밀번호를 설정하세요.',
     security: '로그인 보안',
@@ -811,6 +820,7 @@ const ko = {
       '오늘 요청 가능 횟수를 초과했습니다. 나중에 다시 시도해주세요.',
     userDisabled: '비활성화된 사용자입니다.',
     userNotFound: '사용자를 찾을 수 없습니다.',
+    localPasswordMissing: '현재 로컬 비밀번호가 없습니다.',
     onlyAdminDeleteDenied: '유일한 관리자는 삭제할 수 없습니다.',
     onlyAdminDemoteDenied: '유일한 관리자는 관리자 권한을 잃을 수 없습니다.',
     currentPasswordMismatch: '현재 비밀번호가 일치하지 않습니다.',
@@ -907,6 +917,10 @@ const ko = {
     profileSaveFailed: '계정 정보를 저장하지 못했습니다.',
     passwordChanged: '비밀번호를 변경했습니다.',
     passwordChangeFailed: '비밀번호를 변경하지 못했습니다.',
+    passwordDeleted: '비밀번호를 삭제했습니다.',
+    passwordDeleteFailed: '비밀번호를 삭제하지 못했습니다.',
+    passwordDeleteAlternativeRequired:
+      '비밀번호를 삭제하려면 먼저 Passkey를 등록하거나 외부 로그인 계정을 연결해야 합니다.',
     otherSessionsLoggedOut:
       '현재 기기를 제외한 다른 기기에서 로그아웃했습니다.',
     otherSessionsFailed: '다른 기기 로그아웃을 처리하지 못했습니다.',
@@ -1427,6 +1441,15 @@ const en: typeof ko = {
     nextPassword: 'New password',
     changePassword: 'Change password',
     setPassword: 'Set password',
+    deletePassword: 'Delete password',
+    deletePasswordDescription:
+      'You can delete the password only when a passkey or linked external login account can still sign in.',
+    deletePasswordUnavailable:
+      'Add a passkey or link an external login account before deleting the password.',
+    deletePasswordTitle: 'Delete the account password?',
+    deletePasswordMessage:
+      'After deletion, password login will stop working. You can sign in only with a registered passkey or linked external login account.',
+    deletePasswordConfirm: 'Delete password',
     externalPasswordUnavailable:
       'This external-login account does not have a current password. Set a new password if you also want local login.',
     security: 'Login security',
@@ -1765,6 +1788,7 @@ const en: typeof ko = {
       'You have exceeded today’s request limit. Try again later.',
     userDisabled: 'User is disabled.',
     userNotFound: 'User not found.',
+    localPasswordMissing: 'This account does not have a local password.',
     onlyAdminDeleteDenied: 'The only administrator cannot be deleted.',
     onlyAdminDemoteDenied:
       'The only administrator cannot lose administrator access.',
@@ -1861,6 +1885,10 @@ const en: typeof ko = {
     profileSaveFailed: 'Could not save account information.',
     passwordChanged: 'Password changed.',
     passwordChangeFailed: 'Could not change the password.',
+    passwordDeleted: 'Password deleted.',
+    passwordDeleteFailed: 'Could not delete the password.',
+    passwordDeleteAlternativeRequired:
+      'Add a passkey or link an external login account before deleting the password.',
     otherSessionsLoggedOut: 'Logged out other devices.',
     otherSessionsFailed: 'Could not log out other devices.',
     tokenIssued: 'API token issued. This value is shown only once.',

@@ -4,6 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 import {
   clearPluginSessions,
   getAuthSecurityUnlockMethods,
+  getAuthLoginMethods,
   startPluginSecurityUnlock,
 } from '../../plugins/auth-registry';
 import {
@@ -24,6 +25,7 @@ import {
 import { requirePageUser } from '$lib/server/auth-guards';
 import {
   changeOwnPassword,
+  deleteOwnPassword,
   deleteUser,
   rotateUserSessionVersion,
   getUserById,
@@ -32,6 +34,7 @@ import {
 } from '$lib/server/users';
 import { getSettings, stringValue } from '$lib/server/settings';
 import {
+  authProviderKey,
   effectivePermissions,
   listUserPermissionGroups,
 } from '$lib/server/permissions';
@@ -59,6 +62,44 @@ import {
   verifyUserTotp,
 } from '$lib/server/local-auth-security';
 import { authenticationOptions, randomChallenge } from '$lib/server/webauthn';
+import { listUserIdentities } from '$lib/server/user-identities';
+
+function localPasswordDeleteAvailable(input: {
+  passwordAvailable: boolean;
+  passkeyAvailable: boolean;
+  passkeyCount: number;
+  externalLoginAvailable: boolean;
+}) {
+  return (
+    input.passwordAvailable &&
+    ((input.passkeyAvailable && input.passkeyCount > 0) ||
+      input.externalLoginAvailable)
+  );
+}
+
+async function linkedExternalLoginAvailable(input: {
+  settings: Awaited<ReturnType<typeof getSettings>>;
+  userId: number;
+  locale: App.Locals['locale'];
+  fallbackLocale: App.Locals['locale'];
+  allowedProviders: readonly string[] | null;
+}) {
+  const redirectProviderKeys = new Set(
+    getAuthLoginMethods(
+      input.settings.plugins,
+      input.locale,
+      input.fallbackLocale,
+      input.allowedProviders,
+    )
+      .filter((method) => method.type === 'redirect')
+      .map((method) => authProviderKey(method.pluginId, method.id)),
+  );
+  if (redirectProviderKeys.size === 0) return false;
+  const identities = await listUserIdentities(input.userId);
+  return identities.some((identity) =>
+    redirectProviderKeys.has(identity.provider),
+  );
+}
 
 async function loadIntegrations(
   user: NonNullable<App.Locals['user']>,
@@ -155,23 +196,46 @@ export const load: PageServerLoad = async ({
     ? userHasLocalPassword(storedUser)
     : false;
   const unlocked = storedUser ? securityUnlocked(cookies, user.id) : false;
-  const passkeys = storedUser ? await listUserPasskeys(user.id) : [];
-  const totpEnabled = storedUser ? await totpEnabledForUser(user.id) : false;
-  const externalUnlockMethods = storedUser
-    ? await getAuthSecurityUnlockMethods(
-        settings.plugins,
-        user,
-        locals.locale,
-        settings.i18n.defaultLocale,
-        permissions.auth.providers,
-      )
-    : [];
+  let passkeys: Awaited<ReturnType<typeof listUserPasskeys>> = [];
+  let totpEnabled = false;
+  let externalUnlockMethods: Awaited<
+    ReturnType<typeof getAuthSecurityUnlockMethods>
+  > = [];
+  let externalLoginAvailable = false;
+  if (storedUser) {
+    [passkeys, totpEnabled, externalUnlockMethods, externalLoginAvailable] =
+      await Promise.all([
+        listUserPasskeys(user.id),
+        totpEnabledForUser(user.id),
+        getAuthSecurityUnlockMethods(
+          settings.plugins,
+          user,
+          locals.locale,
+          settings.i18n.defaultLocale,
+          permissions.auth.providers,
+        ),
+        linkedExternalLoginAvailable({
+          settings,
+          userId: user.id,
+          locale: locals.locale,
+          fallbackLocale: settings.i18n.defaultLocale,
+          allowedProviders: permissions.auth.providers,
+        }),
+      ]);
+  }
+  const passkeyAvailable = localPasskeyAllowed(permissions);
   const security = storedUser
     ? {
         passwordAvailable,
+        passwordDeleteAvailable: localPasswordDeleteAvailable({
+          passwordAvailable,
+          passkeyAvailable,
+          passkeyCount: passkeys.length,
+          externalLoginAvailable,
+        }),
         unlocked,
         totpAvailable: localTotpAllowed(permissions),
-        passkeyAvailable: localPasskeyAllowed(permissions),
+        passkeyAvailable,
         totpEnabled,
         passkeyCount: passkeys.length,
         passkeys: unlocked ? passkeys : [],
@@ -179,6 +243,7 @@ export const load: PageServerLoad = async ({
       }
     : {
         passwordAvailable: false,
+        passwordDeleteAvailable: false,
         unlocked: false,
         totpAvailable: false,
         passkeyAvailable: false,
@@ -319,6 +384,69 @@ export const actions: Actions = {
                 settings.i18n.defaultLocale,
               )
             : text.messages.passwordChangeFailed,
+      });
+    }
+  },
+
+  deletePassword: async ({ request, locals, getClientAddress }) => {
+    const user = requirePageUser(locals, '/account');
+    const settings = await getSettings();
+    const text = uiText(locals.locale, settings.i18n.defaultLocale);
+    const form = await request.formData();
+    try {
+      const storedUser = await getUserById(user.id);
+      if (!storedUser) {
+        return fail(404, { message: text.messages.userNotFound });
+      }
+      const permissions = await effectivePermissions({
+        settings,
+        user,
+        isAdmin: locals.isAdmin,
+        ip: getClientIp(
+          request,
+          getClientAddress,
+          settings.network.trustProxyHeaders,
+          settings.network.proxyIpHeaders,
+        ),
+      });
+      const [passkeys, externalLoginAvailable] = await Promise.all([
+        listUserPasskeys(user.id),
+        linkedExternalLoginAvailable({
+          settings,
+          userId: user.id,
+          locale: locals.locale,
+          fallbackLocale: settings.i18n.defaultLocale,
+          allowedProviders: permissions.auth.providers,
+        }),
+      ]);
+      const passwordAvailable = userHasLocalPassword(storedUser);
+      if (
+        !localPasswordDeleteAvailable({
+          passwordAvailable,
+          passkeyAvailable: localPasskeyAllowed(permissions),
+          passkeyCount: passkeys.length,
+          externalLoginAvailable,
+        })
+      ) {
+        return fail(403, {
+          message: text.messages.passwordDeleteAlternativeRequired,
+        });
+      }
+      await deleteOwnPassword({
+        id: user.id,
+        currentPassword: stringValue(form, 'currentPassword'),
+      });
+      return { ok: true, message: text.messages.passwordDeleted };
+    } catch (cause) {
+      return fail(400, {
+        message:
+          cause instanceof Error
+            ? localizeServerMessage(
+                locals.locale,
+                cause.message,
+                settings.i18n.defaultLocale,
+              )
+            : text.messages.passwordDeleteFailed,
       });
     }
   },

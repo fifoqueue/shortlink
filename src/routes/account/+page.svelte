@@ -68,6 +68,7 @@
 
   type AccountSecurity = {
     passwordAvailable: boolean;
+    passwordDeleteAvailable: boolean;
     unlocked: boolean;
     totpAvailable: boolean;
     passkeyAvailable: boolean;
@@ -503,6 +504,40 @@
         </div>
         <button type="submit">{text.account.changePassword}</button>
       </form>
+      <div class="password-delete">
+        <div>
+          <strong>{text.account.deletePassword}</strong>
+          <p>
+            {data.security.passwordDeleteAvailable
+              ? text.account.deletePasswordDescription
+              : text.account.deletePasswordUnavailable}
+          </p>
+        </div>
+        {#if data.security.passwordDeleteAvailable}
+          <form
+            method="POST"
+            action="?/deletePassword"
+            use:enhance={keepFormValues}
+          >
+            <label>
+              {text.account.currentPassword}
+              <input
+                name="currentPassword"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </label>
+            <DangerConfirmButton
+              label={text.account.deletePassword}
+              title={text.account.deletePasswordTitle}
+              message={text.account.deletePasswordMessage}
+              confirmLabel={text.account.deletePasswordConfirm}
+              locale={data.locale}
+            />
+          </form>
+        {/if}
+      </div>
     {:else if data.security.unlocked}
       <form method="POST" action="?/password" use:enhance={keepFormValues}>
         <p>{text.account.externalPasswordUnavailable}</p>
@@ -1095,6 +1130,23 @@
     background: var(--page-surface);
     color: var(--page-text);
   }
+  .password-delete {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+    border-top: 1px solid var(--page-border);
+    padding-top: 16px;
+  }
+  .password-delete strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+  .password-delete form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 14px;
+    align-items: end;
+  }
   .security-locked {
     display: grid;
     gap: 14px;
@@ -1372,6 +1424,9 @@
     }
     .token-row form {
       grid-column: 2;
+    }
+    .password-delete form {
+      grid-template-columns: 1fr;
     }
     .modal-heading,
     .unlock-method {
