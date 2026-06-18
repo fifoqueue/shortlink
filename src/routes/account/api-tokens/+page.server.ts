@@ -3,11 +3,11 @@ import type { Actions, PageServerLoad } from './$types';
 import {
   createApiToken,
   listApiTokens,
-  revokeApiToken,
+  revokeApiTokens,
 } from '$lib/server/api-tokens';
 import { requirePageUser } from '$lib/server/auth-guards';
 import { stringValue } from '$lib/server/settings';
-import { uiText } from '$lib/i18n/ui-text';
+import { formatText, uiText } from '$lib/i18n/ui-text';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const user = requirePageUser(locals, '/account/api-tokens');
@@ -35,17 +35,21 @@ export const actions: Actions = {
     };
   },
 
-  revoke: async ({ request, locals }) => {
+  revokeTokens: async ({ request, locals }) => {
     const user = requirePageUser(locals, '/account/api-tokens');
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
     const form = await request.formData();
-    const removed = await revokeApiToken(
-      user.id,
-      Number(stringValue(form, 'id', '0')),
-    );
-    if (!removed) {
+    const tokenIds = form.getAll('ids').map((value) => Number(String(value)));
+    if (tokenIds.length === 0) {
+      return fail(400, { message: text.messages.tokenSelectionRequired });
+    }
+    const removed = await revokeApiTokens(user.id, tokenIds);
+    if (removed === 0) {
       return fail(404, { message: text.messages.tokenNotFound });
     }
-    return { ok: true, message: text.messages.tokenRevoked };
+    return {
+      ok: true,
+      message: formatText(text.messages.tokensRevoked, { count: removed }),
+    };
   },
 };

@@ -154,7 +154,11 @@ export interface PluginAdminAccessStatus {
   redirectTo?: string;
 }
 
-export type CorePluginProtectedAction = 'login' | 'signup' | 'link-create';
+export type CorePluginProtectedAction =
+  | 'login'
+  | 'signup'
+  | 'link-create'
+  | 'account-security-unlock';
 export type PluginProtectedAction = CorePluginProtectedAction | (string & {});
 
 export interface PluginGuardResult {
@@ -231,6 +235,12 @@ export interface AuthAccountLinkMethod extends AuthMethodPresentation {
   type: 'redirect';
 }
 
+export interface AuthSecurityUnlockMethod extends AuthMethodPresentation {
+  id: string;
+  label: string;
+  type: 'redirect';
+}
+
 export interface PluginLocaleContext {
   locale: SiteLocale;
   fallbackLocale: SiteLocale;
@@ -252,6 +262,11 @@ export interface AuthPluginModule {
     config: PluginConfig,
     context?: PluginLocaleContext,
   ) => AuthAccountLinkMethod[];
+  getSecurityUnlockMethods?: (
+    config: PluginConfig,
+    user: AuthenticatedUser,
+    context?: PluginLocaleContext,
+  ) => AuthSecurityUnlockMethod[] | Promise<AuthSecurityUnlockMethod[]>;
   authenticatePassword?: (
     cookies: Cookies,
     config: PluginConfig,
@@ -275,6 +290,14 @@ export interface AuthPluginModule {
     context?: PluginLocaleContext,
     allowedProviders?: readonly string[] | null,
   ) => string | Promise<string>;
+  finishCallback?: (
+    cookies: Cookies,
+    currentUrl: URL,
+    config: PluginConfig,
+    user: AuthenticatedUser | null,
+    context?: PluginLocaleContext,
+    allowedProviders?: readonly string[] | null,
+  ) => string | Promise<string>;
   startAccountLink?: (
     cookies: Cookies,
     origin: string,
@@ -285,14 +308,16 @@ export interface AuthPluginModule {
     context?: PluginLocaleContext,
     requestParams?: URLSearchParams,
   ) => URL | Promise<URL>;
-  finishAccountLink?: (
+  startSecurityUnlock?: (
     cookies: Cookies,
-    currentUrl: URL,
+    origin: string,
     config: PluginConfig,
+    methodId: string,
     user: AuthenticatedUser,
+    returnTo: string | null,
     context?: PluginLocaleContext,
-    allowedProviders?: readonly string[] | null,
-  ) => string | Promise<string>;
+    requestParams?: URLSearchParams,
+  ) => URL | Promise<URL>;
 }
 
 export interface PluginDefinition {

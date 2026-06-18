@@ -19,8 +19,10 @@ export {
   PermissionGroupModel,
   PermissionGroupUserModel,
   ShortLinkModel,
+  UserPasskeyCredentialModel,
   UserIdentityModel,
   UserModel,
+  UserTotpSecretModel,
 } from './models';
 
 const globalDatabase = globalThis as typeof globalThis & {

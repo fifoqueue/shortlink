@@ -25,6 +25,11 @@ import {
 import { ShortLinkModel, initShortLinkModel } from './short-link';
 import { UserModel, initUserModel } from './user';
 import { UserIdentityModel, initUserIdentityModel } from './user-identity';
+import {
+  UserPasskeyCredentialModel,
+  initUserPasskeyCredentialModel,
+} from './user-passkey';
+import { UserTotpSecretModel, initUserTotpSecretModel } from './user-totp';
 
 export { AppSettingModel } from './app-setting';
 export { ApiTokenModel } from './api-token';
@@ -43,6 +48,8 @@ export {
 export { ShortLinkModel } from './short-link';
 export { UserModel } from './user';
 export { UserIdentityModel } from './user-identity';
+export { UserPasskeyCredentialModel } from './user-passkey';
+export { UserTotpSecretModel } from './user-totp';
 
 export function initModels(sequelize: Sequelize) {
   if (AppSettingModel.sequelize !== sequelize) initAppSettingModel(sequelize);
@@ -61,6 +68,10 @@ export function initModels(sequelize: Sequelize) {
   }
   if (UserIdentityModel.sequelize !== sequelize)
     initUserIdentityModel(sequelize);
+  if (UserTotpSecretModel.sequelize !== sequelize)
+    initUserTotpSecretModel(sequelize);
+  if (UserPasskeyCredentialModel.sequelize !== sequelize)
+    initUserPasskeyCredentialModel(sequelize);
   if (ApiTokenModel.sequelize !== sequelize) initApiTokenModel(sequelize);
   if (
     PermissionGroupModel.sequelize !== sequelize ||

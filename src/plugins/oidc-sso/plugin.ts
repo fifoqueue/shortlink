@@ -134,8 +134,7 @@ const plugin: PluginDefinition = {
           'none 방식은 PKCE public client용이며 secret을 저장하지 않습니다.',
         'admin.validateIssuerAndAdd': '검증 후 추가',
         'admin.callbackUrls': 'Callback URLs',
-        'admin.loginCallback': '로그인',
-        'admin.accountLinkCallback': '계정 연결',
+        'admin.loginCallback': '통합 Callback',
         'admin.oidcConnections': 'SSO 연결',
         'admin.forceUnlink': '강제 해제',
         'admin.forceUnlinkTitle': 'OIDC 연결을 강제로 해제할까요?',
@@ -179,8 +178,15 @@ const plugin: PluginDefinition = {
         'auth.userDisabled': '비활성화된 사용자입니다.',
         'auth.notAccountLinkRequest':
           '계정 연결 요청이 아닙니다. 다시 시도해주세요.',
+        'auth.notSecurityUnlockRequest':
+          '보안 잠금 해제 요청이 아닙니다. 다시 시도해주세요.',
+        'auth.connectedAccountRequired':
+          '현재 계정에 연결된 SSO 계정으로 인증해야 합니다.',
+        'auth.securityUnlockAccountMismatch':
+          '인증된 SSO 계정이 현재 연결된 계정과 다릅니다.',
         'auth.passwordLogin': '비밀번호로 로그인',
         'auth.providerLogin': '{nameWithJosa} 로그인',
+        'auth.providerReauthentication': '{nameWithJosa} 인증',
         'auth.identifierDefaultLabel': '{name}',
         'auth.loginInputRequired': '로그인 입력값이 필요합니다.',
         'auth.loginInputUrlInvalid':
@@ -382,8 +388,7 @@ const plugin: PluginDefinition = {
           'The none method is for PKCE public clients and does not store a secret.',
         'admin.validateIssuerAndAdd': 'Validate and add',
         'admin.callbackUrls': 'Callback URLs',
-        'admin.loginCallback': 'Login',
-        'admin.accountLinkCallback': 'Account link',
+        'admin.loginCallback': 'Unified callback',
         'admin.oidcConnections': 'SSO connections',
         'admin.forceUnlink': 'Force unlink',
         'admin.forceUnlinkTitle': 'Force unlink OIDC connection?',
@@ -426,8 +431,15 @@ const plugin: PluginDefinition = {
         'auth.userDisabled': 'User is disabled.',
         'auth.notAccountLinkRequest':
           'This is not an account linking request. Try again.',
+        'auth.notSecurityUnlockRequest':
+          'This is not a security unlock request. Try again.',
+        'auth.connectedAccountRequired':
+          'Authenticate with an SSO account linked to the current account.',
+        'auth.securityUnlockAccountMismatch':
+          'The authenticated SSO account does not match the linked account.',
         'auth.passwordLogin': 'Log in with password',
         'auth.providerLogin': 'Log in with {name}',
+        'auth.providerReauthentication': 'Authenticate with {name}',
         'auth.identifierDefaultLabel': '{name}',
         'auth.loginInputRequired': 'Login input is required.',
         'auth.loginInputUrlInvalid': 'Login input must be a valid http(s) URL.',

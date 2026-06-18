@@ -10,7 +10,11 @@ export type CaptchaProvider =
   | 'hcaptcha'
   | 'custom';
 
-export type CaptchaAction = 'login' | 'signup' | 'link-create';
+export type CaptchaAction =
+  | 'login'
+  | 'signup'
+  | 'link-create'
+  | 'account-security-unlock';
 export type CaptchaVerifyMethod = 'POST' | 'GET';
 export type CaptchaRequestFormat = 'form' | 'json';
 
@@ -23,6 +27,7 @@ export interface CaptchaConfig extends Record<string, unknown> {
   loginEnabled: boolean;
   signupEnabled: boolean;
   linkCreateEnabled: boolean;
+  accountSecurityUnlockEnabled: boolean;
   customScriptUrl: string;
   customWidgetHtml: string;
   customVerifyEndpoint: string;
@@ -106,6 +111,7 @@ export const defaultCaptchaConfig: CaptchaConfig = {
   loginEnabled: false,
   signupEnabled: false,
   linkCreateEnabled: false,
+  accountSecurityUnlockEnabled: false,
   customScriptUrl: '',
   customWidgetHtml: '',
   customVerifyEndpoint: '',
@@ -175,6 +181,10 @@ export function normalizeCaptchaConfig(config: PluginConfig): CaptchaConfig {
     loginEnabled: configBoolean(config, 'loginEnabled'),
     signupEnabled: configBoolean(config, 'signupEnabled'),
     linkCreateEnabled: configBoolean(config, 'linkCreateEnabled'),
+    accountSecurityUnlockEnabled: configBoolean(
+      config,
+      'accountSecurityUnlockEnabled',
+    ),
     customScriptUrl: configString(config, 'customScriptUrl'),
     customWidgetHtml: configString(config, 'customWidgetHtml'),
     customVerifyEndpoint: configString(config, 'customVerifyEndpoint'),
@@ -211,6 +221,9 @@ export function isActionProtected(
   if (action === 'login') return config.loginEnabled;
   if (action === 'signup') return config.signupEnabled;
   if (action === 'link-create') return config.linkCreateEnabled;
+  if (action === 'account-security-unlock') {
+    return config.accountSecurityUnlockEnabled;
+  }
   return false;
 }
 
@@ -321,7 +334,10 @@ export function validateCaptchaConfig(
   message: CaptchaConfigMessage = fallbackMessage,
 ) {
   const enabled =
-    config.loginEnabled || config.signupEnabled || config.linkCreateEnabled;
+    config.loginEnabled ||
+    config.signupEnabled ||
+    config.linkCreateEnabled ||
+    config.accountSecurityUnlockEnabled;
 
   if (config.provider === 'custom') {
     parseCaptchaHeaderRecord(config.customHeaders, message);

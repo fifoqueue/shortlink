@@ -12,6 +12,8 @@ import {
 import { ShortLinkModel } from './short-link';
 import { UserModel } from './user';
 import { UserIdentityModel } from './user-identity';
+import { UserPasskeyCredentialModel } from './user-passkey';
+import { UserTotpSecretModel } from './user-totp';
 
 function hasAssociation(
   model: { associations: Record<string, unknown> },
@@ -104,6 +106,32 @@ export function associateModels() {
   }
   if (!hasAssociation(UserIdentityModel, 'user')) {
     UserIdentityModel.belongsTo(UserModel, {
+      foreignKey: 'userId',
+      as: 'user',
+    });
+  }
+  if (!hasAssociation(UserModel, 'totpSecret')) {
+    UserModel.hasOne(UserTotpSecretModel, {
+      foreignKey: 'userId',
+      as: 'totpSecret',
+      onDelete: 'CASCADE',
+    });
+  }
+  if (!hasAssociation(UserTotpSecretModel, 'user')) {
+    UserTotpSecretModel.belongsTo(UserModel, {
+      foreignKey: 'userId',
+      as: 'user',
+    });
+  }
+  if (!hasAssociation(UserModel, 'passkeyCredentials')) {
+    UserModel.hasMany(UserPasskeyCredentialModel, {
+      foreignKey: 'userId',
+      as: 'passkeyCredentials',
+      onDelete: 'CASCADE',
+    });
+  }
+  if (!hasAssociation(UserPasskeyCredentialModel, 'user')) {
+    UserPasskeyCredentialModel.belongsTo(UserModel, {
       foreignKey: 'userId',
       as: 'user',
     });

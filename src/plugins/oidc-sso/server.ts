@@ -495,7 +495,6 @@ const serverPlugin = {
   async loadAdminData({ url }) {
     return {
       callbackUrl: `${url.origin}/auth/oidc-sso/callback`,
-      accountLinkCallbackUrl: `${url.origin}/account/connections/oidc-sso/callback`,
     };
   },
 

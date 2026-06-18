@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { json } from '@sveltejs/kit';
+import { Op } from 'sequelize';
 import type { SiteSettings } from '$lib/config';
 import type { AuthenticatedUser } from '$lib/plugin-contracts';
 import { uiText } from '$lib/i18n/ui-text';
@@ -69,13 +70,15 @@ export async function createApiToken(userId: number, name: string) {
   };
 }
 
-export async function revokeApiToken(userId: number, tokenId: number) {
+export async function revokeApiTokens(userId: number, tokenIds: number[]) {
   await ensureDatabase();
-  return (
-    (await ApiTokenModel.destroy({
-      where: { id: tokenId, userId },
-    })) > 0
-  );
+  const ids = [
+    ...new Set(tokenIds.filter((id) => Number.isSafeInteger(id) && id > 0)),
+  ];
+  if (ids.length === 0) return 0;
+  return ApiTokenModel.destroy({
+    where: { id: { [Op.in]: ids }, userId },
+  });
 }
 
 function bearerToken(request: Request) {

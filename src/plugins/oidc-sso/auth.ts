@@ -29,7 +29,12 @@ import {
   getUserById,
   upsertSsoUser,
 } from '$lib/server/users';
-import { findIdentity, linkIdentity } from '$lib/server/user-identities';
+import {
+  findIdentity,
+  linkIdentity,
+  listUserIdentities,
+} from '$lib/server/user-identities';
+import { setSecurityUnlock } from '$lib/server/local-auth-security';
 import {
   findProvider,
   getJsonPathValue,
@@ -52,8 +57,9 @@ interface FlowState {
   nonce: string;
   redirectUri?: string;
   returnTo: string;
-  purpose?: 'login' | 'account-link';
+  purpose?: 'login' | 'account-link' | 'security-unlock';
   userId?: number;
+  expectedSubject?: string;
   expiresAt: number;
   oauth?: {
     authorizationEndpoint: string;
@@ -595,6 +601,7 @@ async function createAuthorizationUrl(
   context?: PluginLocaleContext,
   requestParams?: URLSearchParams,
   userId?: number,
+  expectedSubject?: string,
 ) {
   const provider = findProvider(config, providerId);
   if (!provider) throw new Error(t(context, 'auth.providerNotFound'));
@@ -608,6 +615,7 @@ async function createAuthorizationUrl(
       context,
       requestParams,
       userId,
+      expectedSubject,
     });
   }
   const oidcConfig = await getConfiguration(provider, context);
@@ -624,6 +632,7 @@ async function createAuthorizationUrl(
     returnTo: safeReturnTo(returnTo),
     purpose,
     userId,
+    expectedSubject,
     expiresAt: Date.now() + FLOW_TTL_SECONDS * 1000,
   };
   cookies.set(
@@ -658,12 +667,11 @@ async function createGenericOAuthAuthorizationUrl(input: {
   context?: PluginLocaleContext;
   requestParams?: URLSearchParams;
   userId?: number;
+  expectedSubject?: string;
 }) {
-  const subjectHint = userInputValue(
-    input.provider,
-    input.requestParams,
-    input.context,
-  );
+  const subjectHint =
+    input.expectedSubject ??
+    userInputValue(input.provider, input.requestParams, input.context);
   const endpoints = await resolveOAuthEndpoints(
     input.provider,
     subjectHint,
@@ -682,6 +690,7 @@ async function createGenericOAuthAuthorizationUrl(input: {
     returnTo: safeReturnTo(input.returnTo),
     purpose: input.purpose,
     userId: input.userId,
+    expectedSubject: input.expectedSubject,
     expiresAt: Date.now() + FLOW_TTL_SECONDS * 1000,
     oauth: {
       authorizationEndpoint: endpoints.authorizationEndpoint,
@@ -1004,8 +1013,26 @@ export async function finishLogin(
   context?: PluginLocaleContext,
   allowedProviders?: readonly string[] | null,
 ) {
+  const claims = await resolveCallbackClaims(
+    cookies,
+    currentUrl,
+    config,
+    context,
+  );
+  return completeLogin(cookies, currentUrl, claims, context, allowedProviders);
+}
+
+type CallbackClaims = Awaited<ReturnType<typeof resolveCallbackClaims>>;
+
+async function completeLogin(
+  cookies: Cookies,
+  currentUrl: URL,
+  claims: CallbackClaims,
+  context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
+) {
   const { flow, provider, subject, email, emailVerified, providerName, name } =
-    await resolveCallbackClaims(cookies, currentUrl, config, context);
+    claims;
   assertAuthProviderAllowed(provider.id, allowedProviders, context);
   if (flow.purpose && flow.purpose !== 'login') {
     throw new Error(t(context, 'auth.notLoginRequest'));
@@ -1072,6 +1099,90 @@ export async function finishLogin(
   return flow.returnTo;
 }
 
+async function completeAccountLink(
+  claims: CallbackClaims,
+  user: AuthenticatedUser,
+  context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
+) {
+  const { flow, provider, subject, email, providerName } = claims;
+  assertAuthProviderAllowed(provider.id, allowedProviders, context);
+  if (flow.purpose !== 'account-link' || flow.userId !== user.id) {
+    throw new Error(t(context, 'auth.notAccountLinkRequest'));
+  }
+  await linkIdentity({
+    userId: user.id,
+    provider: providerName,
+    subject,
+    email,
+  });
+  return flow.returnTo;
+}
+
+async function completeSecurityUnlock(
+  cookies: Cookies,
+  claims: CallbackClaims,
+  user: AuthenticatedUser,
+  context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
+) {
+  const { flow, provider, subject, providerName } = claims;
+  assertAuthProviderAllowed(provider.id, allowedProviders, context);
+  if (flow.purpose !== 'security-unlock' || flow.userId !== user.id) {
+    throw new Error(t(context, 'auth.notSecurityUnlockRequest'));
+  }
+  if (flow.expectedSubject && flow.expectedSubject !== subject) {
+    throw new Error(t(context, 'auth.securityUnlockAccountMismatch'));
+  }
+  const identity = await findIdentity(providerName, subject);
+  if (!identity || identity.userId !== user.id) {
+    throw new Error(t(context, 'auth.connectedAccountRequired'));
+  }
+  setSecurityUnlock(cookies, user.id);
+  return flow.returnTo || '/account';
+}
+
+export async function finishCallback(
+  cookies: Cookies,
+  currentUrl: URL,
+  config: PluginConfig,
+  user: AuthenticatedUser | null,
+  context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
+) {
+  const claims = await resolveCallbackClaims(
+    cookies,
+    currentUrl,
+    config,
+    context,
+  );
+  const purpose = claims.flow.purpose ?? 'login';
+  if (purpose === 'login') {
+    return completeLogin(
+      cookies,
+      currentUrl,
+      claims,
+      context,
+      allowedProviders,
+    );
+  }
+  if (purpose === 'account-link') {
+    if (!user) throw new Error(t(context, 'auth.notAccountLinkRequest'));
+    return completeAccountLink(claims, user, context, allowedProviders);
+  }
+  if (purpose === 'security-unlock') {
+    if (!user) throw new Error(t(context, 'auth.notSecurityUnlockRequest'));
+    return completeSecurityUnlock(
+      cookies,
+      claims,
+      user,
+      context,
+      allowedProviders,
+    );
+  }
+  throw new Error(t(context, 'auth.loginRequestExpired'));
+}
+
 export async function createAccountLinkUrl(
   cookies: Cookies,
   origin: string,
@@ -1088,46 +1199,100 @@ export async function createAccountLinkUrl(
     providerId,
     returnTo,
     'account-link',
-    `${origin}/account/connections/${id}/callback`,
+    `${origin}/auth/${id}/callback`,
     context,
     requestParams,
     user.id,
   );
 }
 
-export async function finishAccountLink(
-  cookies: Cookies,
-  currentUrl: URL,
+async function connectedProviderIdentities(
+  config: PluginConfig,
+  user: AuthenticatedUser,
+) {
+  const normalized = normalizeOidcConfig(config);
+  const providers = new Map(
+    normalized.providers.map((provider) => [provider.id, provider]),
+  );
+  const identities = await listUserIdentities(user.id);
+  return identities.flatMap((identity) => {
+    if (!identity.provider.startsWith(`${id}:`)) return [];
+    const providerId = identity.provider.slice(`${id}:`.length);
+    const provider = providers.get(providerId);
+    return provider
+      ? [
+          {
+            provider,
+            identity,
+          },
+        ]
+      : [];
+  });
+}
+
+export async function getSecurityUnlockMethods(
   config: PluginConfig,
   user: AuthenticatedUser,
   context?: PluginLocaleContext,
-  allowedProviders?: readonly string[] | null,
 ) {
-  const { flow, provider, subject, email, providerName } =
-    await resolveCallbackClaims(cookies, currentUrl, config, context);
-  assertAuthProviderAllowed(provider.id, allowedProviders, context);
-  if (flow.purpose !== 'account-link' || flow.userId !== user.id) {
-    throw new Error(t(context, 'auth.notAccountLinkRequest'));
-  }
-  await linkIdentity({
-    userId: user.id,
-    provider: providerName,
-    subject,
-    email,
-  });
-  return flow.returnTo;
+  return (await connectedProviderIdentities(config, user)).map(
+    ({ provider }) => ({
+      id: provider.id,
+      label: t(context, 'auth.providerReauthentication', {
+        name: provider.name,
+        nameWithJosa:
+          context?.locale === 'ko'
+            ? josa(provider.name, '으로/로')
+            : provider.name,
+      }),
+      buttonColor: provider.loginButtonColor || undefined,
+      buttonTextColor: provider.loginButtonTextColor || undefined,
+      iconUrl: provider.loginIconUrl || undefined,
+      type: 'redirect' as const,
+    }),
+  );
+}
+
+export async function createSecurityUnlockUrl(
+  cookies: Cookies,
+  origin: string,
+  config: PluginConfig,
+  providerId: string,
+  user: AuthenticatedUser,
+  returnTo: string | null,
+  context?: PluginLocaleContext,
+  requestParams?: URLSearchParams,
+) {
+  const connected = (await connectedProviderIdentities(config, user)).find(
+    ({ provider }) => provider.id === providerId,
+  );
+  if (!connected) throw new Error(t(context, 'auth.connectedAccountRequired'));
+  return createAuthorizationUrl(
+    cookies,
+    config,
+    providerId,
+    returnTo,
+    'security-unlock',
+    `${origin}/auth/${id}/callback`,
+    context,
+    requestParams,
+    user.id,
+    connected.identity.subject,
+  );
 }
 
 export async function getUser(
   cookies: Cookies,
   config: PluginConfig,
 ): Promise<AuthenticatedUser | null> {
-  return getUserFromSession(
-    cookies,
-    (provider) =>
-      provider.startsWith(`${id}:`) ||
-      (provider === 'password' && passwordLoginEnabled(config)),
+  const normalized = normalizeOidcConfig(config);
+  const providerIds = new Set(
+    normalized.providers.map((provider) => `${id}:${provider.id}`),
   );
+  return getUserFromSession(cookies, (provider) => {
+    if (provider === 'password') return normalized.passwordLoginEnabled;
+    return providerIds.has(provider);
+  });
 }
 
 export async function testProvider(
@@ -1258,7 +1423,9 @@ const authPlugin: AuthPluginModule = {
   authenticatePassword,
   startLogin: createLoginUrl,
   finishLogin,
+  finishCallback,
   startAccountLink: createAccountLinkUrl,
-  finishAccountLink,
+  getSecurityUnlockMethods,
+  startSecurityUnlock: createSecurityUnlockUrl,
 };
 export default authPlugin;

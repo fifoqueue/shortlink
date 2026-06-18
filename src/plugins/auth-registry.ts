@@ -8,6 +8,7 @@ import type {
 } from '$lib/plugin-contracts';
 import { defaultSiteLocale, type SiteLocale } from '$lib/config';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
+import { getLocalAuthUser } from '$lib/server/local-auth-security';
 import { authProviderKey } from '$lib/server/permissions';
 import { assertUniquePluginId, pluginFolderFromPath } from './utils';
 import { pluginDefinitions } from './server';
@@ -56,11 +57,24 @@ function runtimeAuthPlugins(): AuthPluginModule[] {
         authenticatePassword: definition.auth.authenticatePassword,
         startLogin: definition.auth.startLogin,
         finishLogin: definition.auth.finishLogin,
+        finishCallback: definition.auth.finishCallback,
         startAccountLink: definition.auth.startAccountLink,
-        finishAccountLink: definition.auth.finishAccountLink,
+        getSecurityUnlockMethods: definition.auth.getSecurityUnlockMethods,
+        startSecurityUnlock: definition.auth.startSecurityUnlock,
       } satisfies AuthPluginModule,
     ];
   });
+}
+
+async function securityUnlockMethods(
+  plugin: AuthPluginModule,
+  state: PluginState,
+  user: AuthenticatedUser,
+  context: PluginLocaleContext,
+) {
+  return (
+    (await plugin.getSecurityUnlockMethods?.(state.config, user, context)) ?? []
+  );
 }
 
 function authPlugins() {
@@ -150,6 +164,9 @@ export async function getPluginUser(
   cookies: Cookies,
   states: Record<string, PluginState>,
 ): Promise<AuthenticatedUser | null> {
+  const localUser = await getLocalAuthUser(cookies);
+  if (localUser) return localUser;
+
   for (const authPlugin of authPlugins()) {
     const state = states[authPlugin.id];
     if (!state?.enabled) continue;
@@ -285,6 +302,41 @@ export async function finishPluginLogin(
   );
 }
 
+export async function finishPluginCallback(
+  cookies: Cookies,
+  states: Record<string, PluginState>,
+  pluginId: string,
+  currentUrl: URL,
+  user: AuthenticatedUser | null,
+  locale: SiteLocale = defaultSiteLocale,
+  fallbackLocale: SiteLocale = locale,
+  allowedProviders?: AuthProviderAllowList,
+) {
+  const plugin = authPlugins().find((item) => item.id === pluginId);
+  const state = stateFor(states, pluginId);
+  if (!plugin || !state) return null;
+  if (plugin.finishCallback) {
+    return plugin.finishCallback(
+      cookies,
+      currentUrl,
+      state.config,
+      user,
+      localeContext(pluginId, locale, fallbackLocale),
+      allowedProviders,
+    );
+  }
+  if (!user && plugin.finishLogin) {
+    return plugin.finishLogin(
+      cookies,
+      currentUrl,
+      state.config,
+      localeContext(pluginId, locale, fallbackLocale),
+      allowedProviders,
+    );
+  }
+  return null;
+}
+
 export async function startPluginAccountLink(
   cookies: Cookies,
   states: Record<string, PluginState>,
@@ -320,25 +372,71 @@ export async function startPluginAccountLink(
   );
 }
 
-export async function finishPluginAccountLink(
-  cookies: Cookies,
+export async function getAuthSecurityUnlockMethods(
   states: Record<string, PluginState>,
-  pluginId: string,
-  currentUrl: URL,
   user: AuthenticatedUser,
   locale: SiteLocale = defaultSiteLocale,
   fallbackLocale: SiteLocale = locale,
   allowedProviders?: AuthProviderAllowList,
 ) {
+  const methods = await Promise.all(
+    authPlugins().map(async (plugin) => {
+      const state = stateFor(states, plugin.id);
+      if (!state) return [];
+      return (
+        await securityUnlockMethods(
+          plugin,
+          state,
+          user,
+          localeContext(plugin.id, locale, fallbackLocale),
+        )
+      )
+        .filter((method) =>
+          authProviderAllowed(plugin.id, method.id, allowedProviders),
+        )
+        .map((method) => ({
+          ...method,
+          pluginId: plugin.id,
+        }));
+    }),
+  );
+  return methods.flat();
+}
+
+export async function startPluginSecurityUnlock(
+  cookies: Cookies,
+  states: Record<string, PluginState>,
+  pluginId: string,
+  methodId: string,
+  origin: string,
+  user: AuthenticatedUser,
+  returnTo: string | null,
+  locale: SiteLocale = defaultSiteLocale,
+  fallbackLocale: SiteLocale = locale,
+  requestParams?: URLSearchParams,
+  allowedProviders?: AuthProviderAllowList,
+) {
   const plugin = authPlugins().find((item) => item.id === pluginId);
   const state = stateFor(states, pluginId);
-  if (!plugin?.finishAccountLink || !state) return null;
-  return plugin.finishAccountLink(
+  const context = localeContext(pluginId, locale, fallbackLocale);
+  if (
+    !plugin?.startSecurityUnlock ||
+    !state ||
+    !authProviderAllowed(plugin.id, methodId, allowedProviders) ||
+    !(await securityUnlockMethods(plugin, state, user, context)).some(
+      (method) => method.id === methodId && method.type === 'redirect',
+    )
+  ) {
+    return null;
+  }
+  return plugin.startSecurityUnlock(
     cookies,
-    currentUrl,
+    origin,
     state.config,
+    methodId,
     user,
-    localeContext(pluginId, locale, fallbackLocale),
-    allowedProviders,
+    returnTo,
+    context,
+    requestParams,
   );
 }

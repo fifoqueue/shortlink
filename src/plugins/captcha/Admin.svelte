@@ -75,6 +75,12 @@
         checked={captcha.linkCreateEnabled}
         disabled={!protectionAvailable}
       />
+      <ToggleField
+        name={fieldName('captcha', 'accountSecurityUnlockEnabled')}
+        label={t('admin.protectAccountSecurityUnlock')}
+        checked={captcha.accountSecurityUnlockEnabled}
+        disabled={!protectionAvailable}
+      />
     </div>
     {#if protectionAvailable}
       <p class="hint">
@@ -301,7 +307,7 @@
   }
   .toggle-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     --toggle-min-height: 42px;
   }

@@ -2,7 +2,7 @@ import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import { getSettings } from '$lib/server/settings';
 import { uiText } from '$lib/i18n/ui-text';
 import { effectivePermissionsForEvent } from '$lib/server/permissions';
-import { finishPluginLogin } from '../../../../plugins/auth-registry';
+import { finishPluginCallback } from '../../../../plugins/auth-registry';
 
 export const GET: RequestHandler = async ({
   cookies,
@@ -25,11 +25,12 @@ export const GET: RequestHandler = async ({
 
   let returnTo: string | null;
   try {
-    returnTo = await finishPluginLogin(
+    returnTo = await finishPluginCallback(
       cookies,
       settings.plugins,
       params.plugin,
       url,
+      locals.user ?? null,
       locals.locale,
       settings.i18n.defaultLocale,
       permissions.auth.providers,

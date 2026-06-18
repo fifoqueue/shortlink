@@ -81,6 +81,7 @@ const plugin: PluginDefinition = {
         'admin.protectPasswordLogin': '비밀번호 로그인 보호',
         'admin.protectSignup': '회원 가입 보호',
         'admin.protectLinkCreation': '링크 생성 보호',
+        'admin.protectAccountSecurityUnlock': '계정 보안 잠금 해제 보호',
         'admin.adminBypassHint': '관리자는 모든 CAPTCHA 검증을 우회합니다.',
         'admin.disabledWithoutCaptchaHint':
           'CAPTCHA를 사용하지 않으면 보호 대상도 비활성화됩니다.',
@@ -171,6 +172,7 @@ const plugin: PluginDefinition = {
         'admin.protectPasswordLogin': 'Protect password login',
         'admin.protectSignup': 'Protect signup',
         'admin.protectLinkCreation': 'Protect link creation',
+        'admin.protectAccountSecurityUnlock': 'Protect account security unlock',
         'admin.adminBypassHint': 'Administrators bypass all CAPTCHA checks.',
         'admin.disabledWithoutCaptchaHint':
           'Protected actions are disabled when CAPTCHA is not used.',
@@ -289,6 +291,9 @@ const plugin: PluginDefinition = {
         !disabled && pluginChecked(form, 'captcha', 'signupEnabled'),
       linkCreateEnabled:
         !disabled && pluginChecked(form, 'captcha', 'linkCreateEnabled'),
+      accountSecurityUnlockEnabled:
+        !disabled &&
+        pluginChecked(form, 'captcha', 'accountSecurityUnlockEnabled'),
       customScriptUrl: pluginString(
         form,
         'captcha',
@@ -386,6 +391,7 @@ const plugin: PluginDefinition = {
       loginEnabled: normalized.loginEnabled,
       signupEnabled: normalized.signupEnabled,
       linkCreateEnabled: normalized.linkCreateEnabled,
+      accountSecurityUnlockEnabled: normalized.accountSecurityUnlockEnabled,
       customScriptUrl: normalized.customScriptUrl,
       customWidgetHtml: normalized.customWidgetHtml,
     };

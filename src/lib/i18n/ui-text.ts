@@ -418,6 +418,9 @@ const ko = {
     email: '이메일',
     password: '비밀번호',
     passwordLogin: '비밀번호로 로그인',
+    totpCode: '인증 코드',
+    verifyTotp: '코드 확인',
+    totpRequired: '인증 앱의 6자리 코드를 입력하세요.',
     noLoginMethods: '사용 가능한 로그인 방법이 없습니다.',
     forgotPassword: '비밀번호 찾기',
     forgotPasswordTitle: '비밀번호 찾기',
@@ -468,6 +471,49 @@ const ko = {
     currentPassword: '현재 비밀번호',
     nextPassword: '새 비밀번호',
     changePassword: '비밀번호 변경',
+    setPassword: '비밀번호 설정',
+    externalPasswordUnavailable:
+      '외부 로그인으로 생성된 계정에는 현재 비밀번호가 없습니다. 로컬 로그인도 사용하려면 새 비밀번호를 설정하세요.',
+    security: '로그인 보안',
+    securityDescription: 'TOTP와 Passkey 같은 추가 인증 수단을 관리합니다.',
+    securityLockedTitle: '보안 설정이 잠겨 있습니다.',
+    securityLockedDescription:
+      '로그인 보안 설정을 변경하려면 먼저 계정 소유 여부를 한 번 더 확인해야 합니다.',
+    securityInitialSetupDescription:
+      '아직 비밀번호나 MFA가 없습니다. 연결된 외부 로그인 계정으로 다시 인증한 뒤 TOTP 또는 Passkey를 첫 인증 수단으로 등록하세요.',
+    unlockSecurity: '보안 설정 잠금 해제',
+    securityUnlockTitle: '보안 설정 잠금 해제',
+    securityUnlockDescription:
+      '사용 가능한 인증 수단 중 하나로 계정 소유 여부를 확인하세요.',
+    securityPassword: '비밀번호',
+    securityTotpCode: 'TOTP 코드',
+    unlockWithPassword: '비밀번호로 해제',
+    unlockWithTotp: 'TOTP로 해제',
+    unlockWithPasskey: 'Passkey로 해제',
+    securityPasskeyDescription:
+      '등록된 Passkey로 이 계정의 보안 설정 잠금을 해제합니다.',
+    securityUnlockFailed: '보안 설정 잠금을 해제하지 못했습니다.',
+    totp: 'TOTP',
+    totpDescription:
+      '인증 앱의 6자리 코드로 비밀번호 로그인을 한 번 더 확인합니다.',
+    totpEnabledState: 'TOTP가 활성화되어 있습니다.',
+    setupTotp: 'TOTP 설정',
+    enableTotp: 'TOTP 활성화',
+    disableTotp: 'TOTP 비활성화',
+    totpSecret: '설정 키',
+    totpCode: '인증 코드',
+    totpSetupInstructions:
+      '인증 앱에 QR 또는 설정 키를 추가한 뒤 표시된 6자리 코드를 입력하세요.',
+    passkeys: 'Passkey',
+    passkeysDescription: '이 기기의 생체 인증 또는 보안 키로 로그인합니다.',
+    passkeyName: 'Passkey 이름',
+    passkeyNamePlaceholder: '내 노트북',
+    addPasskey: 'Passkey 추가',
+    emptyPasskeys: '등록된 Passkey가 없습니다.',
+    passkeyUnsupported: '이 브라우저는 Passkey를 지원하지 않습니다.',
+    passkeyCreateFailed: 'Passkey를 등록하지 못했습니다.',
+    securityMethodDisabled:
+      '현재 권한 그룹에서는 이 보안 수단을 사용할 수 없습니다.',
     sessions: '세션',
     sessionsDescription:
       '현재 로그인한 기기는 유지하고 다른 모든 기기에서 로그아웃합니다.',
@@ -481,10 +527,17 @@ const ko = {
     created: '생성',
     lastUsed: '마지막 사용',
     revoke: '폐기',
-    revokeTokenTitle: 'API 토큰을 폐기할까요?',
-    revokeTokenMessage:
+    revokeTokensTitle: 'API 토큰을 폐기할까요?',
+    revokeTokensMessage:
       '폐기한 토큰은 즉시 사용할 수 없으며 다시 표시하거나 복구할 수 없습니다.',
-    revokeTokenConfirm: '토큰 폐기',
+    revokeTokensConfirm: '토큰 폐기',
+    selectedApiTokens: '{count}개 선택',
+    selectApiToken: '{name} 토큰 선택',
+    revokeSelectedTokens: '선택 토큰 폐기',
+    revokeSelectedTokensTitle: '선택한 API 토큰을 폐기할까요?',
+    revokeSelectedTokensMessage:
+      '{count}개의 토큰은 즉시 사용할 수 없으며 다시 표시하거나 복구할 수 없습니다.',
+    revokeSelectedTokensConfirm: '선택 토큰 폐기',
     emptyTokens: '발급된 API 토큰이 없습니다.',
     danger: '위험 작업',
     deleteAccount: '계정 삭제',
@@ -859,7 +912,8 @@ const ko = {
     otherSessionsFailed: '다른 기기 로그아웃을 처리하지 못했습니다.',
     tokenIssued: 'API 토큰을 발급했습니다. 이 값은 지금 한 번만 표시됩니다.',
     tokenNotFound: 'API 토큰을 찾을 수 없습니다.',
-    tokenRevoked: 'API 토큰을 폐기했습니다.',
+    tokenSelectionRequired: '폐기할 API 토큰을 선택해주세요.',
+    tokensRevoked: '{count}개의 API 토큰을 폐기했습니다.',
     deleteAccountFailed: '계정을 삭제하지 못했습니다.',
     integrationNotFound: '계정 연동 작업을 찾을 수 없습니다.',
     integrationHandled: '계정 연동 작업을 처리했습니다.',
@@ -868,6 +922,26 @@ const ko = {
     registrationDisabled: '현재 회원 가입이 비활성화되어 있습니다.',
     passwordLoginDisabled:
       '비밀번호 로그인이 비활성화되어 회원 가입을 사용할 수 없습니다.',
+    localAccountSecurityOnly:
+      '로컬 비밀번호 계정에서만 이 보안 수단을 사용할 수 있습니다.',
+    securityMethodNotAllowed:
+      '현재 권한에서는 이 보안 수단을 사용할 수 없습니다.',
+    totpSetupStarted: '인증 앱에 추가한 뒤 코드를 확인하세요.',
+    totpCodeInvalid: '인증 코드가 올바르지 않습니다.',
+    totpEnabled: 'TOTP를 활성화했습니다.',
+    totpDisabled: 'TOTP를 비활성화했습니다.',
+    securityUpdateFailed: '보안 설정을 변경하지 못했습니다.',
+    securityUnlockRequired: '먼저 로그인 보안 설정 잠금을 해제해주세요.',
+    securityUnlockFailed: '보안 설정 잠금 해제에 실패했습니다.',
+    securityUnlocked: '로그인 보안 설정 잠금을 해제했습니다.',
+    securityPasskeyPrompt: 'Passkey 인증을 진행해주세요.',
+    passkeyCreated: 'Passkey를 등록했습니다.',
+    passkeyNotFound: 'Passkey를 찾을 수 없습니다.',
+    passkeyRemoved: 'Passkey를 제거했습니다.',
+    passkeyRegistrationExpired:
+      'Passkey 등록 요청이 만료되었습니다. 다시 시도해주세요.',
+    passkeyLoginExpired:
+      'Passkey 로그인 요청이 만료되었습니다. 다시 시도해주세요.',
   },
 };
 
@@ -1296,6 +1370,9 @@ const en: typeof ko = {
     email: 'Email',
     password: 'Password',
     passwordLogin: 'Log in with password',
+    totpCode: 'Authentication code',
+    verifyTotp: 'Verify code',
+    totpRequired: 'Enter the 6-digit code from your authenticator app.',
     noLoginMethods: 'No login methods are available.',
     forgotPassword: 'Forgot password',
     forgotPasswordTitle: 'Forgot password',
@@ -1349,6 +1426,51 @@ const en: typeof ko = {
     currentPassword: 'Current password',
     nextPassword: 'New password',
     changePassword: 'Change password',
+    setPassword: 'Set password',
+    externalPasswordUnavailable:
+      'This external-login account does not have a current password. Set a new password if you also want local login.',
+    security: 'Login security',
+    securityDescription:
+      'Manage additional authentication methods such as TOTP and passkeys.',
+    securityLockedTitle: 'Security settings are locked.',
+    securityLockedDescription:
+      'Confirm account ownership again before changing login security settings.',
+    securityInitialSetupDescription:
+      'This account does not have a password or MFA method yet. Re-authenticate with a linked external login account, then register TOTP or a passkey as the first authentication method.',
+    unlockSecurity: 'Unlock security settings',
+    securityUnlockTitle: 'Unlock security settings',
+    securityUnlockDescription:
+      'Confirm account ownership with one of the available authentication methods.',
+    securityPassword: 'Password',
+    securityTotpCode: 'TOTP code',
+    unlockWithPassword: 'Unlock with password',
+    unlockWithTotp: 'Unlock with TOTP',
+    unlockWithPasskey: 'Unlock with passkey',
+    securityPasskeyDescription:
+      'Use a registered passkey to unlock security settings for this account.',
+    securityUnlockFailed: 'Could not unlock security settings.',
+    totp: 'TOTP',
+    totpDescription:
+      'Require a 6-digit authenticator app code after password login.',
+    totpEnabledState: 'TOTP is enabled.',
+    setupTotp: 'Set up TOTP',
+    enableTotp: 'Enable TOTP',
+    disableTotp: 'Disable TOTP',
+    totpSecret: 'Setup key',
+    totpCode: 'Authentication code',
+    totpSetupInstructions:
+      'Add the QR code or setup key to your authenticator app, then enter the displayed 6-digit code.',
+    passkeys: 'Passkeys',
+    passkeysDescription:
+      'Sign in with this device’s biometrics or a security key.',
+    passkeyName: 'Passkey name',
+    passkeyNamePlaceholder: 'My laptop',
+    addPasskey: 'Add passkey',
+    emptyPasskeys: 'No passkeys have been registered.',
+    passkeyUnsupported: 'This browser does not support passkeys.',
+    passkeyCreateFailed: 'Could not register the passkey.',
+    securityMethodDisabled:
+      'This security method is not available for your current permission group.',
     sessions: 'Sessions',
     sessionsDescription:
       'Keep this device signed in and log out every other device.',
@@ -1362,10 +1484,17 @@ const en: typeof ko = {
     created: 'Created',
     lastUsed: 'Last used',
     revoke: 'Revoke',
-    revokeTokenTitle: 'Revoke this API token?',
-    revokeTokenMessage:
+    revokeTokensTitle: 'Revoke this API token?',
+    revokeTokensMessage:
       'A revoked token stops working immediately and cannot be shown or recovered.',
-    revokeTokenConfirm: 'Revoke token',
+    revokeTokensConfirm: 'Revoke token',
+    selectedApiTokens: '{count} selected',
+    selectApiToken: 'Select {name} token',
+    revokeSelectedTokens: 'Revoke selected',
+    revokeSelectedTokensTitle: 'Revoke selected API tokens?',
+    revokeSelectedTokensMessage:
+      '{count} tokens will stop working immediately and cannot be shown or recovered.',
+    revokeSelectedTokensConfirm: 'Revoke selected tokens',
     emptyTokens: 'No API tokens have been issued.',
     danger: 'Danger zone',
     deleteAccount: 'Delete account',
@@ -1736,7 +1865,8 @@ const en: typeof ko = {
     otherSessionsFailed: 'Could not log out other devices.',
     tokenIssued: 'API token issued. This value is shown only once.',
     tokenNotFound: 'API token not found.',
-    tokenRevoked: 'API token revoked.',
+    tokenSelectionRequired: 'Select API tokens to revoke.',
+    tokensRevoked: '{count} API tokens revoked.',
     deleteAccountFailed: 'Could not delete the account.',
     integrationNotFound: 'Account integration action not found.',
     integrationHandled: 'Account integration action completed.',
@@ -1745,6 +1875,25 @@ const en: typeof ko = {
     registrationDisabled: 'Registration is currently disabled.',
     passwordLoginDisabled:
       'Registration is unavailable because password login is disabled.',
+    localAccountSecurityOnly:
+      'This security method is available only for local password accounts.',
+    securityMethodNotAllowed:
+      'This security method is not allowed for your current permissions.',
+    totpSetupStarted: 'Add it to your authenticator app, then verify the code.',
+    totpCodeInvalid: 'The authentication code is invalid.',
+    totpEnabled: 'TOTP enabled.',
+    totpDisabled: 'TOTP disabled.',
+    securityUpdateFailed: 'Could not update security settings.',
+    securityUnlockRequired: 'Unlock login security settings first.',
+    securityUnlockFailed: 'Could not unlock security settings.',
+    securityUnlocked: 'Login security settings unlocked.',
+    securityPasskeyPrompt: 'Continue with passkey authentication.',
+    passkeyCreated: 'Passkey registered.',
+    passkeyNotFound: 'Passkey not found.',
+    passkeyRemoved: 'Passkey removed.',
+    passkeyRegistrationExpired:
+      'The passkey registration request expired. Try again.',
+    passkeyLoginExpired: 'The passkey login request expired. Try again.',
   },
 };
 

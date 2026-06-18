@@ -1,7 +1,17 @@
 import { fail, redirect } from '@sveltejs/kit';
+import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
-import { clearPluginSessions } from '../../plugins/auth-registry';
-import { pluginDefinitions } from '../../plugins/server';
+import {
+  clearPluginSessions,
+  getAuthSecurityUnlockMethods,
+  startPluginSecurityUnlock,
+} from '../../plugins/auth-registry';
+import {
+  getPublicPluginStates,
+  loadRuntimePluginSlots,
+  pluginDefinitions,
+  verifyFormSubmissionPlugins,
+} from '../../plugins/server';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
 import { createUserSessionFromModel } from '$lib/server/auth-session';
 import { pluginActionName } from '$lib/server/plugin-actions';
@@ -9,7 +19,7 @@ import { passwordPolicyDescription } from '$lib/server/password-policy';
 import {
   createApiToken,
   listApiTokens,
-  revokeApiToken,
+  revokeApiTokens,
 } from '$lib/server/api-tokens';
 import { requirePageUser } from '$lib/server/auth-guards';
 import {
@@ -18,6 +28,7 @@ import {
   rotateUserSessionVersion,
   getUserById,
   updateOwnProfile,
+  verifyPassword,
 } from '$lib/server/users';
 import { getSettings, stringValue } from '$lib/server/settings';
 import {
@@ -25,7 +36,29 @@ import {
   listUserPermissionGroups,
 } from '$lib/server/permissions';
 import { getClientIp } from '$lib/server/client-ip';
-import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import { formatText, localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import {
+  PASSKEY_SECURITY_UNLOCK_COOKIE,
+  TOTP_SETUP_COOKIE,
+  consumeTimedChallenge,
+  createTotpSecret,
+  listUserPasskeys,
+  localPasskeyAllowed,
+  localTotpAllowed,
+  removeUserPasskey,
+  removeUserTotpSecret,
+  readTimedChallenge,
+  saveUserTotpSecret,
+  securityUnlocked,
+  setSecurityUnlock,
+  setTimedChallenge,
+  totpEnabledForUser,
+  totpOtpAuthUrl,
+  userHasLocalPassword,
+  verifyTotpCode,
+  verifyUserTotp,
+} from '$lib/server/local-auth-security';
+import { authenticationOptions, randomChallenge } from '$lib/server/webauthn';
 
 async function loadIntegrations(
   user: NonNullable<App.Locals['user']>,
@@ -87,6 +120,7 @@ async function loadIntegrations(
 }
 
 export const load: PageServerLoad = async ({
+  cookies,
   getClientAddress,
   locals,
   request,
@@ -117,6 +151,42 @@ export const load: PageServerLoad = async ({
     getUserById(user.id),
     listUserPermissionGroups(user.id),
   ]);
+  const passwordAvailable = storedUser
+    ? userHasLocalPassword(storedUser)
+    : false;
+  const unlocked = storedUser ? securityUnlocked(cookies, user.id) : false;
+  const passkeys = storedUser ? await listUserPasskeys(user.id) : [];
+  const totpEnabled = storedUser ? await totpEnabledForUser(user.id) : false;
+  const externalUnlockMethods = storedUser
+    ? await getAuthSecurityUnlockMethods(
+        settings.plugins,
+        user,
+        locals.locale,
+        settings.i18n.defaultLocale,
+        permissions.auth.providers,
+      )
+    : [];
+  const security = storedUser
+    ? {
+        passwordAvailable,
+        unlocked,
+        totpAvailable: localTotpAllowed(permissions),
+        passkeyAvailable: localPasskeyAllowed(permissions),
+        totpEnabled,
+        passkeyCount: passkeys.length,
+        passkeys: unlocked ? passkeys : [],
+        externalUnlockMethods,
+      }
+    : {
+        passwordAvailable: false,
+        unlocked: false,
+        totpAvailable: false,
+        passkeyAvailable: false,
+        totpEnabled: false,
+        passkeyCount: 0,
+        passkeys: [],
+        externalUnlockMethods: [],
+      };
   return {
     locale: locals.locale,
     defaultLocale: settings.i18n.defaultLocale,
@@ -128,6 +198,14 @@ export const load: PageServerLoad = async ({
     customHead: displaySettings.seo.customHead,
     pendingEmail: storedUser?.pendingEmail ?? null,
     permissionGroups,
+    security,
+    plugins: getPublicPluginStates(settings.plugins),
+    runtimeSlots: await loadRuntimePluginSlots({
+      states: settings.plugins,
+      locale: locals.locale,
+      fallbackLocale: settings.i18n.defaultLocale,
+      user,
+    }),
     passwordMinLength: settings.auth.password.minLength,
     passwordPolicy: passwordPolicyDescription(
       settings.auth.password,
@@ -135,6 +213,44 @@ export const load: PageServerLoad = async ({
     ),
   };
 };
+
+async function requireSecurityManagement(input: {
+  cookies: import('@sveltejs/kit').Cookies;
+  locals: App.Locals;
+  request: Request;
+  getClientAddress: () => string;
+  provider: 'totp' | 'passkey';
+}) {
+  const user = requirePageUser(input.locals, '/account');
+  const settings = await getSettings();
+  const text = uiText(input.locals.locale, settings.i18n.defaultLocale);
+  const [storedUser, permissions] = await Promise.all([
+    getUserById(user.id),
+    effectivePermissions({
+      settings,
+      user,
+      isAdmin: input.locals.isAdmin,
+      ip: getClientIp(
+        input.request,
+        input.getClientAddress,
+        settings.network.trustProxyHeaders,
+        settings.network.proxyIpHeaders,
+      ),
+    }),
+  ]);
+  if (!storedUser) {
+    throw new Error(text.messages.userNotFound);
+  }
+  if (!securityUnlocked(input.cookies, user.id)) {
+    throw new Error(text.messages.securityUnlockRequired);
+  }
+  const allowed =
+    input.provider === 'totp'
+      ? localTotpAllowed(permissions)
+      : localPasskeyAllowed(permissions);
+  if (!allowed) throw new Error(text.messages.securityMethodNotAllowed);
+  return { user, settings, text, storedUser };
+}
 
 export const actions: Actions = {
   profile: async ({ request, locals, url }) => {
@@ -170,12 +286,22 @@ export const actions: Actions = {
     }
   },
 
-  password: async ({ request, locals }) => {
+  password: async ({ request, locals, cookies }) => {
     const user = requirePageUser(locals, '/account');
     const settings = await getSettings();
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
     const form = await request.formData();
     try {
+      const storedUser = await getUserById(user.id);
+      if (!storedUser) {
+        return fail(404, { message: text.messages.userNotFound });
+      }
+      if (
+        !userHasLocalPassword(storedUser) &&
+        !securityUnlocked(cookies, user.id)
+      ) {
+        return fail(403, { message: text.messages.securityUnlockRequired });
+      }
       await changeOwnPassword({
         id: user.id,
         currentPassword: stringValue(form, 'currentPassword'),
@@ -226,6 +352,259 @@ export const actions: Actions = {
     }
   },
 
+  unlockSecurity: async ({
+    request,
+    locals,
+    cookies,
+    url,
+    getClientAddress,
+  }) => {
+    const user = requirePageUser(locals, '/account');
+    const settings = await getSettings();
+    const text = uiText(locals.locale, settings.i18n.defaultLocale);
+    const form = await request.formData();
+    const verification = await verifyFormSubmissionPlugins({
+      action: 'account-security-unlock',
+      form,
+      request,
+      url,
+      states: settings.plugins,
+      user,
+      isAdmin: locals.isAdmin,
+      ip: getClientIp(
+        request,
+        getClientAddress,
+        settings.network.trustProxyHeaders,
+        settings.network.proxyIpHeaders,
+      ),
+      locale: locals.locale,
+      fallbackLocale: settings.i18n.defaultLocale,
+      settings,
+    });
+    if (!verification.allowed) {
+      return fail(400, {
+        message: verification.message
+          ? localizeServerMessage(
+              locals.locale,
+              verification.message,
+              settings.i18n.defaultLocale,
+            )
+          : text.messages.formVerificationFailed,
+      });
+    }
+
+    const [storedUser, totpEnabled, passkeys] = await Promise.all([
+      getUserById(user.id),
+      totpEnabledForUser(user.id),
+      listUserPasskeys(user.id),
+    ]);
+    if (!storedUser) return fail(404, { message: text.messages.userNotFound });
+
+    const passwordAvailable = userHasLocalPassword(storedUser);
+    const method = stringValue(form, 'securityMethod');
+    let verified = false;
+
+    if (method === 'password' && passwordAvailable) {
+      verified = verifyPassword(
+        stringValue(form, 'securityPassword'),
+        storedUser.passwordHash,
+      );
+    } else if (method === 'totp' && totpEnabled) {
+      verified = await verifyUserTotp(
+        user.id,
+        stringValue(form, 'securityTotpCode'),
+      );
+    } else if (method === 'passkey' && passkeys.length > 0) {
+      const challenge = randomChallenge();
+      setTimedChallenge(cookies, PASSKEY_SECURITY_UNLOCK_COOKIE, {
+        userId: user.id,
+        challenge,
+      });
+      return {
+        ok: true,
+        message: text.messages.securityPasskeyPrompt,
+        passkeyUnlock: authenticationOptions({
+          challenge,
+          rpId: url.hostname,
+        }),
+      };
+    } else if (
+      method === 'external' &&
+      !passwordAvailable &&
+      !totpEnabled &&
+      passkeys.length === 0
+    ) {
+      const providerValue = stringValue(form, 'securityProvider');
+      const separator = providerValue.indexOf(':');
+      const pluginId = separator >= 0 ? providerValue.slice(0, separator) : '';
+      const providerId =
+        separator >= 0 ? providerValue.slice(separator + 1) : providerValue;
+      const target = await startPluginSecurityUnlock(
+        cookies,
+        settings.plugins,
+        pluginId,
+        providerId,
+        url.origin,
+        user,
+        '/account',
+        locals.locale,
+        settings.i18n.defaultLocale,
+        url.searchParams,
+        (
+          await effectivePermissions({
+            settings,
+            user,
+            isAdmin: locals.isAdmin,
+            ip: getClientIp(
+              request,
+              getClientAddress,
+              settings.network.trustProxyHeaders,
+              settings.network.proxyIpHeaders,
+            ),
+          })
+        ).auth.providers,
+      );
+      if (!target) {
+        return fail(403, { message: text.messages.securityMethodNotAllowed });
+      }
+      redirect(303, target.toString());
+    }
+
+    if (!verified) {
+      return fail(401, { message: text.messages.securityUnlockFailed });
+    }
+    setSecurityUnlock(cookies, user.id);
+    return { ok: true, message: text.messages.securityUnlocked };
+  },
+
+  startTotp: async ({ request, locals, cookies, getClientAddress }) => {
+    const fallbackText = uiText(
+      locals.locale,
+      locals.settings.i18n.defaultLocale,
+    );
+    try {
+      const { user, text } = await requireSecurityManagement({
+        cookies,
+        locals,
+        request,
+        getClientAddress,
+        provider: 'totp',
+      });
+      const secret = createTotpSecret();
+      const otpauthUrl = totpOtpAuthUrl({
+        issuer: locals.localizedSettings.general.siteName,
+        accountName: user.email ?? user.name,
+        secret,
+      });
+      setTimedChallenge(cookies, TOTP_SETUP_COOKIE, {
+        userId: user.id,
+        secret,
+      });
+      return {
+        ok: true,
+        message: text.messages.totpSetupStarted,
+        setupTotp: {
+          secret,
+          otpauthUrl,
+          qrDataUrl: await QRCode.toDataURL(otpauthUrl, {
+            margin: 1,
+            width: 220,
+          }),
+        },
+      };
+    } catch (cause) {
+      return fail(400, {
+        message:
+          cause instanceof Error
+            ? localizeServerMessage(
+                locals.locale,
+                cause.message,
+                locals.settings.i18n.defaultLocale,
+              )
+            : fallbackText.messages.securityUpdateFailed,
+      });
+    }
+  },
+
+  enableTotp: async ({ request, locals, cookies, getClientAddress }) => {
+    const user = requirePageUser(locals, '/account');
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
+    const form = await request.formData();
+    const settings = await getSettings();
+    const permissions = await effectivePermissions({
+      settings,
+      user,
+      isAdmin: locals.isAdmin,
+      ip: getClientIp(
+        request,
+        getClientAddress,
+        settings.network.trustProxyHeaders,
+        settings.network.proxyIpHeaders,
+      ),
+    });
+    if (!securityUnlocked(cookies, user.id)) {
+      return fail(403, { message: text.messages.securityUnlockRequired });
+    }
+    if (!localTotpAllowed(permissions)) {
+      return fail(403, { message: text.messages.securityMethodNotAllowed });
+    }
+    const challenge = readTimedChallenge(cookies, TOTP_SETUP_COOKIE);
+    if (
+      !challenge?.secret ||
+      challenge.userId !== user.id ||
+      !verifyTotpCode(challenge.secret, stringValue(form, 'totpCode'))
+    ) {
+      return fail(400, { message: text.messages.totpCodeInvalid });
+    }
+    consumeTimedChallenge(cookies, TOTP_SETUP_COOKIE);
+    await saveUserTotpSecret(user.id, challenge.secret);
+    return { ok: true, message: text.messages.totpEnabled };
+  },
+
+  disableTotp: async ({ request, locals, cookies, getClientAddress }) => {
+    const fallbackText = uiText(
+      locals.locale,
+      locals.settings.i18n.defaultLocale,
+    );
+    try {
+      const { user, text } = await requireSecurityManagement({
+        cookies,
+        locals,
+        request,
+        getClientAddress,
+        provider: 'totp',
+      });
+      await removeUserTotpSecret(user.id);
+      return { ok: true, message: text.messages.totpDisabled };
+    } catch (cause) {
+      return fail(400, {
+        message:
+          cause instanceof Error
+            ? localizeServerMessage(
+                locals.locale,
+                cause.message,
+                locals.settings.i18n.defaultLocale,
+              )
+            : fallbackText.messages.securityUpdateFailed,
+      });
+    }
+  },
+
+  revokePasskey: async ({ request, locals, cookies }) => {
+    const user = requirePageUser(locals, '/account');
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
+    if (!securityUnlocked(cookies, user.id)) {
+      return fail(403, { message: text.messages.securityUnlockRequired });
+    }
+    const form = await request.formData();
+    const removed = await removeUserPasskey(
+      user.id,
+      Number(stringValue(form, 'id', '0')),
+    );
+    if (!removed) return fail(404, { message: text.messages.passkeyNotFound });
+    return { ok: true, message: text.messages.passkeyRemoved };
+  },
+
   createToken: async ({ request, locals }) => {
     const user = requirePageUser(locals, '/account');
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
@@ -238,18 +617,22 @@ export const actions: Actions = {
     };
   },
 
-  revokeToken: async ({ request, locals }) => {
+  revokeTokens: async ({ request, locals }) => {
     const user = requirePageUser(locals, '/account');
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
     const form = await request.formData();
-    const removed = await revokeApiToken(
-      user.id,
-      Number(stringValue(form, 'id', '0')),
-    );
-    if (!removed) {
+    const tokenIds = form.getAll('ids').map((value) => Number(String(value)));
+    if (tokenIds.length === 0) {
+      return fail(400, { message: text.messages.tokenSelectionRequired });
+    }
+    const removed = await revokeApiTokens(user.id, tokenIds);
+    if (removed === 0) {
       return fail(404, { message: text.messages.tokenNotFound });
     }
-    return { ok: true, message: text.messages.tokenRevoked };
+    return {
+      ok: true,
+      message: formatText(text.messages.tokensRevoked, { count: removed }),
+    };
   },
 
   delete: async ({ locals, cookies }) => {

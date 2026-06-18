@@ -1,11 +1,12 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import PluginSlotOutlet from '$lib/components/PluginSlotOutlet.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
+  import { providerButtonStyle } from '$lib/auth-provider-style';
   import { siteThemeStyle } from '$lib/theme-vars';
   import type { SiteLocale, SiteSettings } from '$lib/config';
   import type { RuntimePluginSlotRender } from '$lib/plugin-contracts';
@@ -43,50 +44,19 @@
       customHead: string;
       plugins: SiteSettings['plugins'];
       passwordEnabled: boolean;
+      passkeyEnabled: boolean;
       registrationAllowed: boolean;
       resendVerificationAvailable: boolean;
       passwordResetAvailable: boolean;
       providers: LoginProvider[];
       runtimeSlots: RuntimePluginSlotRender[];
     };
-    form?: { message?: string };
+    form?: { message?: string; totpRequired?: boolean };
   } = $props();
 
   const text = $derived(uiText(data.locale, data.defaultLocale));
   let identifierProvider = $state<LoginProvider | null>(null);
   let identifierInput = $state<HTMLInputElement>();
-
-  function contrastTextColor(color: string) {
-    const match = /^#([0-9a-fA-F]{6})$/.exec(color);
-    if (!match) return 'var(--page-primary-contrast)';
-    const value = match[1];
-    const r = parseInt(value.slice(0, 2), 16) / 255;
-    const g = parseInt(value.slice(2, 4), 16) / 255;
-    const b = parseInt(value.slice(4, 6), 16) / 255;
-    const linear = [r, g, b].map((channel) =>
-      channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
-    );
-    const luminance =
-      0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-    return luminance > 0.55 ? '#111827' : '#ffffff';
-  }
-
-  function providerButtonStyle(provider: {
-    buttonColor?: string;
-    buttonTextColor?: string;
-  }) {
-    const values: string[] = [];
-    if (provider.buttonColor) {
-      values.push(`--provider-bg:${provider.buttonColor}`);
-      values.push(`--provider-border:${provider.buttonColor}`);
-      values.push(
-        `--provider-text:${provider.buttonTextColor || contrastTextColor(provider.buttonColor)}`,
-      );
-    } else if (provider.buttonTextColor) {
-      values.push(`--provider-text:${provider.buttonTextColor}`);
-    }
-    return values.join(';');
-  }
 
   async function openIdentifierModal(provider: LoginProvider) {
     identifierProvider = provider;
@@ -105,6 +75,80 @@
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') closeIdentifierModal();
   }
+
+  function base64urlToBuffer(value: string) {
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes.buffer;
+  }
+
+  function bufferToBase64url(value: ArrayBuffer) {
+    const bytes = new Uint8Array(value);
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+  }
+
+  function authenticationPublicKeyOptions(options: Record<string, unknown>) {
+    return {
+      ...options,
+      challenge: base64urlToBuffer(String(options.challenge ?? '')),
+    } as PublicKeyCredentialRequestOptions;
+  }
+
+  function serializeAssertionCredential(credential: PublicKeyCredential) {
+    const response = credential.response as AuthenticatorAssertionResponse;
+    return {
+      id: credential.id,
+      rawId: bufferToBase64url(credential.rawId),
+      type: credential.type,
+      response: {
+        authenticatorData: bufferToBase64url(response.authenticatorData),
+        clientDataJSON: bufferToBase64url(response.clientDataJSON),
+        signature: bufferToBase64url(response.signature),
+        userHandle: response.userHandle
+          ? bufferToBase64url(response.userHandle)
+          : null,
+      },
+    };
+  }
+
+  async function attemptPasskeyLogin() {
+    if (!data.passkeyEnabled || !window.PublicKeyCredential) return;
+    const optionsResponse = await fetch(
+      `${resolve('/login/passkey')}?returnTo=${encodeURIComponent(data.returnTo)}`,
+    );
+    if (!optionsResponse.ok) return;
+    const credential = (await navigator.credentials.get({
+      publicKey: authenticationPublicKeyOptions(await optionsResponse.json()),
+      mediation: 'optional',
+    })) as PublicKeyCredential | null;
+    if (!credential) return;
+    const loginResponse = await fetch(resolve('/login/passkey'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(serializeAssertionCredential(credential)),
+    });
+    if (!loginResponse.ok) return;
+    const body = (await loginResponse.json().catch(() => ({}))) as {
+      returnTo?: string;
+    };
+    window.location.assign(body.returnTo ?? data.returnTo);
+  }
+
+  onMount(() => {
+    void attemptPasskeyLogin().catch(() => {
+      // Password and SSO login remain available when passkey mediation is canceled.
+    });
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -138,7 +182,22 @@
     <h1>{text.auth.loginTitle}</h1>
     <p class="muted">{text.auth.loginDescription}</p>
 
-    {#if data.passwordEnabled}
+    {#if form?.totpRequired}
+      <form method="POST" action="?/login" use:enhance>
+        <input type="hidden" name="returnTo" value={data.returnTo} />
+        <label>
+          {text.auth.totpCode}
+          <input
+            type="text"
+            name="totpCode"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            required
+          />
+        </label>
+        <button type="submit">{text.auth.verifyTotp}</button>
+      </form>
+    {:else if data.passwordEnabled}
       <form method="POST" action="?/login" use:enhance>
         <input type="hidden" name="returnTo" value={data.returnTo} />
         <label
@@ -277,7 +336,7 @@
       </div>
     {/if}
 
-    {#if !data.passwordEnabled && !data.providers.length}
+    {#if !data.passwordEnabled && !data.providers.length && !data.passkeyEnabled}
       <div class="inline-note">{text.auth.noLoginMethods}</div>
     {/if}
     <div

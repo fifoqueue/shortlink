@@ -20,7 +20,6 @@
 
   type AdminData = {
     callbackUrl: string;
-    accountLinkCallbackUrl: string;
   };
 
   let {
@@ -766,13 +765,6 @@
         copied={copiedCallback === 'login'}
         {locale}
         onclick={() => copyCallback(data.callbackUrl, 'login')}
-      />
-      <CopyValue
-        label={t('admin.accountLinkCallback')}
-        value={data.accountLinkCallbackUrl ?? ''}
-        copied={copiedCallback === 'account'}
-        {locale}
-        onclick={() => copyCallback(data.accountLinkCallbackUrl, 'account')}
       />
     </div>
   </section>

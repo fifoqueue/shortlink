@@ -116,14 +116,14 @@
                 : ''}
             </span>
           </div>
-          <form method="POST" action="?/revoke" use:enhance>
-            <input type="hidden" name="id" value={token.id} />
+          <form method="POST" action="?/revokeTokens" use:enhance>
+            <input type="hidden" name="ids" value={token.id} />
             <DangerConfirmButton
               label={text.account.revoke}
-              title={text.account.revokeTokenTitle}
-              message={text.account.revokeTokenMessage}
+              title={text.account.revokeTokensTitle}
+              message={text.account.revokeTokensMessage}
               details={[`${token.name} (${token.prefix}...)`]}
-              confirmLabel={text.account.revokeTokenConfirm}
+              confirmLabel={text.account.revokeTokensConfirm}
               locale={data.locale}
             />
           </form>

@@ -8,8 +8,13 @@ import {
 } from '$lib/server/users';
 import {
   listApiTokens,
-  revokeApiToken as revokeUserApiToken,
+  revokeApiTokens as revokeUserApiTokens,
 } from '$lib/server/api-tokens';
+import {
+  LOCAL_AUTH_PROVIDER_ID,
+  PASSKEY_METHOD_ID,
+  TOTP_METHOD_ID,
+} from '$lib/server/local-auth-security';
 import { getSettings, parseBoolean, stringValue } from '$lib/server/settings';
 import { passwordPolicyDescription } from '$lib/server/password-policy';
 import { pluginText } from '$lib/i18n/plugin';
@@ -523,20 +528,37 @@ const serverPlugin = {
           pageSize: GROUP_CIDR_PAGE_SIZE,
         }),
       ]);
+      const authProviders = getAuthLoginMethods(
+        settings.plugins,
+        locale,
+        settings.i18n.defaultLocale,
+      ).map((method) => ({
+        id: authProviderKey(method.pluginId, method.id),
+        pluginId: method.pluginId,
+        methodId: method.id,
+        label: method.label,
+        type: method.type,
+      }));
+      authProviders.push(
+        {
+          id: authProviderKey(LOCAL_AUTH_PROVIDER_ID, TOTP_METHOD_ID),
+          pluginId: LOCAL_AUTH_PROVIDER_ID,
+          methodId: TOTP_METHOD_ID,
+          label: t(strings, 'admin.localTotp'),
+          type: 'password' as const,
+        },
+        {
+          id: authProviderKey(LOCAL_AUTH_PROVIDER_ID, PASSKEY_METHOD_ID),
+          pluginId: LOCAL_AUTH_PROVIDER_ID,
+          methodId: PASSKEY_METHOD_ID,
+          label: t(strings, 'admin.localPasskey'),
+          type: 'password' as const,
+        },
+      );
       return {
         kind: 'group' as const,
         group,
-        authProviders: getAuthLoginMethods(
-          settings.plugins,
-          locale,
-          settings.i18n.defaultLocale,
-        ).map((method) => ({
-          id: authProviderKey(method.pluginId, method.id),
-          pluginId: method.pluginId,
-          methodId: method.id,
-          label: method.label,
-          type: method.type,
-        })),
+        authProviders,
         cidrs,
         members: memberSearchPayload(members, 'memberPage', 'memberQ'),
         addableUsers: userSearchPayload(
@@ -586,11 +608,11 @@ const serverPlugin = {
       }
       if (action === 'revokeApiToken') {
         await assertCanManageUser(user, isAdmin, strings, userId);
-        const removed = await revokeUserApiToken(
-          userId,
+        const removed = await revokeUserApiTokens(userId, [
           Number(form.get('tokenId')),
-        );
-        if (!removed) throw new Error(t(strings, 'server.apiTokenNotFound'));
+        ]);
+        if (removed === 0)
+          throw new Error(t(strings, 'server.apiTokenNotFound'));
         return { message: t(strings, 'server.apiTokenRevoked') };
       }
     }

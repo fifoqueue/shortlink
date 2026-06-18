@@ -2,7 +2,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import {
   createApiToken,
   listApiTokens,
-  revokeApiToken,
+  revokeApiTokens,
 } from '$lib/server/api-tokens';
 import { requireJsonUser } from '$lib/server/auth-guards';
 
@@ -17,7 +17,9 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   const error = requireJsonUser(locals);
   if (error) return error;
 
-  const body = await request.json().catch(() => ({}));
+  const body = (await request.json().catch(() => ({}))) as {
+    name?: unknown;
+  };
   const result = await createApiToken(
     locals.user!.id,
     String(body.name ?? 'API token'),
@@ -29,7 +31,13 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
   const error = requireJsonUser(locals);
   if (error) return error;
 
-  const body = await request.json().catch(() => ({}));
-  const removed = await revokeApiToken(locals.user!.id, Number(body.id ?? 0));
-  return json({ ok: removed });
+  const body = (await request.json().catch(() => ({}))) as {
+    id?: unknown;
+    ids?: unknown[];
+  };
+  const ids = Array.isArray(body.ids)
+    ? body.ids.map((id) => Number(id))
+    : [Number(body.id ?? 0)];
+  const removed = await revokeApiTokens(locals.user!.id, ids);
+  return json({ ok: removed > 0, removed });
 };

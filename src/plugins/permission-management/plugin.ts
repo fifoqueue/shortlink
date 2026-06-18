@@ -116,6 +116,8 @@ const plugin: PluginDefinition = {
         'admin.authProvidersHelp':
           'Override를 켜면 선택한 제공자만 사용할 수 있습니다. 아무것도 선택하지 않으면 모든 인증 제공자를 차단합니다.',
         'admin.noAuthProviders': '사용 가능한 인증 제공자가 없습니다.',
+        'admin.localTotp': '로컬 TOTP',
+        'admin.localPasskey': '로컬 Passkey',
         'admin.accountRecovery': '계정 복구',
         'admin.accountRecoveryDescription':
           '비로그인 상태에서 사용할 수 있는 인증 메일 재발송과 비밀번호 재설정 요청 제한을 override합니다. CIDR 그룹에도 적용됩니다.',
@@ -393,6 +395,8 @@ const plugin: PluginDefinition = {
         'admin.authProvidersHelp':
           'When override is enabled, only selected providers can be used. Selecting nothing blocks every auth provider.',
         'admin.noAuthProviders': 'No auth providers are available.',
+        'admin.localTotp': 'Local TOTP',
+        'admin.localPasskey': 'Local Passkey',
         'admin.accountRecovery': 'Account recovery',
         'admin.accountRecoveryDescription':
           'Override unauthenticated resend-verification and password-reset request limits. CIDR groups apply here too.',

@@ -5,7 +5,25 @@ import { registrationAvailability } from '$lib/server/registration';
 import { getSettings } from '$lib/server/settings';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import { accountRecoveryAvailability } from '$lib/server/account-recovery';
-import { effectivePermissionsForEvent } from '$lib/server/permissions';
+import {
+  effectivePermissions,
+  effectivePermissionsForEvent,
+} from '$lib/server/permissions';
+import { createUserSessionFromModel } from '$lib/server/auth-session';
+import { authenticateUser, getUserById } from '$lib/server/users';
+import {
+  TOTP_LOGIN_COOKIE,
+  anyPasskeysExist,
+  authenticatedUserFromModel,
+  consumeTimedChallenge,
+  localPasskeyAllowed,
+  localTotpAllowed,
+  readTimedChallenge,
+  setTimedChallenge,
+  totpEnabledForUser,
+  userHasLocalPassword,
+  verifyUserTotp,
+} from '$lib/server/local-auth-security';
 import {
   authenticatePluginPassword,
   getAuthLoginMethods,
@@ -18,6 +36,20 @@ import {
 
 function safeReturnTo(value: string | null) {
   return value?.startsWith('/') && !value.startsWith('//') ? value : '/';
+}
+
+function localPasswordLoginAvailable(
+  settings: Awaited<ReturnType<typeof getSettings>>,
+  locale: App.Locals['locale'],
+  fallbackLocale: App.Locals['locale'],
+  providers: readonly string[] | null,
+) {
+  return getAuthLoginMethods(
+    settings.plugins,
+    locale,
+    fallbackLocale,
+    providers,
+  ).some((method) => method.type === 'password');
 }
 
 export const load: PageServerLoad = async ({
@@ -51,6 +83,8 @@ export const load: PageServerLoad = async ({
     permissions,
     passwordLoginEnabled: passwordEnabled,
   });
+  const passkeyEnabled =
+    localPasskeyAllowed(permissions) && (await anyPasskeysExist());
   if (registration.setupRequired) redirect(303, '/signup');
   return {
     locale: locals.locale,
@@ -65,6 +99,7 @@ export const load: PageServerLoad = async ({
     customHead: displaySettings.seo.customHead,
     plugins: getPublicPluginStates(settings.plugins),
     passwordEnabled,
+    passkeyEnabled,
     registrationAllowed: registration.allowed,
     resendVerificationAvailable: recovery.resendVerification,
     passwordResetAvailable: recovery.passwordReset,
@@ -108,6 +143,65 @@ export const actions: Actions = {
       getClientAddress,
     });
     const form = await request.formData();
+    const totpCode = String(form.get('totpCode') ?? '').trim();
+    if (totpCode) {
+      const challenge = readTimedChallenge(cookies, TOTP_LOGIN_COOKIE);
+      const storedUser = challenge?.userId
+        ? await getUserById(challenge.userId)
+        : null;
+      if (
+        !challenge ||
+        !storedUser ||
+        storedUser.enabled !== true ||
+        !userHasLocalPassword(storedUser)
+      ) {
+        return fail(401, { message: text.messages.invalidLogin });
+      }
+      const authUser = authenticatedUserFromModel(
+        storedUser,
+        'password',
+        String(storedUser.id),
+      );
+      const userPermissions = await effectivePermissions({
+        settings,
+        user: authUser,
+        isAdmin: authUser.isAdmin,
+        ip: getClientIp(
+          request,
+          getClientAddress,
+          settings.network.trustProxyHeaders,
+          settings.network.proxyIpHeaders,
+        ),
+      });
+      if (
+        !localPasswordLoginAvailable(
+          settings,
+          locals.locale,
+          settings.i18n.defaultLocale,
+          userPermissions.auth.providers,
+        ) ||
+        !localTotpAllowed(userPermissions)
+      ) {
+        return fail(403, {
+          message: text.messages.securityMethodNotAllowed,
+        });
+      }
+      if (!(await verifyUserTotp(storedUser.id, totpCode))) {
+        return fail(401, {
+          message: text.messages.totpCodeInvalid,
+          totpRequired: true,
+        });
+      }
+      consumeTimedChallenge(cookies, TOTP_LOGIN_COOKIE);
+      createUserSessionFromModel(
+        cookies,
+        storedUser,
+        'password',
+        String(storedUser.id),
+      );
+      redirect(303, safeReturnTo(challenge.returnTo ?? null));
+    }
+
     const verification = await verifyFormSubmissionPlugins({
       action: 'login',
       form,
@@ -138,11 +232,76 @@ export const actions: Actions = {
       });
     }
 
+    const localPasswordAvailable = localPasswordLoginAvailable(
+      settings,
+      locals.locale,
+      settings.i18n.defaultLocale,
+      permissions.auth.providers,
+    );
+    const email = String(form.get('email') ?? '');
+    const password = String(form.get('password') ?? '');
+    if (localPasswordAvailable) {
+      const storedUser = await authenticateUser(email, password);
+      if (!storedUser)
+        return fail(401, {
+          message: text.messages.invalidLogin,
+        });
+
+      const authUser = authenticatedUserFromModel(
+        storedUser,
+        'password',
+        String(storedUser.id),
+      );
+      const userPermissions = await effectivePermissions({
+        settings,
+        user: authUser,
+        isAdmin: authUser.isAdmin,
+        ip: getClientIp(
+          request,
+          getClientAddress,
+          settings.network.trustProxyHeaders,
+          settings.network.proxyIpHeaders,
+        ),
+      });
+      if (
+        !localPasswordLoginAvailable(
+          settings,
+          locals.locale,
+          settings.i18n.defaultLocale,
+          userPermissions.auth.providers,
+        )
+      ) {
+        return fail(401, {
+          message: text.messages.invalidLogin,
+        });
+      }
+      if (
+        localTotpAllowed(userPermissions) &&
+        (await totpEnabledForUser(storedUser.id))
+      ) {
+        setTimedChallenge(cookies, TOTP_LOGIN_COOKIE, {
+          userId: storedUser.id,
+          returnTo: safeReturnTo(String(form.get('returnTo') ?? '')),
+        });
+        return fail(401, {
+          message: text.auth.totpRequired,
+          totpRequired: true,
+        });
+      }
+      createUserSessionFromModel(
+        cookies,
+        storedUser,
+        'password',
+        String(storedUser.id),
+      );
+      redirect(303, safeReturnTo(String(form.get('returnTo') ?? '')));
+    }
+
     const user = await authenticatePluginPassword(
       cookies,
       settings.plugins,
-      String(form.get('email') ?? ''),
-      String(form.get('password') ?? ''),
+      email,
+      password,
       locals.locale,
       settings.i18n.defaultLocale,
       permissions.auth.providers,
