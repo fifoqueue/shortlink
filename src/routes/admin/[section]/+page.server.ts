@@ -22,6 +22,7 @@ import { parseLinkSearch } from '$lib/server/link-search';
 import { DEFAULT_PAGE_SIZE, pageParam } from '$lib/server/pagination';
 import { getClientIp } from '$lib/server/client-ip';
 import { validateGeoipSettings } from '$lib/server/geoip';
+import { hashWebActionBypassToken } from '$lib/server/web-action-guard';
 import { getLinkOwner } from '$lib/server/link-owner';
 import {
   canAccessAdminSection,
@@ -100,6 +101,7 @@ function actionErrorMessage(
 const sectionIds = {
   core: 'general',
   'link-and-api': 'links',
+  security: 'security',
   theme: 'theme',
   plugins: 'plugins',
   links: 'data',
@@ -237,6 +239,41 @@ function parseOutboundProxySettings(form: FormData) {
   ).slice(0, 1_000);
   if (enabled) parseOutboundProxyUrl(url);
   return { enabled, url };
+}
+
+function parseSecuritySettings(
+  form: FormData,
+  current: Awaited<ReturnType<typeof getSettings>>['security'],
+) {
+  const bypassToken = stringValue(form, 'webActionGuardBypassToken');
+  return {
+    webActionGuard: {
+      enabled: parseBoolean(form, 'webActionGuardEnabled'),
+      tokenTtlSeconds: numberValue(
+        form,
+        'webActionGuardTokenTtlSeconds',
+        current.webActionGuard.tokenTtlSeconds,
+        60,
+        24 * 60 * 60,
+      ),
+      bypassTokenHash: parseBoolean(form, 'webActionGuardClearBypassToken')
+        ? ''
+        : bypassToken
+          ? hashWebActionBypassToken(bypassToken)
+          : current.webActionGuard.bypassTokenHash,
+      adminBypass: parseBoolean(form, 'webActionGuardAdminBypass'),
+    },
+    csrf: {
+      enabled: parseBoolean(form, 'csrfEnabled'),
+      tokenTtlSeconds: numberValue(
+        form,
+        'csrfTokenTtlSeconds',
+        current.csrf.tokenTtlSeconds,
+        60,
+        24 * 60 * 60,
+      ),
+    },
+  };
 }
 
 function parseShortLinkDomains(form: FormData, currentDefaultDomain = '') {
@@ -677,54 +714,6 @@ export const actions: Actions = {
     };
     settings.access.visibility =
       stringValue(form, 'visibility') === 'public' ? 'public' : 'private';
-    try {
-      settings.auth = {
-        password: {
-          minLength: numberValue(
-            form,
-            'passwordMinLength',
-            settings.auth.password.minLength,
-            8,
-            128,
-          ),
-          requireLetters: parseBoolean(form, 'passwordRequireLetters'),
-          requireNumbers: parseBoolean(form, 'passwordRequireNumbers'),
-          requireSymbols: parseBoolean(form, 'passwordRequireSymbols'),
-        },
-        registration: {
-          enabled: parseBoolean(form, 'registrationEnabled'),
-        },
-        accountRecovery: {
-          resendVerificationDailyLimit: numberValue(
-            form,
-            'resendVerificationDailyLimit',
-            settings.auth.accountRecovery.resendVerificationDailyLimit,
-            0,
-            1_000,
-          ),
-          passwordResetDailyLimit: numberValue(
-            form,
-            'passwordResetDailyLimit',
-            settings.auth.accountRecovery.passwordResetDailyLimit,
-            0,
-            1_000,
-          ),
-        },
-        emailVerification: mergeEmailSettings(form, settings),
-      };
-      settings.network.outboundProxy = parseOutboundProxySettings(form);
-    } catch (cause) {
-      return fail(400, {
-        ok: false,
-        action: 'saveGeneral',
-        message: actionErrorMessage(
-          cause,
-          locals.locale,
-          locals.settings.i18n.defaultLocale,
-          text.admin.messages.generalSettingsFailed,
-        ),
-      });
-    }
 
     await updateSettings(settings);
     return {
@@ -800,17 +789,9 @@ export const actions: Actions = {
       editableFields: linkEditFieldsFromForm(form),
       trackClicks: parseBoolean(form, 'trackClicks'),
       redirectStatus: parseRedirectStatus(stringValue(form, 'redirectStatus')),
-      stripUrlHash: parseBoolean(form, 'stripUrlHash'),
-      allowedSchemes: parseSchemes(stringValue(form, 'allowedSchemes')),
-      blockedHosts: parseLines(stringValue(form, 'blockedHosts'))
-        .map(
-          (host) =>
-            host
-              .toLowerCase()
-              .replace(/^https?:\/\//, '')
-              .split('/')[0],
-        )
-        .filter(Boolean),
+      stripUrlHash: settings.links.stripUrlHash,
+      allowedSchemes: settings.links.allowedSchemes,
+      blockedHosts: settings.links.blockedHosts,
     };
     settings.api = {
       enabled: parseBoolean(form, 'apiGlobalEnabled'),
@@ -820,25 +801,110 @@ export const actions: Actions = {
       allowDelete: parseBoolean(form, 'apiAllowDelete'),
       allowUpdate: parseBoolean(form, 'apiAllowUpdate'),
     };
+
+    await updateSettings(settings);
+    return {
+      ok: true,
+      action: 'saveLinks',
+      message: text.admin.messages.linksSettingsSaved,
+    };
+  },
+
+  saveSecurity: async ({ request, locals, getClientAddress }) => {
+    const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
+    const { permissions } = await permissionContext({
+      locals,
+      request,
+      getClientAddress,
+    });
     try {
+      requireSectionManage(
+        permissions,
+        'security',
+        text.admin.messages.sectionSaveDenied,
+      );
+    } catch (cause) {
+      return fail(403, {
+        ok: false,
+        action: 'saveSecurity',
+        message: actionErrorMessage(
+          cause,
+          locals.locale,
+          locals.settings.i18n.defaultLocale,
+          text.admin.messages.sectionSaveDenied,
+        ),
+      });
+    }
+
+    const form = await request.formData();
+    const settings = await getSettings({ mutable: true });
+    try {
+      settings.auth = {
+        password: {
+          minLength: numberValue(
+            form,
+            'passwordMinLength',
+            settings.auth.password.minLength,
+            8,
+            128,
+          ),
+          requireLetters: parseBoolean(form, 'passwordRequireLetters'),
+          requireNumbers: parseBoolean(form, 'passwordRequireNumbers'),
+          requireSymbols: parseBoolean(form, 'passwordRequireSymbols'),
+        },
+        registration: {
+          enabled: parseBoolean(form, 'registrationEnabled'),
+        },
+        accountRecovery: {
+          resendVerificationDailyLimit: numberValue(
+            form,
+            'resendVerificationDailyLimit',
+            settings.auth.accountRecovery.resendVerificationDailyLimit,
+            0,
+            1_000,
+          ),
+          passwordResetDailyLimit: numberValue(
+            form,
+            'passwordResetDailyLimit',
+            settings.auth.accountRecovery.passwordResetDailyLimit,
+            0,
+            1_000,
+          ),
+        },
+        emailVerification: mergeEmailSettings(form, settings),
+      };
       settings.network = {
         trustProxyHeaders: parseBoolean(form, 'trustProxyHeaders'),
         proxyIpHeaders: parseProxyIpHeaders(
           stringValue(form, 'proxyIpHeaders'),
         ),
         geoip: parseGeoipSettings(form),
-        outboundProxy:
-          settings.network.outboundProxy ?? defaultOutboundProxySettings,
+        outboundProxy: parseOutboundProxySettings(form),
       };
+      settings.links = {
+        ...settings.links,
+        stripUrlHash: parseBoolean(form, 'stripUrlHash'),
+        allowedSchemes: parseSchemes(stringValue(form, 'allowedSchemes')),
+        blockedHosts: parseLines(stringValue(form, 'blockedHosts'))
+          .map(
+            (host) =>
+              host
+                .toLowerCase()
+                .replace(/^https?:\/\//, '')
+                .split('/')[0],
+          )
+          .filter(Boolean),
+      };
+      settings.security = parseSecuritySettings(form, settings.security);
     } catch (cause) {
       return fail(400, {
         ok: false,
-        action: 'saveLinks',
+        action: 'saveSecurity',
         message: actionErrorMessage(
           cause,
           locals.locale,
           locals.settings.i18n.defaultLocale,
-          text.admin.messages.proxyHeadersFailed,
+          text.admin.messages.securitySettingsFailed,
         ),
       });
     }
@@ -846,8 +912,8 @@ export const actions: Actions = {
     await updateSettings(settings);
     return {
       ok: true,
-      action: 'saveLinks',
-      message: text.admin.messages.linksSettingsSaved,
+      action: 'saveSecurity',
+      message: text.admin.messages.securitySettingsSaved,
     };
   },
 

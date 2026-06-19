@@ -62,6 +62,7 @@ export type LinkEditField = LinkEditFieldKey;
 export const ADMIN_SECTION_KEYS = [
   'general',
   'links',
+  'security',
   'theme',
   'plugins',
   'data',

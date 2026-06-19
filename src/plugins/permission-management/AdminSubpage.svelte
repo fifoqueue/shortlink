@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { localizedAdminSections } from '$lib/admin-sections';
   import { pluginLocaleStrings, pluginText } from '$lib/i18n/plugin';
   import { translateContent } from '$lib/i18n/translate-content';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
@@ -311,13 +312,7 @@
     LinkEditFieldKey,
     PluginLocaleKey,
   ])[];
-  const adminSections = [
-    ['general', 'admin.siteSection'],
-    ['links', 'admin.linksAndApiSection'],
-    ['theme', 'admin.themeSection'],
-    ['plugins', 'admin.pluginsSection'],
-    ['data', 'admin.linkManagementSection'],
-  ] as const satisfies readonly (readonly [string, PluginLocaleKey])[];
+  const adminSections = $derived(localizedAdminSections(locale));
   const apiPermissions = [
     ['enabled', 'admin.apiAccess'],
     ['create', 'admin.createLinksApi'],
@@ -1214,12 +1209,12 @@
         <section>
           <h2>{t('admin.accessibleAdminTabs')}</h2>
           <div class="checks">
-            {#each adminSections as section (section[0])}
+            {#each adminSections as section (section.id)}
               <ToggleField
                 name="adminSections"
-                value={section[0]}
-                checked={group.rules.admin.sections.includes(section[0])}
-                label={t(section[1])}
+                value={section.id}
+                checked={group.rules.admin.sections.includes(section.id)}
+                label={section.label}
               />
             {/each}
           </div>
@@ -1228,12 +1223,12 @@
         <section>
           <h2>{t('admin.manageableAdminTabs')}</h2>
           <div class="checks">
-            {#each adminSections as section (section[0])}
+            {#each adminSections as section (section.id)}
               <ToggleField
                 name="adminManageSections"
-                value={section[0]}
-                checked={group.rules.admin.manageSections.includes(section[0])}
-                label={t(section[1])}
+                value={section.id}
+                checked={group.rules.admin.manageSections.includes(section.id)}
+                label={section.label}
               />
             {/each}
           </div>

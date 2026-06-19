@@ -22,6 +22,12 @@ import {
   setPluginStateNormalizer,
 } from '$lib/server/settings';
 import {
+  createCsrfToken,
+  createWebActionToken,
+  enforceWebActionGuard,
+  injectWebActionTokens,
+} from '$lib/server/web-action-guard';
+import {
   isDefaultShortLinkDomain,
   shortLinkHostnameFromOrigin,
   shortLinkDomainOrigin,
@@ -159,6 +165,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     ? await getPluginUser(event.cookies, settings.plugins)
     : null;
   event.locals.isAdmin = event.locals.user?.isAdmin === true;
+  const webActionGuardResponse = await enforceWebActionGuard(event);
+  if (webActionGuardResponse) return webActionGuardResponse;
+
   const pluginResponse = hasRequestPlugins
     ? await handleRequestPlugins({
         event,
@@ -185,10 +194,39 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   const isAdminPath =
     event.url.pathname === '/admin' || event.url.pathname.startsWith('/admin/');
+  const shouldInjectFormTokens =
+    settings.security.csrf.enabled || settings.security.webActionGuard.enabled;
+  let htmlBuffer = '';
+  let csrfToken: string | null = null;
+  let webActionToken: string | null = null;
+  const transformHtmlChunk = (html: string, done: boolean) => {
+    const localizedHtml = html.replace(
+      '<html lang="ko">',
+      `<html lang="${locale}">`,
+    );
+    if (!shouldInjectFormTokens) return localizedHtml;
+
+    htmlBuffer += localizedHtml;
+    if (!done) return '';
+
+    const readyHtml = htmlBuffer;
+    htmlBuffer = '';
+    if (!readyHtml.toLowerCase().includes('<form')) return readyHtml;
+    if (settings.security.csrf.enabled) {
+      csrfToken ??= createCsrfToken(event);
+    }
+    if (settings.security.webActionGuard.enabled) {
+      webActionToken ??= createWebActionToken(event);
+    }
+    return injectWebActionTokens(readyHtml, {
+      csrfToken,
+      origin,
+      webActionToken,
+    });
+  };
   const response = await resolve(event, {
     preload: ({ type }) => !isAdminPath && (type === 'js' || type === 'css'),
-    transformPageChunk: ({ html }) =>
-      html.replace('<html lang="ko">', `<html lang="${locale}">`),
+    transformPageChunk: ({ html, done }) => transformHtmlChunk(html, done),
   });
   if (shouldRequestClientHints) {
     applyClientHintResponseHeaders(response.headers);

@@ -704,26 +704,6 @@
             </select>
           </label>
           <div class="subsection-heading wide">
-            <h3>{text.admin.settings.outboundProxyTitle}</h3>
-            <p>{text.admin.settings.outboundProxyDescription}</p>
-          </div>
-          <div class="wide">
-            <ToggleField
-              name="outboundProxyEnabled"
-              label={text.admin.settings.outboundProxyEnabled}
-              checked={data.settings.network.outboundProxy.enabled}
-            />
-          </div>
-          <label class="wide">
-            {text.admin.settings.outboundProxyUrl}
-            <small>{text.admin.settings.outboundProxyUrlHelp}</small>
-            <input
-              name="outboundProxyUrl"
-              placeholder={text.admin.settings.outboundProxyUrlPlaceholder}
-              value={data.settings.network.outboundProxy.url}
-            />
-          </label>
-          <div class="subsection-heading wide">
             <h3>{text.admin.settings.shortLinkDomainsTitle}</h3>
             <p>{text.admin.settings.shortLinkDomainsDescription}</p>
           </div>
@@ -1038,265 +1018,6 @@
         </div>
       </section>
 
-      <section class="setting-card">
-        <div class="card-copy">
-          <p class="step">05</p>
-          <h2>{text.admin.settings.signupPasswordTitle}</h2>
-          <p>{text.admin.settings.signupPasswordDescription}</p>
-        </div>
-        <div class="fields form-grid balanced">
-          <div class="wide">
-            <ToggleField
-              name="registrationEnabled"
-              label={text.admin.settings.registrationEnabled}
-              checked={data.settings.auth.registration.enabled}
-            />
-          </div>
-          <label
-            >{text.admin.settings.passwordMinLength}
-            <input
-              type="number"
-              name="passwordMinLength"
-              min="8"
-              max="128"
-              value={data.settings.auth.password.minLength}
-            /></label
-          >
-          <div></div>
-          <div class="wide">
-            <ToggleField
-              name="passwordRequireLetters"
-              label={text.admin.settings.passwordRequireLetters}
-              checked={data.settings.auth.password.requireLetters}
-            />
-          </div>
-          <div class="wide">
-            <ToggleField
-              name="passwordRequireNumbers"
-              label={text.admin.settings.passwordRequireNumbers}
-              checked={data.settings.auth.password.requireNumbers}
-            />
-          </div>
-          <div class="wide">
-            <ToggleField
-              name="passwordRequireSymbols"
-              label={text.admin.settings.passwordRequireSymbols}
-              checked={data.settings.auth.password.requireSymbols}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section class="setting-card">
-        <div class="card-copy">
-          <p class="step">06</p>
-          <h2>{text.admin.settings.emailVerificationTitle}</h2>
-          <p>{text.admin.settings.emailVerificationDescription}</p>
-        </div>
-        <div class="fields form-grid balanced">
-          <div class="wide">
-            <ToggleField
-              name="emailVerificationEnabled"
-              label={text.admin.settings.emailVerificationEnabled}
-              checked={data.settings.auth.emailVerification.enabled}
-            />
-          </div>
-          <label
-            >{text.admin.settings.emailProvider}
-            <select name="emailProvider" bind:value={emailProvider}>
-              <option value="smtp">SMTP</option>
-              <option value="http">RESTful HTTP API</option>
-            </select>
-          </label>
-          <label
-            >{text.admin.settings.emailTokenTtlHours}
-            <input
-              type="number"
-              name="emailTokenTtlHours"
-              min="1"
-              max="720"
-              value={data.settings.auth.emailVerification.tokenTtlHours}
-            /></label
-          >
-          <label
-            >{text.admin.settings.emailTimeoutMs}
-            <small>{text.admin.settings.emailTimeoutHelp}</small>
-            <input
-              type="number"
-              name="emailTimeoutMs"
-              min="1000"
-              max="120000"
-              step="500"
-              value={data.settings.auth.emailVerification.timeoutMs}
-            /></label
-          >
-          <label
-            >{text.admin.settings.resendVerificationDailyLimit}
-            <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
-            <input
-              type="number"
-              name="resendVerificationDailyLimit"
-              min="0"
-              max="1000"
-              value={data.settings.auth.accountRecovery
-                .resendVerificationDailyLimit}
-            /></label
-          >
-          <label
-            >{text.admin.settings.passwordResetDailyLimit}
-            <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
-            <input
-              type="number"
-              name="passwordResetDailyLimit"
-              min="0"
-              max="1000"
-              value={data.settings.auth.accountRecovery.passwordResetDailyLimit}
-            /></label
-          >
-          <label
-            >{text.admin.settings.emailFromEmail}
-            <input
-              name="emailFromEmail"
-              type="email"
-              value={data.settings.auth.emailVerification.fromEmail}
-              placeholder="noreply@example.com"
-            /></label
-          >
-          <label
-            >{text.admin.settings.emailFromName}
-            <input
-              name="emailFromName"
-              value={data.settings.auth.emailVerification.fromName}
-              placeholder={data.settings.general.siteName}
-            /></label
-          >
-          {#if emailProvider === 'smtp'}
-            <label
-              >{text.admin.settings.smtpHost}
-              <input
-                name="smtpHost"
-                value={data.settings.auth.emailVerification.smtp.host}
-                placeholder="smtp.example.com"
-              /></label
-            >
-            <label
-              >{text.admin.settings.smtpPort}
-              <input
-                type="number"
-                name="smtpPort"
-                min="1"
-                max="65535"
-                value={data.settings.auth.emailVerification.smtp.port}
-              /></label
-            >
-            <label
-              >{text.admin.settings.smtpUsername}
-              <input
-                name="smtpUsername"
-                value={data.settings.auth.emailVerification.smtp.username}
-              /></label
-            >
-            <label
-              >{text.admin.settings.smtpPassword}
-              <small>{text.admin.settings.keepExisting}</small>
-              <input
-                name="smtpPassword"
-                type="password"
-                placeholder={text.admin.settings.changeOnlyPlaceholder}
-              /></label
-            >
-            <div class="wide">
-              <ToggleField
-                name="smtpSecure"
-                label={text.admin.settings.smtpSecure}
-                checked={data.settings.auth.emailVerification.smtp.secure}
-              />
-            </div>
-          {:else}
-            <label class="wide"
-              >{text.admin.settings.httpApiEndpoint}
-              <input
-                name="emailHttpEndpoint"
-                type="url"
-                value={data.settings.auth.emailVerification.http.endpoint}
-                placeholder="https://api.example.com/send"
-              /></label
-            >
-            <label
-              >{text.admin.settings.httpMethod}
-              <select
-                name="emailHttpMethod"
-                value={data.settings.auth.emailVerification.http.method}
-              >
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="PATCH">PATCH</option>
-              </select>
-            </label>
-            <label
-              >{text.admin.settings.httpAuthMode}
-              <select name="emailHttpAuthMode" bind:value={emailHttpAuthMode}>
-                <option value="none">{text.admin.settings.httpAuthNone}</option>
-                <option value="authorization"
-                  >{text.admin.settings.httpAuthAuthorization}</option
-                >
-                <option value="basic"
-                  >{text.admin.settings.httpAuthBasic}</option
-                >
-                <option value="headers"
-                  >{text.admin.settings.httpAuthHeaders}</option
-                >
-              </select>
-            </label>
-            {#if emailHttpAuthMode === 'authorization'}
-              <label class="wide"
-                >{text.admin.settings.authorizationHeaderValue}
-                <input
-                  name="emailHttpAuthorizationHeader"
-                  type="password"
-                  placeholder={text.admin.settings
-                    .authorizationHeaderPlaceholder}
-                /></label
-              >
-            {:else if emailHttpAuthMode === 'basic'}
-              <label
-                >{text.admin.settings.basicAuthId}
-                <input
-                  name="emailHttpBasicUsername"
-                  value={data.settings.auth.emailVerification.http
-                    .basicUsername}
-                /></label
-              >
-              <label
-                >{text.admin.settings.basicAuthPassword}
-                <small>{text.admin.settings.keepExisting}</small>
-                <input
-                  name="emailHttpBasicPassword"
-                  type="password"
-                  placeholder={text.admin.settings.changeOnlyPlaceholder}
-                /></label
-              >
-            {:else if emailHttpAuthMode === 'headers'}
-              <label class="wide"
-                >{text.admin.settings.customAuthHeader}
-                <small>{text.admin.settings.customAuthHeaderHelp}</small>
-                <input
-                  name="emailHttpAuthHeaders"
-                  type="password"
-                  placeholder={text.admin.settings.customAuthHeaderPlaceholder}
-                /></label
-              >
-            {/if}
-            <label class="wide"
-              >{text.admin.settings.httpExtraHeaders}
-              <small>{text.admin.settings.httpExtraHeadersHelp}</small>
-              <textarea name="emailHttpHeaders" rows="4"
-                >{data.settings.auth.emailVerification.http.headers}</textarea
-              ></label
-            >
-          {/if}
-        </div>
-      </section>
       <div class="savebar">
         {#if removedShortLinkDomainsForConfirm.length > 0}
           <DangerConfirmButton
@@ -1475,6 +1196,417 @@
               checked={data.settings.links.trackClicks}
             />
           </div>
+        </div>
+      </section>
+
+      <section class="setting-card">
+        <div class="card-copy">
+          <p class="step">06</p>
+          <h2>{text.admin.settings.apiTitle}</h2>
+          <p>{text.admin.settings.apiDescription}</p>
+        </div>
+        <div class="fields form-grid balanced checkbox-grid">
+          <div class="wide">
+            <ToggleField
+              name="apiGlobalEnabled"
+              label={text.admin.settings.apiGlobalEnabled}
+              bind:checked={apiGlobalEnabled}
+              onchange={(event) =>
+                setAllApiCapabilities(event.currentTarget.checked)}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="apiAllowCreate"
+              label={text.admin.settings.apiAllowCreate}
+              bind:checked={apiAllowCreate}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="apiAllowList"
+              label={text.admin.settings.apiAllowList}
+              bind:checked={apiAllowList}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="apiAllowStats"
+              label={text.admin.settings.apiAllowStats}
+              bind:checked={apiAllowStats}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="apiAllowDelete"
+              label={text.admin.settings.apiAllowDelete}
+              bind:checked={apiAllowDelete}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="apiAllowUpdate"
+              label={text.admin.settings.apiAllowUpdate}
+              bind:checked={apiAllowUpdate}
+            />
+          </div>
+        </div>
+      </section>
+      <div class="savebar">
+        <button type="submit">{text.admin.settings.saveLinks}</button>
+      </div>
+    </form>
+  {:else if activeSection === 'security'}
+    <form
+      class="settings-form"
+      method="POST"
+      action="?/saveSecurity"
+      use:enhance={keepFormValues}
+    >
+      <section class="setting-card">
+        <div class="card-copy">
+          <p class="step">01</p>
+          <h2>{text.admin.settings.signupPasswordTitle}</h2>
+          <p>{text.admin.settings.signupPasswordDescription}</p>
+        </div>
+        <div class="fields form-grid balanced">
+          <div class="wide">
+            <ToggleField
+              name="registrationEnabled"
+              label={text.admin.settings.registrationEnabled}
+              checked={data.settings.auth.registration.enabled}
+            />
+          </div>
+          <label
+            >{text.admin.settings.passwordMinLength}
+            <input
+              type="number"
+              name="passwordMinLength"
+              min="8"
+              max="128"
+              value={data.settings.auth.password.minLength}
+            /></label
+          >
+          <div></div>
+          <div class="wide">
+            <ToggleField
+              name="passwordRequireLetters"
+              label={text.admin.settings.passwordRequireLetters}
+              checked={data.settings.auth.password.requireLetters}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="passwordRequireNumbers"
+              label={text.admin.settings.passwordRequireNumbers}
+              checked={data.settings.auth.password.requireNumbers}
+            />
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="passwordRequireSymbols"
+              label={text.admin.settings.passwordRequireSymbols}
+              checked={data.settings.auth.password.requireSymbols}
+            />
+          </div>
+          <label
+            >{text.admin.settings.resendVerificationDailyLimit}
+            <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
+            <input
+              type="number"
+              name="resendVerificationDailyLimit"
+              min="0"
+              max="1000"
+              value={data.settings.auth.accountRecovery
+                .resendVerificationDailyLimit}
+            /></label
+          >
+          <label
+            >{text.admin.settings.passwordResetDailyLimit}
+            <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
+            <input
+              type="number"
+              name="passwordResetDailyLimit"
+              min="0"
+              max="1000"
+              value={data.settings.auth.accountRecovery.passwordResetDailyLimit}
+            /></label
+          >
+        </div>
+      </section>
+
+      <section class="setting-card">
+        <div class="card-copy">
+          <p class="step">02</p>
+          <h2>{text.admin.settings.emailVerificationTitle}</h2>
+          <p>{text.admin.settings.emailVerificationDescription}</p>
+        </div>
+        <div class="fields form-grid balanced">
+          <div class="wide">
+            <ToggleField
+              name="emailVerificationEnabled"
+              label={text.admin.settings.emailVerificationEnabled}
+              checked={data.settings.auth.emailVerification.enabled}
+            />
+          </div>
+          <label
+            >{text.admin.settings.emailProvider}
+            <select name="emailProvider" bind:value={emailProvider}>
+              <option value="smtp">SMTP</option>
+              <option value="http">RESTful HTTP API</option>
+            </select>
+          </label>
+          <label
+            >{text.admin.settings.emailTokenTtlHours}
+            <input
+              type="number"
+              name="emailTokenTtlHours"
+              min="1"
+              max="720"
+              value={data.settings.auth.emailVerification.tokenTtlHours}
+            /></label
+          >
+          <label
+            >{text.admin.settings.emailTimeoutMs}
+            <small>{text.admin.settings.emailTimeoutHelp}</small>
+            <input
+              type="number"
+              name="emailTimeoutMs"
+              min="1000"
+              max="120000"
+              step="500"
+              value={data.settings.auth.emailVerification.timeoutMs}
+            /></label
+          >
+          <label
+            >{text.admin.settings.emailFromEmail}
+            <input
+              name="emailFromEmail"
+              type="email"
+              value={data.settings.auth.emailVerification.fromEmail}
+              placeholder="noreply@example.com"
+            /></label
+          >
+          <label
+            >{text.admin.settings.emailFromName}
+            <input
+              name="emailFromName"
+              value={data.settings.auth.emailVerification.fromName}
+              placeholder={data.settings.general.siteName}
+            /></label
+          >
+          {#if emailProvider === 'smtp'}
+            <label
+              >{text.admin.settings.smtpHost}
+              <input
+                name="smtpHost"
+                value={data.settings.auth.emailVerification.smtp.host}
+                placeholder="smtp.example.com"
+              /></label
+            >
+            <label
+              >{text.admin.settings.smtpPort}
+              <input
+                type="number"
+                name="smtpPort"
+                min="1"
+                max="65535"
+                value={data.settings.auth.emailVerification.smtp.port}
+              /></label
+            >
+            <label
+              >{text.admin.settings.smtpUsername}
+              <input
+                name="smtpUsername"
+                value={data.settings.auth.emailVerification.smtp.username}
+              /></label
+            >
+            <label
+              >{text.admin.settings.smtpPassword}
+              <small>{text.admin.settings.keepExisting}</small>
+              <input
+                name="smtpPassword"
+                type="password"
+                placeholder={text.admin.settings.changeOnlyPlaceholder}
+              /></label
+            >
+            <div class="wide">
+              <ToggleField
+                name="smtpSecure"
+                label={text.admin.settings.smtpSecure}
+                checked={data.settings.auth.emailVerification.smtp.secure}
+              />
+            </div>
+          {:else}
+            <label class="wide"
+              >{text.admin.settings.httpApiEndpoint}
+              <input
+                name="emailHttpEndpoint"
+                type="url"
+                value={data.settings.auth.emailVerification.http.endpoint}
+                placeholder="https://api.example.com/send"
+              /></label
+            >
+            <label
+              >{text.admin.settings.httpMethod}
+              <select
+                name="emailHttpMethod"
+                value={data.settings.auth.emailVerification.http.method}
+              >
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+              </select>
+            </label>
+            <label
+              >{text.admin.settings.httpAuthMode}
+              <select name="emailHttpAuthMode" bind:value={emailHttpAuthMode}>
+                <option value="none">{text.admin.settings.httpAuthNone}</option>
+                <option value="authorization"
+                  >{text.admin.settings.httpAuthAuthorization}</option
+                >
+                <option value="basic"
+                  >{text.admin.settings.httpAuthBasic}</option
+                >
+                <option value="headers"
+                  >{text.admin.settings.httpAuthHeaders}</option
+                >
+              </select>
+            </label>
+            {#if emailHttpAuthMode === 'authorization'}
+              <label class="wide"
+                >{text.admin.settings.authorizationHeaderValue}
+                <input
+                  name="emailHttpAuthorizationHeader"
+                  type="password"
+                  placeholder={text.admin.settings
+                    .authorizationHeaderPlaceholder}
+                /></label
+              >
+            {:else if emailHttpAuthMode === 'basic'}
+              <label
+                >{text.admin.settings.basicAuthId}
+                <input
+                  name="emailHttpBasicUsername"
+                  value={data.settings.auth.emailVerification.http
+                    .basicUsername}
+                /></label
+              >
+              <label
+                >{text.admin.settings.basicAuthPassword}
+                <small>{text.admin.settings.keepExisting}</small>
+                <input
+                  name="emailHttpBasicPassword"
+                  type="password"
+                  placeholder={text.admin.settings.changeOnlyPlaceholder}
+                /></label
+              >
+            {:else if emailHttpAuthMode === 'headers'}
+              <label class="wide"
+                >{text.admin.settings.customAuthHeader}
+                <small>{text.admin.settings.customAuthHeaderHelp}</small>
+                <input
+                  name="emailHttpAuthHeaders"
+                  type="password"
+                  placeholder={text.admin.settings.customAuthHeaderPlaceholder}
+                /></label
+              >
+            {/if}
+            <label class="wide"
+              >{text.admin.settings.httpExtraHeaders}
+              <small>{text.admin.settings.httpExtraHeadersHelp}</small>
+              <textarea name="emailHttpHeaders" rows="4"
+                >{data.settings.auth.emailVerification.http.headers}</textarea
+              ></label
+            >
+          {/if}
+        </div>
+      </section>
+
+      <section class="setting-card">
+        <div class="card-copy">
+          <p class="step">03</p>
+          <h2>{text.admin.settings.webActionGuardTitle}</h2>
+          <p>{text.admin.settings.webActionGuardDescription}</p>
+        </div>
+        <div class="fields form-grid balanced checkbox-grid">
+          <div class="wide">
+            <ToggleField
+              name="webActionGuardEnabled"
+              label={text.admin.settings.webActionGuardEnabled}
+              checked={data.settings.security.webActionGuard.enabled}
+            />
+          </div>
+          <label>
+            {text.admin.settings.webActionGuardTokenTtlSeconds}
+            <input
+              type="number"
+              name="webActionGuardTokenTtlSeconds"
+              min="60"
+              max="86400"
+              value={data.settings.security.webActionGuard.tokenTtlSeconds}
+            />
+          </label>
+          <div></div>
+          <div class="wide">
+            <ToggleField
+              name="webActionGuardAdminBypass"
+              label={text.admin.settings.webActionGuardAdminBypass}
+              checked={data.settings.security.webActionGuard.adminBypass}
+            />
+          </div>
+          <label class="wide">
+            {text.admin.settings.webActionGuardBypassToken}
+            <small>
+              {data.settings.security.webActionGuard.bypassTokenHash
+                ? text.admin.settings.webActionGuardBypassTokenConfigured
+                : text.admin.settings.webActionGuardBypassTokenEmpty}
+            </small>
+            <input
+              name="webActionGuardBypassToken"
+              type="password"
+              placeholder={text.admin.settings.changeOnlyPlaceholder}
+            />
+          </label>
+          {#if data.settings.security.webActionGuard.bypassTokenHash}
+            <div class="wide">
+              <ToggleField
+                name="webActionGuardClearBypassToken"
+                label={text.admin.settings.webActionGuardClearBypassToken}
+              />
+            </div>
+          {/if}
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.csrfTitle}</h3>
+            <p>{text.admin.settings.csrfDescription}</p>
+          </div>
+          <div class="wide">
+            <ToggleField
+              name="csrfEnabled"
+              label={text.admin.settings.csrfEnabled}
+              checked={data.settings.security.csrf.enabled}
+            />
+          </div>
+          <label>
+            {text.admin.settings.csrfTokenTtlSeconds}
+            <input
+              type="number"
+              name="csrfTokenTtlSeconds"
+              min="60"
+              max="86400"
+              value={data.settings.security.csrf.tokenTtlSeconds}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section class="setting-card">
+        <div class="card-copy">
+          <p class="step">04</p>
+          <h2>{text.admin.settings.requestSecurityTitle}</h2>
+          <p>{text.admin.settings.requestSecurityDescription}</p>
+        </div>
+        <div class="fields form-grid balanced">
           <div class="wide">
             <ToggleField
               name="trustProxyHeaders"
@@ -1584,6 +1716,10 @@
               />
             </label>
           </div>
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.destinationSafetyTitle}</h3>
+            <p>{text.admin.settings.destinationSafetyDescription}</p>
+          </div>
           <div class="wide">
             <ToggleField
               name="stripUrlHash"
@@ -1603,64 +1739,30 @@
               >{data.settings.links.blockedHosts.join('\n')}</textarea
             ></label
           >
-        </div>
-      </section>
-
-      <section class="setting-card">
-        <div class="card-copy">
-          <p class="step">06</p>
-          <h2>{text.admin.settings.apiTitle}</h2>
-          <p>{text.admin.settings.apiDescription}</p>
-        </div>
-        <div class="fields form-grid balanced checkbox-grid">
-          <div class="wide">
-            <ToggleField
-              name="apiGlobalEnabled"
-              label={text.admin.settings.apiGlobalEnabled}
-              bind:checked={apiGlobalEnabled}
-              onchange={(event) =>
-                setAllApiCapabilities(event.currentTarget.checked)}
-            />
+          <div class="subsection-heading wide">
+            <h3>{text.admin.settings.outboundProxyTitle}</h3>
+            <p>{text.admin.settings.outboundProxyDescription}</p>
           </div>
           <div class="wide">
             <ToggleField
-              name="apiAllowCreate"
-              label={text.admin.settings.apiAllowCreate}
-              bind:checked={apiAllowCreate}
+              name="outboundProxyEnabled"
+              label={text.admin.settings.outboundProxyEnabled}
+              checked={data.settings.network.outboundProxy.enabled}
             />
           </div>
-          <div class="wide">
-            <ToggleField
-              name="apiAllowList"
-              label={text.admin.settings.apiAllowList}
-              bind:checked={apiAllowList}
+          <label class="wide">
+            {text.admin.settings.outboundProxyUrl}
+            <small>{text.admin.settings.outboundProxyUrlHelp}</small>
+            <input
+              name="outboundProxyUrl"
+              placeholder={text.admin.settings.outboundProxyUrlPlaceholder}
+              value={data.settings.network.outboundProxy.url}
             />
-          </div>
-          <div class="wide">
-            <ToggleField
-              name="apiAllowStats"
-              label={text.admin.settings.apiAllowStats}
-              bind:checked={apiAllowStats}
-            />
-          </div>
-          <div class="wide">
-            <ToggleField
-              name="apiAllowDelete"
-              label={text.admin.settings.apiAllowDelete}
-              bind:checked={apiAllowDelete}
-            />
-          </div>
-          <div class="wide">
-            <ToggleField
-              name="apiAllowUpdate"
-              label={text.admin.settings.apiAllowUpdate}
-              bind:checked={apiAllowUpdate}
-            />
-          </div>
+          </label>
         </div>
       </section>
       <div class="savebar">
-        <button type="submit">{text.admin.settings.saveLinks}</button>
+        <button type="submit">{text.admin.settings.saveSecurity}</button>
       </div>
     </form>
   {:else if activeSection === 'theme'}

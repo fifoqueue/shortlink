@@ -206,6 +206,18 @@ export interface SiteSettings {
     allowDelete: boolean;
     allowUpdate: boolean;
   };
+  security: {
+    webActionGuard: {
+      enabled: boolean;
+      tokenTtlSeconds: number;
+      bypassTokenHash: string;
+      adminBypass: boolean;
+    };
+    csrf: {
+      enabled: boolean;
+      tokenTtlSeconds: number;
+    };
+  };
   auth: {
     registration: {
       enabled: boolean;
@@ -516,6 +528,18 @@ export const defaultSettings: SiteSettings = {
     allowStats: true,
     allowDelete: true,
     allowUpdate: true,
+  },
+  security: {
+    webActionGuard: {
+      enabled: true,
+      tokenTtlSeconds: 30 * 60,
+      bypassTokenHash: '',
+      adminBypass: false,
+    },
+    csrf: {
+      enabled: true,
+      tokenTtlSeconds: 30 * 60,
+    },
   },
   auth: {
     registration: {

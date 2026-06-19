@@ -65,6 +65,7 @@ const ko = {
     sections: {
       general: '사이트',
       links: '링크 및 API',
+      security: '보안',
       theme: '테마',
       plugins: '플러그인',
       data: '링크 관리',
@@ -210,6 +211,29 @@ const ko = {
       httpExtraHeaders: 'HTTP 추가 헤더',
       httpExtraHeadersHelp: 'Header | Value 형식, 한 줄에 하나',
       saveGeneral: '사이트 설정 저장',
+      webActionGuardTitle: '웹 action guard',
+      webActionGuardDescription:
+        'API가 아닌 일반 웹 mutation 요청을 브라우저 UI 흐름에 묶고, 쿠키만 복사한 직접 POST 요청을 차단합니다.',
+      webActionGuardEnabled: '웹 action guard 사용',
+      webActionGuardTokenTtlSeconds: '웹 action 토큰 유효 시간(초)',
+      webActionGuardAdminBypass: '관리자 세션 헤더 우회 허용',
+      webActionGuardBypassToken: '신뢰 자동화 우회 토큰',
+      webActionGuardBypassTokenConfigured:
+        '우회 토큰이 설정되어 있습니다. 변경할 때만 새 값을 입력하세요.',
+      webActionGuardBypassTokenEmpty: '우회 토큰이 설정되어 있지 않습니다.',
+      webActionGuardClearBypassToken: '우회 토큰 제거',
+      csrfTitle: 'CSRF 방지 토큰',
+      csrfDescription:
+        '일반 웹 form 제출에 서버 서명 토큰을 요구해 교차 사이트 form 제출을 차단합니다.',
+      csrfEnabled: 'CSRF 토큰 검사 사용',
+      csrfTokenTtlSeconds: 'CSRF 토큰 유효 시간(초)',
+      requestSecurityTitle: '요청 신뢰와 목적지 안전',
+      requestSecurityDescription:
+        '프록시 IP 신뢰, GeoIP 입력, 저장 가능한 URL scheme과 차단 도메인을 관리합니다.',
+      destinationSafetyTitle: '목적지 URL 안전',
+      destinationSafetyDescription:
+        '링크가 저장할 수 있는 목적지 URL 범위와 민감한 URL 조각 처리 방식을 정합니다.',
+      saveSecurity: '보안 설정 저장',
       linkPermissionTitle: '기본 링크 권한',
       linkPermissionDescription:
         '권한 그룹에서 기본값 유지를 선택했을 때 적용할 사이트 전역 링크 권한입니다.',
@@ -350,6 +374,8 @@ const ko = {
       generalSettingsSaved: '기본 설정을 저장했습니다.',
       proxyHeadersFailed: '프록시 IP 헤더 설정을 저장하지 못했습니다.',
       linksSettingsSaved: '링크와 API 설정을 저장했습니다.',
+      securitySettingsFailed: '보안 설정을 저장하지 못했습니다.',
+      securitySettingsSaved: '보안 설정을 저장했습니다.',
       themeSettingsSaved: '테마 설정을 저장했습니다.',
       themeResetDenied: '테마 설정을 초기화할 권한이 없습니다.',
       themeReset: '프리셋 기본값으로 복원했습니다.',
@@ -1024,6 +1050,7 @@ const en: typeof ko = {
     sections: {
       general: 'Site',
       links: 'Links and API',
+      security: 'Security',
       theme: 'Theme',
       plugins: 'Plugins',
       data: 'Link management',
@@ -1172,6 +1199,29 @@ const en: typeof ko = {
       httpExtraHeaders: 'Extra HTTP headers',
       httpExtraHeadersHelp: 'Header | Value format, one per line',
       saveGeneral: 'Save site settings',
+      webActionGuardTitle: 'Web Action Guard',
+      webActionGuardDescription:
+        'Binds non-API web mutation requests to the browser UI flow and blocks direct POST requests made with copied cookies only.',
+      webActionGuardEnabled: 'Use web action guard',
+      webActionGuardTokenTtlSeconds: 'Web action token lifetime, seconds',
+      webActionGuardAdminBypass: 'Allow administrator session header bypass',
+      webActionGuardBypassToken: 'Trusted automation bypass token',
+      webActionGuardBypassTokenConfigured:
+        'A bypass token is configured. Enter a new value only when changing it.',
+      webActionGuardBypassTokenEmpty: 'No bypass token is configured.',
+      webActionGuardClearBypassToken: 'Remove bypass token',
+      csrfTitle: 'CSRF Prevention Token',
+      csrfDescription:
+        'Requires a server-signed token for normal web form submissions to block cross-site form posts.',
+      csrfEnabled: 'Use CSRF token checks',
+      csrfTokenTtlSeconds: 'CSRF token lifetime, seconds',
+      requestSecurityTitle: 'Request Trust and Destination Safety',
+      requestSecurityDescription:
+        'Manage trusted proxy IP headers, GeoIP input, allowed URL schemes, and blocked domains.',
+      destinationSafetyTitle: 'Destination URL Safety',
+      destinationSafetyDescription:
+        'Control which destination URLs can be saved and how sensitive URL fragments are handled.',
+      saveSecurity: 'Save security settings',
       linkPermissionTitle: 'Default Link Permissions',
       linkPermissionDescription:
         'Site-wide link permissions used when a permission group inherits the default.',
@@ -1314,6 +1364,8 @@ const en: typeof ko = {
       generalSettingsSaved: 'General settings saved.',
       proxyHeadersFailed: 'Could not save proxy IP header settings.',
       linksSettingsSaved: 'Links and API settings saved.',
+      securitySettingsFailed: 'Could not save security settings.',
+      securitySettingsSaved: 'Security settings saved.',
       themeSettingsSaved: 'Theme settings saved.',
       themeResetDenied: 'You do not have permission to reset theme settings.',
       themeReset: 'Restored the preset defaults.',

@@ -10,6 +10,7 @@ export type AdminSection = {
 export const adminSections: AdminSection[] = [
   { id: 'general', slug: 'core', label: 'Site' },
   { id: 'links', slug: 'link-and-api', label: 'Links and API' },
+  { id: 'security', slug: 'security', label: 'Security' },
   { id: 'theme', slug: 'theme', label: 'Theme' },
   { id: 'plugins', slug: 'plugins', label: 'Plugins' },
   { id: 'data', slug: 'links', label: 'Link management' },

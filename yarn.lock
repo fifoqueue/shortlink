@@ -5003,6 +5003,7 @@ __metadata:
     "@types/nodemailer": "npm:^8.0.0"
     "@types/pg": "npm:^8"
     "@types/qrcode": "npm:^1.5.6"
+    devalue: "npm:^5.8.1"
     es-hangul: "npm:^2.3.8"
     eslint: "npm:^9"
     eslint-config-airbnb-extended: "npm:^3.1.0"

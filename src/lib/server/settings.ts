@@ -165,6 +165,7 @@ function siteSettingsValue(settings: SiteSettings) {
     i18n: settings.i18n,
     links: settings.links,
     api: settings.api,
+    security: settings.security,
     auth: settings.auth,
     theme: settings.theme,
   });
@@ -223,6 +224,33 @@ function normalizeLinkSettings(settings: SiteSettings) {
   );
   settings.links.allowedDomains = normalizeShortLinkDomains(
     settings.links.allowedDomains,
+  );
+}
+
+function boundedNumber(
+  value: number,
+  fallback: number,
+  min: number,
+  max: number,
+) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function normalizeSecuritySettings(settings: SiteSettings) {
+  settings.security.webActionGuard.tokenTtlSeconds = boundedNumber(
+    settings.security.webActionGuard.tokenTtlSeconds,
+    defaultSettings.security.webActionGuard.tokenTtlSeconds,
+    60,
+    24 * 60 * 60,
+  );
+  settings.security.webActionGuard.bypassTokenHash =
+    settings.security.webActionGuard.bypassTokenHash.trim();
+  settings.security.csrf.tokenTtlSeconds = boundedNumber(
+    settings.security.csrf.tokenTtlSeconds,
+    defaultSettings.security.csrf.tokenTtlSeconds,
+    60,
+    24 * 60 * 60,
   );
 }
 
@@ -327,6 +355,7 @@ function normalizeSettings(
   normalizeGeneralSettings(settings);
   normalizeI18nSettings(settings);
   normalizeLinkSettings(settings);
+  normalizeSecuritySettings(settings);
   settings.plugins = normalizePluginStates(pluginValues);
   return settings;
 }

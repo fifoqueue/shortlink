@@ -2,6 +2,16 @@
 
 Shortlink JSON API는 링크 생성, 목록 조회, 통계 조회, 수정, 삭제를 제공합니다. 링크 API는 `Authorization: Bearer <token>` 헤더가 필요합니다. 토큰은 로그인 후 `/account/api-tokens`에서 발급할 수 있습니다.
 
+일반 웹 화면의 form action은 자동화용 인터페이스가 아닙니다. API가 아닌 웹 mutation 요청에는 관리자 `보안` 탭의 web action guard와 CSRF 방지 토큰 설정이 적용됩니다. web action guard가 켜져 있으면 Origin/Sec-Fetch metadata 검사를 수행하고, `?/create` 같은 SvelteKit form action에는 서버가 HTML에 자동 삽입한 HMAC nonce가 필요합니다. CSRF 방지 토큰이 켜져 있으면 일반 웹 form 제출에도 서버 서명 토큰이 필요합니다. 쿠키만 복사해서 웹 action을 직접 POST하는 요청은 거부되며, 자동화는 Bearer 토큰 기반 JSON API를 사용해야 합니다.
+
+신뢰하는 내부 자동화나 개발 도구가 웹 route를 직접 호출해야 하면 관리자 `보안` 탭에서 신뢰 자동화 우회 토큰을 설정하고 요청에 다음 헤더를 보냅니다.
+
+```http
+X-Shortlink-Web-Action-Bypass: replace-with-internal-token
+```
+
+개발 편의용으로 관리자 세션 헤더 우회를 켜면 로그인한 관리자는 `X-Shortlink-Web-Action-Bypass: admin`으로 같은 검사를 우회할 수 있습니다. 이 옵션은 관리자 쿠키만으로도 우회 조건을 만족할 수 있으므로 운영 환경에서는 고정 토큰 방식이 더 안전합니다. guard와 CSRF 검사 활성화 여부 및 토큰 만료 시간도 관리자 `보안` 탭에서 조정합니다.
+
 ## 인증과 권한
 
 Bearer 토큰은 다음 형식을 사용합니다.
