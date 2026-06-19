@@ -5,7 +5,11 @@ import {
   localizedSettings,
 } from '$lib/i18n';
 import { uiText } from '$lib/i18n/ui-text';
-import { defaultSiteLocale } from '$lib/config';
+import {
+  defaultSiteLocale,
+  type SiteLocale,
+  type SiteSettings,
+} from '$lib/config';
 import { setClickMetadataCollector } from '$lib/server/click-queue';
 import {
   applyClientHintResponseHeaders,
@@ -25,6 +29,7 @@ import {
 import { getPluginUser } from './plugins/auth-registry';
 import {
   collectClickMetadataPlugins,
+  hasEnabledRequestPlugin,
   handleRequestPlugins,
   normalizePluginStates,
   refreshRuntimePlugins,
@@ -52,6 +57,21 @@ const appRouteSegments = new Set([
   'sitemap.xml',
   'terms',
 ]);
+const localizedSettingsCache = new WeakMap<
+  SiteSettings,
+  Map<SiteLocale, SiteSettings>
+>();
+
+function cachedLocalizedSettings(settings: SiteSettings, locale: SiteLocale) {
+  const localeCache = localizedSettingsCache.get(settings) ?? new Map();
+  const cached = localeCache.get(locale);
+  if (cached) return cached;
+
+  const value = localizedSettings(settings, locale);
+  localeCache.set(locale, value);
+  localizedSettingsCache.set(settings, localeCache);
+  return value;
+}
 
 function decodedPathSegment(value: string) {
   try {
@@ -93,11 +113,13 @@ function defaultDomainRedirect(
   settings: Awaited<ReturnType<typeof getSettings>>,
   url: URL,
   origin: string,
+  staticAsset: boolean,
+  shortLinkCode: string | null,
 ) {
   if (!settings.general.defaultDomain) return null;
   if (isDefaultShortLinkDomain(settings, origin)) return null;
-  if (staticAssetPath(url.pathname)) return null;
-  if (shortLinkCodeFromPath(url.pathname)) return null;
+  if (staticAsset) return null;
+  if (shortLinkCode) return null;
 
   const target = new URL(
     `${url.pathname}${url.search}`,
@@ -108,7 +130,7 @@ function defaultDomainRedirect(
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (await refreshRuntimePlugins()) {
-    invalidateSettingsCache();
+    invalidateSettingsCache({ redis: true, publish: true });
   }
   const settings = await getSettings();
   const origin = requestOrigin(event.url, event.request.headers);
@@ -117,27 +139,40 @@ export const handle: Handle = async ({ event, resolve }) => {
     cookieLocale: event.cookies.get(localeCookieName),
     fallbackLocale: settings.i18n.defaultLocale,
   });
+  const staticAsset = staticAssetPath(event.url.pathname);
+  const shortLinkCode = shortLinkCodeFromPath(event.url.pathname);
+  const hasRequestPlugins = hasEnabledRequestPlugin(settings.plugins);
+  const shouldLoadUser = hasRequestPlugins || (!staticAsset && !shortLinkCode);
   event.locals.settings = settings;
   event.locals.requestOrigin = origin;
   event.locals.locale = locale;
-  event.locals.localizedSettings = localizedSettings(settings, locale);
-  const redirectResponse = defaultDomainRedirect(settings, event.url, origin);
-  if (redirectResponse) return redirectResponse;
-  event.locals.user = await getPluginUser(event.cookies, settings.plugins);
-  event.locals.isAdmin = event.locals.user?.isAdmin === true;
-  const ip = getClientIp(
-    event.request,
-    event.getClientAddress,
-    settings.network.trustProxyHeaders,
-    settings.network.proxyIpHeaders,
+  event.locals.localizedSettings = cachedLocalizedSettings(settings, locale);
+  const redirectResponse = defaultDomainRedirect(
+    settings,
+    event.url,
+    origin,
+    staticAsset,
+    shortLinkCode,
   );
-  const pluginResponse = await handleRequestPlugins({
-    event,
-    states: settings.plugins,
-    user: event.locals.user,
-    isAdmin: event.locals.isAdmin,
-    ip,
-  });
+  if (redirectResponse) return redirectResponse;
+  event.locals.user = shouldLoadUser
+    ? await getPluginUser(event.cookies, settings.plugins)
+    : null;
+  event.locals.isAdmin = event.locals.user?.isAdmin === true;
+  const pluginResponse = hasRequestPlugins
+    ? await handleRequestPlugins({
+        event,
+        states: settings.plugins,
+        user: event.locals.user,
+        isAdmin: event.locals.isAdmin,
+        ip: getClientIp(
+          event.request,
+          event.getClientAddress,
+          settings.network.trustProxyHeaders,
+          settings.network.proxyIpHeaders,
+        ),
+      })
+    : null;
   const shouldRequestClientHints = shouldApplyClientHintResponseHeaders(
     event.url.pathname,
   );

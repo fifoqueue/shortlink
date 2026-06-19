@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import type { RequestEvent } from '@sveltejs/kit';
 import { Op, QueryTypes, type Transaction, type WhereOptions } from 'sequelize';
+import { env } from '$env/dynamic/private';
 import {
   linkEditFieldKeys,
   linkOptionKeys,
@@ -29,9 +30,31 @@ import {
 import { getClientIp } from './client-ip';
 import { parseBoolean, stringValue } from './settings';
 import { normalizeShortLinkDomains } from './url';
+import {
+  redisDelete,
+  redisGetJson,
+  redisPublish,
+  redisSetJson,
+  redisSubscribe,
+} from './redis';
 
 export const LINK_OPTION_KEYS = linkOptionKeys;
 export type LinkOptionKey = ConfigLinkOptionKey;
+const PERMISSION_GROUP_CACHE_TTL_MS = numberEnv(
+  'PERMISSION_GROUP_CACHE_TTL_MS',
+  5_000,
+  0,
+  300_000,
+);
+const PERMISSION_GROUP_REDIS_KEY = 'cache:permission-groups';
+const PERMISSION_GROUP_INVALIDATE_CHANNEL = 'invalidate:permission-groups';
+let cachedPermissionGroups:
+  | {
+      expiresAt: number;
+      value: PublicPermissionGroup[];
+    }
+  | undefined;
+let pendingPermissionGroups: Promise<PublicPermissionGroup[]> | undefined;
 
 export const LINK_EDIT_FIELD_KEYS = linkEditFieldKeys;
 export type LinkEditField = LinkEditFieldKey;
@@ -69,6 +92,34 @@ export function canUseAuthProvider(
     providers === null ||
     providers.includes(authProviderKey(pluginId, methodId))
   );
+}
+
+function numberEnv(name: string, fallback: number, min: number, max: number) {
+  const value = Number(env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const property of Object.values(value)) deepFreeze(property);
+  return Object.freeze(value);
+}
+
+function invalidatePermissionGroupCache(
+  options: { redis?: boolean; publish?: boolean } = {
+    redis: true,
+    publish: true,
+  },
+) {
+  cachedPermissionGroups = undefined;
+  pendingPermissionGroups = undefined;
+  if (options.redis) void redisDelete(PERMISSION_GROUP_REDIS_KEY);
+  if (options.publish) {
+    void redisPublish(PERMISSION_GROUP_INVALIDATE_CHANNEL, {});
+  }
 }
 
 export interface PermissionRules {
@@ -831,7 +882,7 @@ async function loadGroupRelations(groupIds: number[]) {
   return { userMembershipsByGroup, cidrRulesByGroup };
 }
 
-export async function listPermissionGroups() {
+async function loadPermissionGroups() {
   await ensureDatabase();
   const groups = await PermissionGroupModel.findAll({
     order: [
@@ -840,14 +891,56 @@ export async function listPermissionGroups() {
     ],
   });
   const relations = await loadGroupRelations(groups.map((group) => group.id));
-  return groups.map((group) =>
+  const value = groups.map((group) =>
     publicGroup(
       group,
       relations.userMembershipsByGroup.get(group.id) ?? [],
       relations.cidrRulesByGroup.get(group.id) ?? [],
     ),
   );
+  void redisSetJson(
+    PERMISSION_GROUP_REDIS_KEY,
+    value,
+    PERMISSION_GROUP_CACHE_TTL_MS,
+  );
+  return value;
 }
+
+export async function listPermissionGroups() {
+  const now = Date.now();
+  if (cachedPermissionGroups && cachedPermissionGroups.expiresAt > now) {
+    return cachedPermissionGroups.value;
+  }
+
+  if (!pendingPermissionGroups) {
+    pendingPermissionGroups = (async () => {
+      const redisGroups =
+        PERMISSION_GROUP_CACHE_TTL_MS > 0
+          ? await redisGetJson<PublicPermissionGroup[]>(
+              PERMISSION_GROUP_REDIS_KEY,
+            )
+          : null;
+      return redisGroups ?? loadPermissionGroups();
+    })()
+      .then((groups) => {
+        const value = deepFreeze(structuredClone(groups));
+        cachedPermissionGroups = {
+          expiresAt: Date.now() + PERMISSION_GROUP_CACHE_TTL_MS,
+          value,
+        };
+        return value;
+      })
+      .finally(() => {
+        pendingPermissionGroups = undefined;
+      });
+  }
+
+  return pendingPermissionGroups;
+}
+
+redisSubscribe(PERMISSION_GROUP_INVALIDATE_CHANNEL, () => {
+  invalidatePermissionGroupCache({ redis: false, publish: false });
+});
 
 async function relationCounts(
   table: 'permission_group_users' | 'permission_group_cidrs',
@@ -1249,6 +1342,7 @@ export async function createPermissionGroup(input: PermissionGroupInput) {
     return group.id;
   });
   await syncAutomaticPermissionGroupMembershipsForGroup(groupId);
+  invalidatePermissionGroupCache();
   const group = await getPermissionGroup(groupId);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   return group;
@@ -1278,6 +1372,7 @@ export async function updatePermissionGroup(
     await replaceGroupAssignments(group.id, normalized, transaction);
   });
   await syncAutomaticPermissionGroupMembershipsForGroup(id);
+  invalidatePermissionGroupCache();
   const group = await getPermissionGroup(id);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   return group;
@@ -1310,6 +1405,7 @@ export async function updatePermissionGroupSettings(
     );
   });
   await syncAutomaticPermissionGroupMembershipsForGroup(id);
+  invalidatePermissionGroupCache();
   const group = await getPermissionGroup(id);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   return group;
@@ -1317,7 +1413,9 @@ export async function updatePermissionGroupSettings(
 
 export async function deletePermissionGroup(id: number) {
   await ensureDatabase();
-  return (await PermissionGroupModel.destroy({ where: { id } })) > 0;
+  const deleted = (await PermissionGroupModel.destroy({ where: { id } })) > 0;
+  if (deleted) invalidatePermissionGroupCache();
+  return deleted;
 }
 
 export async function deletePermissionGroups(ids: number[]) {
@@ -1326,9 +1424,11 @@ export async function deletePermissionGroups(ids: number[]) {
     ...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
   ];
   if (uniqueIds.length === 0) return 0;
-  return PermissionGroupModel.destroy({
+  const deleted = await PermissionGroupModel.destroy({
     where: { id: { [Op.in]: uniqueIds } },
   });
+  if (deleted > 0) invalidatePermissionGroupCache();
+  return deleted;
 }
 
 export async function addPermissionGroupUser(
@@ -1344,7 +1444,7 @@ export async function addPermissionGroupUser(
   if (!Number.isSafeInteger(userId) || userId <= 0) {
     throw new Error(serverMessage('userIdInvalid'));
   }
-  return getDatabase().transaction(async (transaction) => {
+  await getDatabase().transaction(async (transaction) => {
     const [group, user] = await Promise.all([
       PermissionGroupModel.findByPk(groupId, { transaction }),
       UserModel.findByPk(userId, { transaction }),
@@ -1377,6 +1477,7 @@ export async function addPermissionGroupUser(
         { transaction },
       );
   });
+  invalidatePermissionGroupCache();
 }
 
 export async function removePermissionGroupUser(
@@ -1405,9 +1506,11 @@ export async function removePermissionGroupUsers(
     ...new Set(userIds.filter((id) => Number.isSafeInteger(id) && id > 0)),
   ];
   if (uniqueIds.length === 0) return 0;
-  return PermissionGroupUserModel.destroy({
+  const deleted = await PermissionGroupUserModel.destroy({
     where: { groupId, userId: { [Op.in]: uniqueIds } },
   });
+  if (deleted > 0) invalidatePermissionGroupCache();
+  return deleted;
 }
 
 async function userMatchesAutoAssign(
@@ -1472,6 +1575,7 @@ export async function syncAutomaticPermissionGroupMembershipsForUser(
       });
     }
   }
+  invalidatePermissionGroupCache();
 }
 
 export async function syncAutomaticPermissionGroupMembershipsForGroup(
@@ -1488,6 +1592,7 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
       await PermissionGroupUserModel.destroy({
         where: { groupId: group.id, assignmentSource: 'automatic' },
       });
+      invalidatePermissionGroupCache();
     }
     return;
   }
@@ -1506,7 +1611,10 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
     await upsertAutomaticMembership(group.id, userId);
   }
 
-  if (!autoAssign.revokeWhenUnmatched) return;
+  if (!autoAssign.revokeWhenUnmatched) {
+    invalidatePermissionGroupCache();
+    return;
+  }
   const where: WhereOptions<PermissionGroupUserModel> = {
     groupId: group.id,
     assignmentSource: 'automatic',
@@ -1515,6 +1623,7 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
     where.userId = { [Op.notIn]: matchedUserIds };
   }
   await PermissionGroupUserModel.destroy({ where });
+  invalidatePermissionGroupCache();
 }
 
 export async function addPermissionGroupCidr(
@@ -1527,7 +1636,7 @@ export async function addPermissionGroupCidr(
     throw new Error(serverMessage('permissionGroupIdInvalid'));
   }
   const cidr = parseCidr(rawCidr);
-  return getDatabase().transaction(async (transaction) => {
+  await getDatabase().transaction(async (transaction) => {
     const group = await PermissionGroupModel.findByPk(groupId, {
       transaction,
     });
@@ -1557,6 +1666,7 @@ export async function addPermissionGroupCidr(
       );
     }
   });
+  invalidatePermissionGroupCache();
 }
 
 export async function removePermissionGroupCidr(groupId: number, cidr: string) {
@@ -1581,9 +1691,11 @@ export async function removePermissionGroupCidrs(
     ...new Set(cidrs.map((cidr) => cidr.trim()).filter(Boolean)),
   ];
   if (uniqueCidrs.length === 0) return 0;
-  return PermissionGroupCidrModel.destroy({
+  const deleted = await PermissionGroupCidrModel.destroy({
     where: { groupId, cidr: { [Op.in]: uniqueCidrs } },
   });
+  if (deleted > 0) invalidatePermissionGroupCache();
+  return deleted;
 }
 
 function ipMatchesCidr(ip: string, rule: string) {

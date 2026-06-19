@@ -247,7 +247,7 @@ export const actions: Actions = {
       getClientAddress,
     });
     requirePluginAccess(permissions, definition);
-    const settings = await getSettings();
+    const settings = await getSettings({ mutable: true });
     const current = settings.plugins[definition.meta.id];
     const form = await request.formData();
     try {
@@ -302,7 +302,7 @@ export const actions: Actions = {
       getClientAddress,
     });
     requirePluginAccess(permissions, definition);
-    const settings = await getSettings();
+    const settings = await getSettings({ mutable: true });
     const state = settings.plugins[definition.meta.id];
     if (!state.enabled) {
       return fail(403, {

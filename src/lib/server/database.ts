@@ -45,23 +45,56 @@ const pluginMigrationModules = import.meta.glob<{
   { eager: true },
 );
 
+function numberEnv(name: string, fallback: number, min: number, max: number) {
+  const value = Number(env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
 function createSequelize() {
   if (!env.DATABASE_URL) {
     throw new Error('DATABASE_URL environment variable is not configured.');
+  }
+  const poolMax = numberEnv(
+    'DATABASE_POOL_MAX',
+    env.DATABASE_PGBOUNCER === 'true' ? 2 : 10,
+    1,
+    1_000,
+  );
+  const poolMin = numberEnv('DATABASE_POOL_MIN', 0, 0, poolMax);
+  const dialectOptions: Record<string, unknown> = {};
+  if (env.DATABASE_SSL === 'true') {
+    dialectOptions.ssl = { require: true, rejectUnauthorized: false };
+  }
+  if (env.DATABASE_APPLICATION_NAME) {
+    dialectOptions.application_name = env.DATABASE_APPLICATION_NAME;
+  }
+  const statementTimeout = numberEnv(
+    'DATABASE_STATEMENT_TIMEOUT_MS',
+    0,
+    0,
+    3_600_000,
+  );
+  if (statementTimeout > 0) dialectOptions.statement_timeout = statementTimeout;
+  const idleTransactionTimeout = numberEnv(
+    'DATABASE_IDLE_TRANSACTION_TIMEOUT_MS',
+    0,
+    0,
+    3_600_000,
+  );
+  if (idleTransactionTimeout > 0) {
+    dialectOptions.idle_in_transaction_session_timeout = idleTransactionTimeout;
   }
 
   return new Sequelize(env.DATABASE_URL, {
     dialect: 'postgres',
     logging: env.DATABASE_LOGGING === 'true' ? console.log : false,
-    dialectOptions:
-      env.DATABASE_SSL === 'true'
-        ? { ssl: { require: true, rejectUnauthorized: false } }
-        : undefined,
+    dialectOptions,
     pool: {
-      max: 10,
-      min: 0,
-      acquire: 30_000,
-      idle: 10_000,
+      max: poolMax,
+      min: poolMin,
+      acquire: numberEnv('DATABASE_POOL_ACQUIRE_MS', 30_000, 1_000, 300_000),
+      idle: numberEnv('DATABASE_POOL_IDLE_MS', 10_000, 1_000, 300_000),
     },
   });
 }
@@ -125,10 +158,14 @@ async function runDatabaseMigrations(sequelize: Sequelize) {
   }
 }
 
+function syncAlterEnabled() {
+  return env.DATABASE_SYNC_ALTER === 'true';
+}
+
 async function syncDatabase(sequelize: Sequelize) {
   await sequelize.authenticate();
   await runDatabaseMigrations(sequelize);
-  await sequelize.sync({ alter: true });
+  await sequelize.sync({ alter: syncAlterEnabled() });
   await runDatabaseMigrations(sequelize);
 }
 

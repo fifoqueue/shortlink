@@ -321,55 +321,65 @@ export function getPublicPluginStates(
   );
 }
 
+export function hasEnabledRequestPlugin(states: Record<string, PluginState>) {
+  return pluginDefinitions.some((definition) => {
+    const state = states[definition.meta.id];
+    return state?.enabled === true && Boolean(definition.handleRequest);
+  });
+}
+
 export async function loadRuntimePluginSlots(input: {
   states: Record<string, PluginState>;
   locale: SiteLocale;
   fallbackLocale: SiteLocale;
   user: AuthenticatedUser | null;
 }) {
-  const slots: RuntimePluginSlotRender[] = [];
-  for (const definition of pluginDefinitions) {
-    const state = input.states[definition.meta.id];
-    if (!state?.enabled || !definition.runtime?.slots) continue;
-    for (const [slot, descriptor] of Object.entries(
-      definition.runtime.slots,
-    ) as Array<
-      [PluginSlot, NonNullable<typeof definition.runtime.slots>[PluginSlot]]
-    >) {
-      if (!descriptor) continue;
+  const slotGroups = await Promise.all(
+    pluginDefinitions.map(async (definition) => {
+      const slots: RuntimePluginSlotRender[] = [];
+      const state = input.states[definition.meta.id];
+      if (!state?.enabled || !definition.runtime?.slots) return slots;
       const strings = pluginLocaleStrings(
         definition,
         input.locale,
         input.fallbackLocale,
       );
-      const schema =
-        descriptor.mode === 'schema'
-          ? ((await definition.slotSchema?.({
-              slot,
-              state,
-              locale: input.locale,
-              fallbackLocale: input.fallbackLocale,
-              strings,
-              user: input.user,
-            })) ?? descriptor.schema)
-          : undefined;
-      const ui = {
-        ...descriptor,
-        schema: descriptor.mode === 'schema' ? schema : descriptor.schema,
-      };
-      if (ui.mode === 'schema' && !ui.schema) continue;
-      if (ui.mode === 'iframe' && !ui.src) continue;
-      slots.push({
-        pluginId: definition.meta.id,
-        pluginName: definition.meta.name,
-        slot,
-        ui,
-        config: state.config,
-        strings,
-      });
-    }
-  }
-  return slots;
+      for (const [slot, descriptor] of Object.entries(
+        definition.runtime.slots,
+      ) as Array<
+        [PluginSlot, NonNullable<typeof definition.runtime.slots>[PluginSlot]]
+      >) {
+        if (!descriptor) continue;
+        const schema =
+          descriptor.mode === 'schema'
+            ? ((await definition.slotSchema?.({
+                slot,
+                state,
+                locale: input.locale,
+                fallbackLocale: input.fallbackLocale,
+                strings,
+                user: input.user,
+              })) ?? descriptor.schema)
+            : undefined;
+        const ui = {
+          ...descriptor,
+          schema: descriptor.mode === 'schema' ? schema : descriptor.schema,
+        };
+        if (ui.mode === 'schema' && !ui.schema) continue;
+        if (ui.mode === 'iframe' && !ui.src) continue;
+        slots.push({
+          pluginId: definition.meta.id,
+          pluginName: definition.meta.name,
+          slot,
+          ui,
+          config: state.config,
+          strings,
+        });
+      }
+      return slots;
+    }),
+  );
+  return slotGroups.flat();
 }
 
 export function parsePluginStates(
@@ -488,24 +498,25 @@ export async function collectClickMetadataPlugins(input: {
   states: Record<string, PluginState>;
   settings: import('$lib/config').SiteSettings;
 }) {
-  const metadata: Record<string, unknown> = {};
+  const entries = await Promise.all(
+    pluginDefinitions.map(async (definition) => {
+      const state = input.states[definition.meta.id];
+      if (!state?.enabled || !definition.collectClickMetadata) return null;
 
-  for (const definition of pluginDefinitions) {
-    const state = input.states[definition.meta.id];
-    if (!state?.enabled || !definition.collectClickMetadata) continue;
+      const value = await definition.collectClickMetadata({
+        request: input.request,
+        ip: input.ip,
+        state,
+        settings: input.settings,
+      });
+      if (value && Object.keys(value).length > 0) {
+        return [definition.meta.id, value] as const;
+      }
+      return null;
+    }),
+  );
 
-    const value = await definition.collectClickMetadata({
-      request: input.request,
-      ip: input.ip,
-      state,
-      settings: input.settings,
-    });
-    if (value && Object.keys(value).length > 0) {
-      metadata[definition.meta.id] = value;
-    }
-  }
-
-  return metadata;
+  return Object.fromEntries(entries.filter((entry) => entry !== null));
 }
 
 export async function formatClickMetadataPlugins(input: {
@@ -514,20 +525,18 @@ export async function formatClickMetadataPlugins(input: {
   isAdmin: boolean;
   isOwner: boolean;
 }) {
-  const entries: ClickMetadataDisplayItem[] = [];
-
-  for (const definition of clickMetadataFormatters(input.states)) {
-    entries.push(
-      ...(await definition.formatClickMetadata({
+  const entries = await Promise.all(
+    clickMetadataFormatters(input.states).map((definition) =>
+      definition.formatClickMetadata({
         metadata: input.metadata[definition.meta.id],
         state: definition.state,
         isAdmin: input.isAdmin,
         isOwner: input.isOwner,
-      })),
-    );
-  }
+      }),
+    ),
+  );
 
-  return entries;
+  return entries.flat();
 }
 
 export async function formatClickMetadataListPlugins(input: {
@@ -537,22 +546,29 @@ export async function formatClickMetadataListPlugins(input: {
   isOwner: boolean;
 }) {
   const formatters = clickMetadataFormatters(input.states);
-  const rows: ClickMetadataDisplayItem[][] = input.metadataItems.map(() => []);
-  if (formatters.length === 0 || rows.length === 0) return rows;
+  if (formatters.length === 0 || input.metadataItems.length === 0) {
+    return input.metadataItems.map(() => []);
+  }
 
-  for (const definition of formatters) {
-    await Promise.all(
-      input.metadataItems.map(async (metadata, index) => {
-        rows[index].push(
-          ...(await definition.formatClickMetadata({
+  const pluginRows = await Promise.all(
+    formatters.map((definition) =>
+      Promise.all(
+        input.metadataItems.map(async (metadata, index) => {
+          const items = await definition.formatClickMetadata({
             metadata: metadata[definition.meta.id],
             state: definition.state,
             isAdmin: input.isAdmin,
             isOwner: input.isOwner,
-          })),
-        );
-      }),
-    );
+          });
+          return { index, items };
+        }),
+      ),
+    ),
+  );
+
+  const rows: ClickMetadataDisplayItem[][] = input.metadataItems.map(() => []);
+  for (const pluginResult of pluginRows) {
+    for (const { index, items } of pluginResult) rows[index].push(...items);
   }
 
   return rows;
@@ -576,29 +592,29 @@ export async function getClickMetadataSearchFieldsPlugins(input: {
   states: Record<string, PluginState>;
   isAdmin: boolean;
   isOwner: boolean;
-}) {
-  const fields: Array<
-    ClickMetadataSearchField & { pluginId: string; pluginName: string }
-  > = [];
+}): Promise<
+  Array<ClickMetadataSearchField & { pluginId: string; pluginName: string }>
+> {
+  const fields = await Promise.all(
+    pluginDefinitions.map(async (definition) => {
+      const state = input.states[definition.meta.id];
+      if (!state?.enabled || !definition.getClickMetadataSearchFields) {
+        return [];
+      }
 
-  for (const definition of pluginDefinitions) {
-    const state = input.states[definition.meta.id];
-    if (!state?.enabled || !definition.getClickMetadataSearchFields) continue;
+      const pluginFields = await definition.getClickMetadataSearchFields({
+        state,
+        isAdmin: input.isAdmin,
+        isOwner: input.isOwner,
+      });
 
-    const pluginFields = await definition.getClickMetadataSearchFields({
-      state,
-      isAdmin: input.isAdmin,
-      isOwner: input.isOwner,
-    });
-
-    fields.push(
-      ...pluginFields.map((field) => ({
+      return pluginFields.map((field) => ({
         ...field,
         pluginId: definition.meta.id,
         pluginName: definition.meta.name,
-      })),
-    );
-  }
+      }));
+    }),
+  );
 
-  return fields;
+  return fields.flat();
 }

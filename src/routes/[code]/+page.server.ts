@@ -1,5 +1,6 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import type { SiteSettings } from '$lib/config';
 import { enqueueClick } from '$lib/server/click-queue';
 import {
   getRedirectLinkByCode,
@@ -25,6 +26,19 @@ import { getSettings } from '$lib/server/settings';
 import { shortLinkDomainForOrigin } from '$lib/server/url';
 import { shouldRenderOpenGraphPreview } from '$lib/server/user-agent';
 import { uiText } from '$lib/i18n/ui-text';
+import { getPluginUser } from '../../plugins/auth-registry';
+
+async function ensureLocalsUser(
+  locals: App.Locals,
+  cookies: Cookies,
+  settings: SiteSettings,
+) {
+  if (locals.user) return locals.user;
+  const user = await getPluginUser(cookies, settings.plugins);
+  locals.user = user;
+  locals.isAdmin = user?.isAdmin === true;
+  return user;
+}
 
 export const load: PageServerLoad = async ({
   params,
@@ -56,12 +70,15 @@ export const load: PageServerLoad = async ({
   );
   let permissionsPromise: ReturnType<typeof effectivePermissions> | undefined;
   const permissionsForRequest = () =>
-    (permissionsPromise ??= effectivePermissions({
-      settings,
-      user: locals.user,
-      isAdmin: locals.isAdmin,
-      ip: clientIp,
-    }));
+    (permissionsPromise ??= (async () => {
+      const user = await ensureLocalsUser(locals, cookies, settings);
+      return effectivePermissions({
+        settings,
+        user,
+        isAdmin: locals.isAdmin,
+        ip: clientIp,
+      });
+    })());
 
   if (
     blockReason &&
@@ -97,7 +114,7 @@ export const load: PageServerLoad = async ({
     hasExplicitOpenGraphMetadata(link)
   ) {
     if (settings.links.trackClicks) {
-      await enqueueClick({
+      enqueueClick({
         linkId: link.id,
         request,
         getClientAddress,
@@ -132,7 +149,7 @@ export const load: PageServerLoad = async ({
   });
 
   if (settings.links.trackClicks) {
-    await enqueueClick({
+    enqueueClick({
       linkId: link.id,
       request,
       getClientAddress,
@@ -168,21 +185,22 @@ export const actions: Actions = {
     if (!link) error(404, text.messages.linkNotFound);
 
     const blockReason = linkAccessBlockReason(link);
-    const bypassesExpired =
-      blockReason === 'expired' &&
-      (
-        await effectivePermissions({
-          settings,
-          user: locals.user,
-          isAdmin: locals.isAdmin,
-          ip: getClientIp(
-            request,
-            getClientAddress,
-            settings.network.trustProxyHeaders,
-            settings.network.proxyIpHeaders,
-          ),
-        })
-      ).links.expiresAtBypass;
+    let bypassesExpired = false;
+    if (blockReason === 'expired') {
+      await ensureLocalsUser(locals, cookies, settings);
+      const permissions = await effectivePermissions({
+        settings,
+        user: locals.user,
+        isAdmin: locals.isAdmin,
+        ip: getClientIp(
+          request,
+          getClientAddress,
+          settings.network.trustProxyHeaders,
+          settings.network.proxyIpHeaders,
+        ),
+      });
+      bypassesExpired = permissions.links.expiresAtBypass;
+    }
     if (blockReason && !bypassesExpired) {
       return fail(410, {
         message: blockedLinkTitle(blockReason, locals.locale),

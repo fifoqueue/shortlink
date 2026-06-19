@@ -19,9 +19,17 @@ import {
   type SiteSettings,
   type ThemePreset,
 } from '$lib/config';
+import { env } from '$env/dynamic/private';
 import type { PluginState } from '$lib/plugin-contracts';
 import { Op } from 'sequelize';
 import { AppSettingModel, ensureDatabase } from './database';
+import {
+  redisDelete,
+  redisGetJson,
+  redisPublish,
+  redisSetJson,
+  redisSubscribe,
+} from './redis';
 import {
   normalizeShortLinkDomains,
   normalizeShortLinkDomainSettings,
@@ -29,7 +37,14 @@ import {
 
 const SITE_SETTINGS_KEY = 'site';
 const PLUGIN_SETTINGS_PREFIX = 'plugins:';
-const SETTINGS_CACHE_TTL_MS = 5_000;
+const SETTINGS_REDIS_KEY = 'cache:settings:site';
+const SETTINGS_INVALIDATE_CHANNEL = 'invalidate:settings';
+const SETTINGS_CACHE_TTL_MS = numberEnv(
+  'SETTINGS_CACHE_TTL_MS',
+  5_000,
+  0,
+  300_000,
+);
 const clone = <T>(value: T): T => structuredClone(value);
 let cachedSettings:
   | {
@@ -41,6 +56,24 @@ let pendingSettings: Promise<SiteSettings> | undefined;
 let normalizePluginStates: (value: unknown) => Record<string, PluginState> =
   loosePluginStates;
 const siteLocaleSet = new Set<string>(siteLocaleKeys);
+
+function numberEnv(name: string, fallback: number, min: number, max: number) {
+  const value = Number(env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) {
+    return value;
+  }
+
+  for (const property of Object.values(value)) {
+    deepFreeze(property);
+  }
+
+  return Object.freeze(value);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -74,8 +107,19 @@ export function setPluginStateNormalizer(
   cachedSettings = undefined;
 }
 
-export function invalidateSettingsCache() {
+export function invalidateSettingsCache(
+  options: { redis?: boolean; publish?: boolean } = {},
+) {
   cachedSettings = undefined;
+  pendingSettings = undefined;
+  if (options.redis) void redisDelete(SETTINGS_REDIS_KEY);
+  if (options.publish) {
+    void redisPublish(SETTINGS_INVALIDATE_CHANNEL, { key: SITE_SETTINGS_KEY });
+  }
+}
+
+export function mutableSettings(settings: SiteSettings): SiteSettings {
+  return clone(settings);
 }
 
 function merge<T>(defaults: T, value: unknown): T {
@@ -313,30 +357,46 @@ async function loadSettings(): Promise<SiteSettings> {
     await AppSettingModel.bulkCreate(missingRows);
   }
 
-  return clone(normalized);
+  void redisSetJson(SETTINGS_REDIS_KEY, normalized, SETTINGS_CACHE_TTL_MS);
+  return normalized;
 }
 
-export async function getSettings(): Promise<SiteSettings> {
+async function loadCachedSettings(): Promise<SiteSettings> {
+  const redisSettings =
+    SETTINGS_CACHE_TTL_MS > 0
+      ? await redisGetJson<SiteSettings>(SETTINGS_REDIS_KEY)
+      : null;
+  if (redisSettings) return redisSettings;
+  return loadSettings();
+}
+
+export async function getSettings(
+  options: { mutable?: boolean } = {},
+): Promise<SiteSettings> {
   const now = Date.now();
   if (cachedSettings && cachedSettings.expiresAt > now) {
-    return clone(cachedSettings.value);
+    return options.mutable
+      ? mutableSettings(cachedSettings.value)
+      : cachedSettings.value;
   }
 
   if (!pendingSettings) {
-    pendingSettings = loadSettings()
+    pendingSettings = loadCachedSettings()
       .then((settings) => {
+        const value = deepFreeze(clone(settings));
         cachedSettings = {
           expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
-          value: clone(settings),
+          value,
         };
-        return settings;
+        return value;
       })
       .finally(() => {
         pendingSettings = undefined;
       });
   }
 
-  return clone(await pendingSettings);
+  const settings = await pendingSettings;
+  return options.mutable ? mutableSettings(settings) : settings;
 }
 
 export async function updateSettings(settings: SiteSettings) {
@@ -362,10 +422,16 @@ export async function updateSettings(settings: SiteSettings) {
   ]);
   cachedSettings = {
     expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
-    value: clone(normalized),
+    value: deepFreeze(clone(normalized)),
   };
+  void redisSetJson(SETTINGS_REDIS_KEY, normalized, SETTINGS_CACHE_TTL_MS);
+  void redisPublish(SETTINGS_INVALIDATE_CHANNEL, { key: SITE_SETTINGS_KEY });
   return clone(normalized);
 }
+
+redisSubscribe(SETTINGS_INVALIDATE_CHANNEL, () => {
+  invalidateSettingsCache();
+});
 
 export function parseBoolean(form: FormData, name: string) {
   return form.get(name) === 'on' || form.get(name) === 'true';

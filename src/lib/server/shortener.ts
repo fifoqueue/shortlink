@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import {
   cast,
@@ -36,6 +37,21 @@ import type { LinkOwner } from './link-owner';
 import type { LinkSearchState } from '$lib/search';
 import { serverMessage } from '$lib/i18n/ui-text';
 import { outboundRequest } from './outbound-http';
+import {
+  clickAnalyticsEnabled,
+  countClickAnalyticsEvents,
+  listClickAnalyticsEvents,
+  writeClickAnalytics,
+  type ClickAnalyticsEvent,
+  type ClickAnalyticsSearch,
+} from './click-analytics';
+import {
+  redisDelete,
+  redisGetJson,
+  redisPublish,
+  redisSetJson,
+  redisSubscribe,
+} from './redis';
 import {
   activeShareAccessForLinkId,
   linkShareSummariesByLinkId,
@@ -149,23 +165,24 @@ export type ClickInsightAlert = {
   value: string;
 };
 
-type RedirectLink = Link & {
+type RedirectLink = {
+  id: number;
+  code: string;
+  domain: string;
+  url: string;
+  preview: LinkPreview;
+  clicks: number;
+  smart: LinkSmartOptions;
+  routing: LinkRoutingOptions;
   passwordHash: string | null;
   passwordSalt: string | null;
 };
 
 type CreatorVisibility = 'none' | 'name' | 'admin';
 
-export type ClickEventSearch =
-  | {
-      field: 'createdAt' | 'ipAddress' | 'referer' | 'userAgent';
-      query: string;
-    }
-  | {
-      field: 'metadata';
-      query: string;
-      paths: string[][];
-    };
+export type ClickEventSearch = ClickAnalyticsSearch;
+
+type ClickEventRecord = ClickAnalyticsEvent;
 
 export interface DeleteLinksOptions {
   isAdmin?: boolean;
@@ -215,6 +232,19 @@ export type LinkHealthResult =
 const ALPHABET =
   '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const MAX_STATS_PAGE = 10_000;
+const REDIRECT_LINK_CACHE_TTL_MS = numberEnv(
+  'REDIRECT_LINK_CACHE_TTL_MS',
+  5_000,
+  0,
+  300_000,
+);
+const REDIRECT_LINK_CACHE_LIMIT = numberEnv(
+  'REDIRECT_LINK_CACHE_LIMIT',
+  20_000,
+  0,
+  1_000_000,
+);
+const REDIRECT_LINK_INVALIDATE_CHANNEL = 'invalidate:redirect-link';
 const RESERVED_CODES = new Set([
   'api',
   'admin',
@@ -235,6 +265,123 @@ const UTM_FIELDS = [
 ] as const;
 type UtmField = (typeof UTM_FIELDS)[number][0];
 type UtmPermissions = Partial<Record<UtmField, boolean>>;
+const REDIRECT_LINK_ATTRIBUTES = [
+  'id',
+  'code',
+  'domain',
+  'url',
+  'preview',
+  'clicks',
+  'expiresAt',
+  'maxClicks',
+  'passwordHash',
+  'passwordSalt',
+  'redirectRules',
+] as const;
+
+const redirectLinkCache = new Map<
+  string,
+  { expiresAt: number; link: RedirectLink }
+>();
+
+function numberEnv(name: string, fallback: number, min: number, max: number) {
+  const value = Number(env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function redirectLinkCacheKey(code: string, domain?: string) {
+  return `${domain ?? ''}\0${code}`;
+}
+
+function redisKeyPart(value: string | undefined) {
+  return Buffer.from(value ?? '', 'utf8').toString('base64url');
+}
+
+function redirectLinkRedisKey(code: string, domain?: string) {
+  return `cache:redirect-link:${redisKeyPart(domain)}:${redisKeyPart(code)}`;
+}
+
+function cacheableRedirectLink(link: RedirectLink) {
+  return REDIRECT_LINK_CACHE_TTL_MS > 0 && link.smart.maxClicks <= 0;
+}
+
+function cachedRedirectLink(code: string, domain?: string) {
+  const key = redirectLinkCacheKey(code, domain);
+  const entry = redirectLinkCache.get(key);
+  if (!entry) return undefined;
+  if (entry.expiresAt <= Date.now()) {
+    redirectLinkCache.delete(key);
+    return undefined;
+  }
+  redirectLinkCache.delete(key);
+  redirectLinkCache.set(key, entry);
+  return entry.link;
+}
+
+async function cachedRedirectLinkFromRedis(code: string, domain?: string) {
+  const link =
+    REDIRECT_LINK_CACHE_TTL_MS > 0
+      ? await redisGetJson<RedirectLink>(redirectLinkRedisKey(code, domain))
+      : null;
+  if (!link || !cacheableRedirectLink(link)) return undefined;
+  rememberRedirectLink(link, { redis: false });
+  return link;
+}
+
+function rememberRedirectLink(
+  link: RedirectLink,
+  options: { redis?: boolean } = { redis: true },
+) {
+  if (!cacheableRedirectLink(link) || REDIRECT_LINK_CACHE_LIMIT <= 0) return;
+  const key = redirectLinkCacheKey(link.code, link.domain);
+  redirectLinkCache.set(key, {
+    expiresAt: Date.now() + REDIRECT_LINK_CACHE_TTL_MS,
+    link,
+  });
+  if (options.redis) {
+    void redisSetJson(
+      redirectLinkRedisKey(link.code, link.domain),
+      link,
+      REDIRECT_LINK_CACHE_TTL_MS,
+    );
+  }
+  while (redirectLinkCache.size > REDIRECT_LINK_CACHE_LIMIT) {
+    const oldestKey = redirectLinkCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    redirectLinkCache.delete(oldestKey);
+  }
+}
+
+function invalidateRedirectLinkCache(
+  code: string,
+  domain?: string,
+  options: { redis?: boolean; publish?: boolean } = {
+    redis: true,
+    publish: true,
+  },
+) {
+  redirectLinkCache.delete(redirectLinkCacheKey(code, domain));
+  if (options.redis) void redisDelete(redirectLinkRedisKey(code, domain));
+  if (options.publish) {
+    void redisPublish(REDIRECT_LINK_INVALIDATE_CHANNEL, { code, domain });
+  }
+}
+
+redisSubscribe(REDIRECT_LINK_INVALIDATE_CHANNEL, (message) => {
+  try {
+    const input = JSON.parse(message) as { code?: unknown; domain?: unknown };
+    if (typeof input.code === 'string') {
+      invalidateRedirectLinkCache(
+        input.code,
+        typeof input.domain === 'string' ? input.domain : undefined,
+        { redis: false, publish: false },
+      );
+    }
+  } catch {
+    // Ignore malformed cache invalidation messages from external publishers.
+  }
+});
 
 function domainWhere(domain: string | undefined): WhereOptions {
   if (domain === undefined) return {};
@@ -362,7 +509,20 @@ function publicLink(
 
 function redirectLink(link: ShortLinkModel): RedirectLink {
   return {
-    ...publicLink(link),
+    id: link.id,
+    code: link.code,
+    domain: link.domain,
+    url: link.url,
+    preview: normalizeStoredPreview(link.preview),
+    clicks: link.clicks,
+    smart: {
+      expiresAt: link.expiresAt?.toISOString() ?? null,
+      maxClicks: Math.max(0, link.maxClicks ?? 0),
+      passwordProtected: Boolean(link.passwordHash && link.passwordSalt),
+    },
+    routing: {
+      redirectRules: storedRedirectRules(link.redirectRules),
+    },
     passwordHash: link.passwordHash,
     passwordSalt: link.passwordSalt,
   };
@@ -902,19 +1062,28 @@ function topEntries(counts: Map<string, number>, limit = 5) {
     .map(([label, count]) => ({ label, count }));
 }
 
-async function clickInsights(linkId: number, isAdmin?: boolean) {
-  const clicks = await ClickEventModel.findAll({
-    attributes: [
-      'createdAt',
-      'referer',
-      'metadata',
-      'userAgent',
-      ...(isAdmin ? ['ipAddress'] : []),
-    ],
+async function clickInsightEvents(linkId: number): Promise<ClickEventRecord[]> {
+  if (clickAnalyticsEnabled()) {
+    try {
+      return await listClickAnalyticsEvents({ linkId, limit: 1_000 });
+    } catch (cause) {
+      console.error(
+        'Failed to load link click insights from ClickHouse; falling back to PostgreSQL.',
+        cause,
+      );
+    }
+  }
+
+  return ClickEventModel.findAll({
+    attributes: ['createdAt', 'referer', 'metadata', 'userAgent', 'ipAddress'],
     where: { linkId },
     order: [['createdAt', 'DESC']],
     limit: 1_000,
   });
+}
+
+async function clickInsights(linkId: number, isAdmin?: boolean) {
+  const clicks = await clickInsightEvents(linkId);
   const referrers = new Map<string, number>();
   const browsers = new Map<string, number>();
   const countries = new Map<string, number>();
@@ -969,7 +1138,7 @@ async function clickInsights(linkId: number, isAdmin?: boolean) {
 }
 
 function publicClickEvent(
-  { createdAt, ipAddress, metadata, referer, userAgent }: ClickEventModel,
+  { createdAt, ipAddress, metadata, referer, userAgent }: ClickEventRecord,
   options: { isAdmin?: boolean } = {},
 ): ClickEvent {
   return {
@@ -1083,14 +1252,32 @@ export async function listLinksPage(
       : ownerWhere(owner)
     : undefined;
   const where = combineWhere(visibilityWhere, linkSearchWhere(search));
-  const totalItems = await ShortLinkModel.count({ where });
-  const pagination = paginationMeta({ totalItems, page, pageSize });
-  const links = await ShortLinkModel.findAll({
-    where,
-    order: [['id', 'DESC']],
-    limit: pagination.pageSize,
-    offset: pageOffset(pagination),
+  const requestedPage = normalizedPage(page);
+  const normalizedSize = normalizedPageSize(pageSize);
+  const requestedPagination = { page: requestedPage, pageSize: normalizedSize };
+  const [totalItems, requestedLinks] = await Promise.all([
+    ShortLinkModel.count({ where }),
+    ShortLinkModel.findAll({
+      where,
+      order: [['id', 'DESC']],
+      limit: normalizedSize,
+      offset: pageOffset(requestedPagination),
+    }),
+  ]);
+  const pagination = paginationMeta({
+    totalItems,
+    page: requestedPage,
+    pageSize: normalizedSize,
   });
+  const links =
+    pagination.page === requestedPage
+      ? requestedLinks
+      : await ShortLinkModel.findAll({
+          where,
+          order: [['id', 'DESC']],
+          limit: pagination.pageSize,
+          offset: pageOffset(pagination),
+        });
   const shareSummaries = await linkShareSummariesByLinkId(
     links.map((link) => link.id),
     sharedWithUserId,
@@ -1110,17 +1297,27 @@ export async function listLinksPage(
 export async function getLinkByCode(code: string, domain?: string) {
   await ensureDatabase();
   const link = await ShortLinkModel.findOne({
+    attributes: [...REDIRECT_LINK_ATTRIBUTES],
     where: linkLookupWhere(code, domain),
   });
   return link ? publicLink(link) : undefined;
 }
 
 export async function getRedirectLinkByCode(code: string, domain?: string) {
+  const cached = cachedRedirectLink(code, domain);
+  if (cached) return cached;
+
+  const redisCached = await cachedRedirectLinkFromRedis(code, domain);
+  if (redisCached) return redisCached;
+
   await ensureDatabase();
   const link = await ShortLinkModel.findOne({
     where: linkLookupWhere(code, domain),
   });
-  return link ? redirectLink(link) : undefined;
+  if (!link) return undefined;
+  const result = redirectLink(link);
+  rememberRedirectLink(result);
+  return result;
 }
 
 export function protectedLinkCookieName(code: string) {
@@ -1140,7 +1337,7 @@ export function verifyLinkPassword(link: RedirectLink, password: string) {
   return passwordHash(password, link.passwordSalt) === link.passwordHash;
 }
 
-export function linkAccessBlockReason(link: Link) {
+export function linkAccessBlockReason(link: Pick<Link, 'clicks' | 'smart'>) {
   if (
     link.smart.expiresAt &&
     new Date(link.smart.expiresAt).getTime() <= Date.now()
@@ -1160,7 +1357,7 @@ function mobileUserAgent(userAgent: string) {
 }
 
 export function destinationForRequest(
-  link: Link,
+  link: Pick<Link, 'routing' | 'url'>,
   request: Request,
   input: { ip?: string; metadata?: Record<string, string> } = {},
 ) {
@@ -1168,7 +1365,7 @@ export function destinationForRequest(
 }
 
 export function redirectResultForRequest(
-  link: Link,
+  link: Pick<Link, 'routing' | 'url'>,
   request: Request,
   input: { ip?: string; metadata?: Record<string, string> } = {},
 ): RedirectDestinationResult {
@@ -1207,6 +1404,7 @@ async function insertLink(
       creatorIpHash: owner?.ipHash ?? null,
       creatorIpAddress: owner?.ipAddress ?? null,
     });
+    invalidateRedirectLinkCache(code, domain);
     return publicLink(link);
   } catch (error) {
     if (error instanceof UniqueConstraintError) {
@@ -1370,6 +1568,7 @@ export async function updateLink(
     );
   }
   await link.update(updates);
+  invalidateRedirectLinkCache(link.code, link.domain);
 
   return { status: 'updated', link: publicLink(link) };
 }
@@ -1492,6 +1691,7 @@ export async function checkLinkHealth(
     healthResponseBody: result.responseBody || null,
     healthLatencyMs: result.latencyMs,
   });
+  invalidateRedirectLinkCache(link.code, link.domain);
 
   return { status: 'checked', link: publicLink(link) };
 }
@@ -1509,6 +1709,9 @@ export async function recordClick(
   await ensureDatabase();
   const sequelize = getDatabase();
   const transaction = await sequelize.transaction();
+  let analyticsRow:
+    | Parameters<typeof writeClickAnalytics>[0][number]
+    | undefined;
 
   try {
     if (data.queueId) {
@@ -1522,38 +1725,47 @@ export async function recordClick(
       }
     }
 
-    const link = await ShortLinkModel.findByPk(linkId, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-    if (!link) {
+    const clickedAt = new Date();
+    const [updatedLinks] = await ShortLinkModel.update(
+      { lastClickedAt: clickedAt },
+      { where: { id: linkId }, transaction },
+    );
+    if (updatedLinks === 0) {
       await transaction.rollback();
       return;
     }
 
-    const clickedAt = new Date();
-    await link.increment('clicks', { transaction });
-    link.lastClickedAt = clickedAt;
-    await link.save({ transaction, fields: ['lastClickedAt'] });
+    await ShortLinkModel.increment('clicks', {
+      by: 1,
+      where: { id: linkId },
+      transaction,
+    });
 
-    await ClickEventModel.create(
+    analyticsRow = {
+      linkId,
+      createdAt: clickedAt,
+      ipAddress: data.ip || null,
+      userAgent: data.userAgent || null,
+      referer: data.referer || null,
+      metadata: data.metadata ?? {},
+    };
+
+    const click = await ClickEventModel.create(
       {
         queueId: data.queueId ?? null,
-        linkId: link.id,
-        createdAt: clickedAt,
-        ipAddress: data.ip || null,
-        userAgent: data.userAgent || null,
-        referer: data.referer || null,
-        metadata: data.metadata ?? {},
+        ...analyticsRow,
       },
       { transaction },
     );
+    analyticsRow.eventId = Number(click.id);
 
     await transaction.commit();
   } catch (error) {
     await transaction.rollback();
     throw error;
   }
+
+  if (analyticsRow) await writeClickAnalytics([analyticsRow]);
 }
 
 export async function getStats(
@@ -1580,6 +1792,21 @@ export async function listClickEventsForLink(
   options: { isAdmin?: boolean; search?: ClickEventSearch } = {},
 ) {
   await ensureDatabase();
+  if (clickAnalyticsEnabled()) {
+    try {
+      const clicks = await listClickAnalyticsEvents({
+        linkId: link.id,
+        search: options.search,
+      });
+      return clicks.map((click) => publicClickEvent(click, options));
+    } catch (cause) {
+      console.error(
+        'Failed to load link click events from ClickHouse; falling back to PostgreSQL.',
+        cause,
+      );
+    }
+  }
+
   const clicks = await ClickEventModel.findAll({
     where: combineWhere(
       { linkId: link.id },
@@ -1604,7 +1831,7 @@ export async function getStatsForLink(
   const pageSize = normalizedPageSize(options.pageSize);
   const requestedPage = Math.min(MAX_STATS_PAGE, normalizedPage(options.page));
   let totalItems = 0;
-  let clicks: ClickEventModel[] = [];
+  let clicks: ClickEventRecord[] = [];
   const clickWhere = combineWhere(
     { linkId: link.id },
     clickEventSearchWhere(options.search),
@@ -1623,7 +1850,7 @@ export async function getStatsForLink(
   );
   const insightsPromise = clickInsights(link.id, options.isAdmin);
 
-  try {
+  const loadPostgresPage = async () => {
     const [count, pageClicks] = await Promise.all([
       ClickEventModel.count({ where: clickWhere }),
       clickQuery(requestedPage),
@@ -1634,7 +1861,48 @@ export async function getStatsForLink(
       page: requestedPage,
       pageSize,
     }).page;
-    clicks = page === requestedPage ? pageClicks : await clickQuery(page);
+    return {
+      totalItems: count,
+      clicks: page === requestedPage ? pageClicks : await clickQuery(page),
+    };
+  };
+
+  const loadClickHousePage = async () => {
+    const clickQueryForPage = (page: number) =>
+      listClickAnalyticsEvents({
+        linkId: link.id,
+        search: options.search,
+        limit: pageSize,
+        offset: pageOffset({ page, pageSize }),
+      });
+    const [count, pageClicks] = await Promise.all([
+      countClickAnalyticsEvents({ linkId: link.id, search: options.search }),
+      clickQueryForPage(requestedPage),
+    ]);
+    const page = paginationMeta({
+      totalItems: count,
+      page: requestedPage,
+      pageSize,
+    }).page;
+    return {
+      totalItems: count,
+      clicks:
+        page === requestedPage ? pageClicks : await clickQueryForPage(page),
+    };
+  };
+
+  try {
+    const result = clickAnalyticsEnabled()
+      ? await loadClickHousePage().catch(async (cause: unknown) => {
+          console.error(
+            'Failed to load link click statistics from ClickHouse; falling back to PostgreSQL.',
+            cause,
+          );
+          return loadPostgresPage();
+        })
+      : await loadPostgresPage();
+    totalItems = result.totalItems;
+    clicks = result.clicks;
   } catch (cause) {
     console.error('Failed to load link click statistics.', cause);
   }
@@ -1692,9 +1960,11 @@ export async function canViewStats(input: {
 
 export async function deleteLink(code: string, domain?: string) {
   await ensureDatabase();
-  return (
-    (await ShortLinkModel.destroy({ where: linkLookupWhere(code, domain) })) > 0
-  );
+  const deleted =
+    (await ShortLinkModel.destroy({ where: linkLookupWhere(code, domain) })) >
+    0;
+  if (deleted) invalidateRedirectLinkCache(code, domain);
+  return deleted;
 }
 
 function normalizedLinkSelections(
@@ -1787,6 +2057,12 @@ export async function deleteLinks(
     result.deleted = await ShortLinkModel.destroy({
       where: { id: { [Op.in]: deletableIds } },
     });
+    const deletedIdSet = new Set(deletableIds);
+    for (const link of links) {
+      if (deletedIdSet.has(link.id)) {
+        invalidateRedirectLinkCache(link.code, link.domain);
+      }
+    }
   }
 
   return result;
@@ -1795,11 +2071,16 @@ export async function deleteLinks(
 export async function countLinksByDomain(domains: readonly string[]) {
   await ensureDatabase();
   const normalizedDomains = [...new Set(domains.filter(Boolean))];
-  const entries = await Promise.all(
-    normalizedDomains.map(async (domain) => [
-      domain,
-      await ShortLinkModel.count({ where: { domain } }),
-    ]),
-  );
-  return Object.fromEntries(entries) as Record<string, number>;
+  if (normalizedDomains.length === 0) return {};
+  const rows = (await ShortLinkModel.findAll({
+    attributes: ['domain', [fn('COUNT', col('id')), 'count']],
+    where: { domain: { [Op.in]: normalizedDomains } },
+    group: ['domain'],
+    raw: true,
+  })) as unknown as Array<{ domain: string; count: string | number }>;
+  const counts = Object.fromEntries(
+    normalizedDomains.map((domain) => [domain, 0]),
+  ) as Record<string, number>;
+  for (const row of rows) counts[row.domain] = Number(row.count) || 0;
+  return counts;
 }

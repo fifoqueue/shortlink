@@ -1,11 +1,17 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import QRCode from 'qrcode';
   import { defaultSiteLocale, type SiteLocale } from '$lib/config';
   import { uiText } from '$lib/i18n/ui-text';
 
   const SVG_CACHE_LIMIT = 120;
   const svgCache: Array<[string, string]> = [];
+  type QrCodeModule = typeof import('qrcode');
+  let qrCodeModulePromise: Promise<QrCodeModule> | null = null;
+
+  function loadQrCode() {
+    qrCodeModulePromise ??= import('qrcode');
+    return qrCodeModulePromise;
+  }
 
   function cachedSvg(value: string) {
     const index = svgCache.findIndex(([key]) => key === value);
@@ -59,6 +65,7 @@
     }
 
     const token = ++renderToken;
+    const QRCode = await loadQrCode();
     const markup = await QRCode.toString(source, {
       type: 'svg',
       margin: 1,
@@ -107,6 +114,7 @@
     if (!browser || busy) return;
     busy = true;
     try {
+      const QRCode = await loadQrCode();
       const qrDataUrl = await QRCode.toDataURL(value, {
         margin: 1,
         width: 520,

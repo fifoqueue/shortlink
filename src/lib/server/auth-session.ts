@@ -7,11 +7,34 @@ import type { UserModel } from './models';
 
 export const SESSION_COOKIE = 'shortlink_user';
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+const SESSION_USER_CACHE_TTL_MS = numberEnv(
+  'SESSION_USER_CACHE_TTL_MS',
+  5_000,
+  0,
+  60_000,
+);
+const SESSION_USER_CACHE_LIMIT = numberEnv(
+  'SESSION_USER_CACHE_LIMIT',
+  10_000,
+  0,
+  100_000,
+);
 
 type SessionUser = AuthenticatedUser & {
   expiresAt: number;
   sessionVersion?: number;
 };
+
+const sessionUserCache = new Map<
+  string,
+  { expiresAt: number; user: AuthenticatedUser }
+>();
+
+function numberEnv(name: string, fallback: number, min: number, max: number) {
+  const value = Number(env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
 
 function secret() {
   const value = env.AUTH_SESSION_SECRET;
@@ -109,20 +132,59 @@ export function createUserSessionFromModel(
 }
 
 export function clearUserSession(cookies: Cookies) {
+  const token = cookies.get(SESSION_COOKIE);
+  if (token) sessionUserCache.delete(token);
   cookies.delete(SESSION_COOKIE, { path: '/' });
+}
+
+function cachedSessionUser(token: string) {
+  const entry = sessionUserCache.get(token);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    sessionUserCache.delete(token);
+    return null;
+  }
+  sessionUserCache.delete(token);
+  sessionUserCache.set(token, entry);
+  return entry.user;
+}
+
+function rememberSessionUser(token: string, user: AuthenticatedUser) {
+  if (SESSION_USER_CACHE_TTL_MS <= 0 || SESSION_USER_CACHE_LIMIT <= 0) return;
+  sessionUserCache.set(token, {
+    expiresAt: Date.now() + SESSION_USER_CACHE_TTL_MS,
+    user,
+  });
+  while (sessionUserCache.size > SESSION_USER_CACHE_LIMIT) {
+    const oldestKey = sessionUserCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    sessionUserCache.delete(oldestKey);
+  }
 }
 
 export async function getUserFromSession(
   cookies: Cookies,
   isProviderAllowed: (provider: string) => boolean = () => true,
 ): Promise<AuthenticatedUser | null> {
-  const user = decodeSigned<SessionUser>(cookies.get(SESSION_COOKIE));
+  const token = cookies.get(SESSION_COOKIE);
+  const user = decodeSigned<SessionUser>(token);
   if (!user || user.expiresAt < Date.now() || !isProviderAllowed(user.provider))
     return null;
+
+  if (token) {
+    const cached = cachedSessionUser(token);
+    if (cached) return cached;
+  }
 
   const storedUser = await getUserById(user.id);
   if (!storedUser?.enabled) return null;
   if ((user.sessionVersion ?? 0) !== storedUser.sessionVersion) return null;
 
-  return sessionUserFromModel(storedUser, user.provider, user.subject);
+  const authenticatedUser = sessionUserFromModel(
+    storedUser,
+    user.provider,
+    user.subject,
+  );
+  if (token) rememberSessionUser(token, authenticatedUser);
+  return authenticatedUser;
 }

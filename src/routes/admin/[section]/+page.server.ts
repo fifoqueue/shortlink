@@ -617,7 +617,7 @@ export const actions: Actions = {
       });
     }
     const form = await request.formData();
-    const settings = await getSettings();
+    const settings = await getSettings({ mutable: true });
     const locales = Object.fromEntries(
       siteLocaleKeys.map((locale) => [
         locale,
@@ -760,7 +760,7 @@ export const actions: Actions = {
       });
     }
     const form = await request.formData();
-    const settings = await getSettings();
+    const settings = await getSettings({ mutable: true });
     const minLength = numberValue(form, 'codeMinLength', 3, 1, 30);
     const maxLength = numberValue(form, 'codeMaxLength', 32, minLength, 64);
     const linkOptions = linkOptionsFromForm(form);
@@ -877,7 +877,7 @@ export const actions: Actions = {
       });
     }
     const form = await request.formData();
-    const settings = await getSettings();
+    const settings = await getSettings({ mutable: true });
     const preset = parseThemePreset(stringValue(form, 'preset'));
     const base = themePresets[preset];
     const tokens: ThemeTokens = {
@@ -937,7 +937,7 @@ export const actions: Actions = {
       });
     }
     const form = await request.formData();
-    const settings = await getSettings();
+    const settings = await getSettings({ mutable: true });
     const preset = parseThemePreset(stringValue(form, 'preset'));
     settings.theme.customTokens = { ...themePresets[preset] };
     settings.theme.preset = preset;

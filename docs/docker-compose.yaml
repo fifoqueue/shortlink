@@ -1,5 +1,6 @@
 services:
   app:
+    # Uses the latest published app image from GHCR by default.
     image: ghcr.io/fifoqueue/shortlink:latest
     # Runtime ABI plugins can be copied into ./user-plugins without rebuilding
     # the image. Build-time src/user-plugins still require a custom image; for
@@ -8,26 +9,25 @@ services:
     # build:
     #   context: ..
     #   dockerfile: Dockerfile
+    # Runtime app settings are loaded from the project .env file. For this
+    # compose network, set DATABASE_URL/REDIS_URL/ANALYTICS_CLICKHOUSE_URL with
+    # service hostnames: postgres, redis, and clickhouse.
+    env_file:
+      - ../.env
     volumes:
       - ../user-plugins:/app/user-plugins:ro
     restart: unless-stopped
     depends_on:
-      postgres:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
         condition: service_healthy
     ports:
       - '3000:3000'
     environment:
-      NODE_ENV: production
-      HOST: 0.0.0.0
-      PORT: 3000
-      DATABASE_URL: postgres://shortlink:replace-this-password@postgres:5432/shortlink
-      DATABASE_SSL: 'false'
-      DATABASE_LOGGING: 'false'
-      PRIVATE_BASE_URL: https://go.example.com
-      AUTH_SESSION_SECRET: replace-with-a-long-random-secret
-      SHUTDOWN_TIMEOUT: 1
-      USER_PLUGIN_DIR: /app/user-plugins
-      USER_PLUGIN_WATCH: 'true'
+      HOST: '0.0.0.0'
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -36,10 +36,9 @@ services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: shortlink
-      POSTGRES_USER: shortlink
-      POSTGRES_PASSWORD: replace-this-password
+    # Reads POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD from ../.env.
+    env_file:
+      - ../.env
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
@@ -48,5 +47,59 @@ services:
       timeout: 5s
       retries: 5
 
+  pgbouncer:
+    # Alpine-based PgBouncer image. App DATABASE_URL should point here.
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    # Reads DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME and pool settings from ../.env.
+    env_file:
+      - ../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -h 127.0.0.1 -p 5432 -U "$$DB_USER" -d "$$DB_NAME"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    # Latest Redis image for shared cache, pub/sub invalidation, and streams.
+    image: redis:alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    # Latest ClickHouse image for high-volume analytics mirroring.
+    image: clickhouse/clickhouse-server:latest-alpine
+    restart: unless-stopped
+    # Reads CLICKHOUSE_DB/CLICKHOUSE_USER/CLICKHOUSE_PASSWORD from ../.env.
+    env_file:
+      - ../.env
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'clickhouse-client --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres-data:
+  redis-data:
+  clickhouse-data:
