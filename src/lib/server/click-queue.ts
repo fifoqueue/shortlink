@@ -281,20 +281,15 @@ async function metadataForQueueItem(item: ClickEventQueueModel) {
   }
 }
 
-function groupClickCounts(items: QueuedClick[]) {
-  const counts = new Map<number, { count: number; lastClickedAt: Date }>();
+function latestClickTimes(items: QueuedClick[]) {
+  const times = new Map<number, Date>();
   for (const item of items) {
-    const current = counts.get(item.linkId);
-    if (!current) {
-      counts.set(item.linkId, { count: 1, lastClickedAt: item.clickedAt });
-    } else {
-      current.count += 1;
-      if (item.clickedAt > current.lastClickedAt) {
-        current.lastClickedAt = item.clickedAt;
-      }
+    const current = times.get(item.linkId);
+    if (!current || item.clickedAt > current) {
+      times.set(item.linkId, item.clickedAt);
     }
   }
-  return counts;
+  return times;
 }
 
 async function existingLinkIds(linkIds: number[]) {
@@ -307,27 +302,22 @@ async function existingLinkIds(linkIds: number[]) {
   return new Set(rows.map((row) => Number(row.id)));
 }
 
-async function updateClickCounters(
+async function updateLastClickedAt(
   items: QueuedClick[],
   transaction: Transaction,
 ) {
-  const grouped = [...groupClickCounts(items).entries()];
+  const grouped = [...latestClickTimes(items).entries()];
   if (grouped.length === 0) return;
 
   const sequelize = getDatabase();
-  const values = grouped.map(([linkId, data]) =>
-    [
-      Number(linkId),
-      Number(data.count),
-      sequelize.escape(data.lastClickedAt),
-    ].join(','),
+  const values = grouped.map(([linkId, lastClickedAt]) =>
+    [Number(linkId), sequelize.escape(lastClickedAt)].join(','),
   );
 
   await sequelize.query(
     `
       UPDATE short_links AS target
       SET
-        clicks = target.clicks + source.click_count,
         last_clicked_at = CASE
           WHEN target.last_clicked_at IS NULL
             OR target.last_clicked_at < source.last_clicked_at
@@ -336,7 +326,7 @@ async function updateClickCounters(
         END
       FROM (
         VALUES ${values.map((value) => `(${value})`).join(',')}
-      ) AS source(id, click_count, last_clicked_at)
+      ) AS source(id, last_clicked_at)
       WHERE target.id = source.id
     `,
     { transaction },
@@ -375,7 +365,7 @@ async function flushMemoryBatch(batch: QueuedClick[]) {
       ...row,
       eventId: Number(createdClicks[index]?.id ?? 0),
     }));
-    await updateClickCounters(items, transaction);
+    await updateLastClickedAt(items, transaction);
     await transaction.commit();
     await writeClickAnalytics(analyticsRows);
   } catch (error) {

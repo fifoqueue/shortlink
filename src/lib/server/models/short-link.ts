@@ -17,7 +17,6 @@ export class ShortLinkModel extends Model<
   declare url: string;
   declare preview: CreationOptional<Record<string, unknown>>;
   declare tags: CreationOptional<string[]>;
-  declare clicks: CreationOptional<number>;
   declare creatorUserId: number | null;
   declare creatorSessionId: string | null;
   declare creatorIpHash: string | null;
@@ -66,11 +65,6 @@ export function initShortLinkModel(sequelize: Sequelize) {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: [],
-      },
-      clicks: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
       },
       creatorUserId: {
         type: DataTypes.INTEGER,

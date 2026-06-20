@@ -265,19 +265,6 @@ const UTM_FIELDS = [
 ] as const;
 type UtmField = (typeof UTM_FIELDS)[number][0];
 type UtmPermissions = Partial<Record<UtmField, boolean>>;
-const REDIRECT_LINK_ATTRIBUTES = [
-  'id',
-  'code',
-  'domain',
-  'url',
-  'preview',
-  'clicks',
-  'expiresAt',
-  'maxClicks',
-  'passwordHash',
-  'passwordSalt',
-  'redirectRules',
-] as const;
 
 const redirectLinkCache = new Map<
   string,
@@ -473,6 +460,7 @@ function publicLink(
   link: ShortLinkModel,
   owner?: LinkOwner,
   share: LinkShareListSummary = emptyShareSummary,
+  clicks = 0,
 ): Link {
   const preview = normalizeStoredPreview(link.preview);
   const output: Link = {
@@ -483,7 +471,7 @@ function publicLink(
     preview,
     tags: normalizedTags(link.tags),
     createdAt: link.createdAt.toISOString(),
-    clicks: link.clicks,
+    clicks,
     lastClickedAt: link.lastClickedAt?.toISOString() ?? null,
     smart: {
       expiresAt: link.expiresAt?.toISOString() ?? null,
@@ -507,14 +495,14 @@ function publicLink(
   return output;
 }
 
-function redirectLink(link: ShortLinkModel): RedirectLink {
+function redirectLink(link: ShortLinkModel, clicks = 0): RedirectLink {
   return {
     id: link.id,
     code: link.code,
     domain: link.domain,
     url: link.url,
     preview: normalizeStoredPreview(link.preview),
-    clicks: link.clicks,
+    clicks,
     smart: {
       expiresAt: link.expiresAt?.toISOString() ?? null,
       maxClicks: Math.max(0, link.maxClicks ?? 0),
@@ -1199,6 +1187,35 @@ function linkMatchesOwner(link: ShortLinkModel, owner: LinkOwner) {
   );
 }
 
+async function clickCountsByLinkId(linkIds: readonly number[]) {
+  const ids = [...new Set(linkIds)].filter((id) => Number.isSafeInteger(id));
+  if (ids.length === 0) return new Map<number, number>();
+
+  const rows = (await ClickEventModel.findAll({
+    attributes: ['linkId', [fn('COUNT', col('id')), 'count']],
+    where: { linkId: { [Op.in]: ids } },
+    group: ['linkId'],
+    raw: true,
+  })) as unknown as Array<{ linkId: number; count: string | number }>;
+
+  return new Map(
+    rows.map((row) => [Number(row.linkId), Number(row.count) || 0]),
+  );
+}
+
+function countedPublicLink(
+  link: ShortLinkModel,
+  counts: Map<number, number>,
+  owner?: LinkOwner,
+  share: LinkShareListSummary = emptyShareSummary,
+) {
+  return publicLink(link, owner, share, counts.get(link.id) ?? 0);
+}
+
+async function clickCountForLinkId(linkId: number) {
+  return ClickEventModel.count({ where: { linkId } });
+}
+
 export async function listLinks(
   limit = 30,
   owner?: LinkOwner,
@@ -1222,12 +1239,18 @@ export async function listLinks(
     order: [['id', 'DESC']],
     limit,
   });
-  const shareSummaries = await linkShareSummariesByLinkId(
-    links.map((link) => link.id),
-    sharedWithUserId,
-  );
+  const linkIds = links.map((link) => link.id);
+  const [shareSummaries, clickCounts] = await Promise.all([
+    linkShareSummariesByLinkId(linkIds, sharedWithUserId),
+    clickCountsByLinkId(linkIds),
+  ]);
   return links.map((link) =>
-    publicLink(link, ownedBy ?? owner, shareSummaries.get(link.id)),
+    countedPublicLink(
+      link,
+      clickCounts,
+      ownedBy ?? owner,
+      shareSummaries.get(link.id),
+    ),
   );
 }
 
@@ -1278,14 +1301,20 @@ export async function listLinksPage(
           limit: pagination.pageSize,
           offset: pageOffset(pagination),
         });
-  const shareSummaries = await linkShareSummariesByLinkId(
-    links.map((link) => link.id),
-    sharedWithUserId,
-  );
+  const linkIds = links.map((link) => link.id);
+  const [shareSummaries, clickCounts] = await Promise.all([
+    linkShareSummariesByLinkId(linkIds, sharedWithUserId),
+    clickCountsByLinkId(linkIds),
+  ]);
 
   return {
     items: links.map((link) =>
-      publicLink(link, ownedBy ?? owner, shareSummaries.get(link.id)),
+      countedPublicLink(
+        link,
+        clickCounts,
+        ownedBy ?? owner,
+        shareSummaries.get(link.id),
+      ),
     ),
     page: pagination.page,
     pageSize: pagination.pageSize,
@@ -1297,10 +1326,16 @@ export async function listLinksPage(
 export async function getLinkByCode(code: string, domain?: string) {
   await ensureDatabase();
   const link = await ShortLinkModel.findOne({
-    attributes: [...REDIRECT_LINK_ATTRIBUTES],
     where: linkLookupWhere(code, domain),
   });
-  return link ? publicLink(link) : undefined;
+  return link
+    ? publicLink(
+        link,
+        undefined,
+        emptyShareSummary,
+        await clickCountForLinkId(link.id),
+      )
+    : undefined;
 }
 
 export async function getRedirectLinkByCode(code: string, domain?: string) {
@@ -1315,7 +1350,11 @@ export async function getRedirectLinkByCode(code: string, domain?: string) {
     where: linkLookupWhere(code, domain),
   });
   if (!link) return undefined;
-  const result = redirectLink(link);
+  const clickCount =
+    Math.max(0, link.maxClicks ?? 0) > 0
+      ? await clickCountForLinkId(link.id)
+      : 0;
+  const result = redirectLink(link, clickCount);
   rememberRedirectLink(result);
   return result;
 }
@@ -1405,7 +1444,7 @@ async function insertLink(
       creatorIpAddress: owner?.ipAddress ?? null,
     });
     invalidateRedirectLinkCache(code, domain);
-    return publicLink(link);
+    return publicLink(link, owner, emptyShareSummary, 0);
   } catch (error) {
     if (error instanceof UniqueConstraintError) {
       throw new Error(serverMessage('codeInUse'));
@@ -1570,7 +1609,15 @@ export async function updateLink(
   await link.update(updates);
   invalidateRedirectLinkCache(link.code, link.domain);
 
-  return { status: 'updated', link: publicLink(link) };
+  return {
+    status: 'updated',
+    link: publicLink(
+      link,
+      undefined,
+      emptyShareSummary,
+      await clickCountForLinkId(link.id),
+    ),
+  };
 }
 
 export async function checkLinkHealth(
@@ -1601,7 +1648,15 @@ export async function checkLinkHealth(
   });
   invalidateRedirectLinkCache(link.code, link.domain);
 
-  return { status: 'checked', link: publicLink(link) };
+  return {
+    status: 'checked',
+    link: publicLink(
+      link,
+      undefined,
+      emptyShareSummary,
+      await clickCountForLinkId(link.id),
+    ),
+  };
 }
 
 export async function recordClick(
@@ -1642,12 +1697,6 @@ export async function recordClick(
       await transaction.rollback();
       return;
     }
-
-    await ShortLinkModel.increment('clicks', {
-      by: 1,
-      where: { id: linkId },
-      transaction,
-    });
 
     analyticsRow = {
       linkId,
@@ -1739,11 +1788,13 @@ export async function getStatsForLink(
   const pageSize = normalizedPageSize(options.pageSize);
   const requestedPage = Math.min(MAX_STATS_PAGE, normalizedPage(options.page));
   let totalItems = 0;
+  let totalClicks = 0;
   let clicks: ClickEventRecord[] = [];
   const clickWhere = combineWhere(
     { linkId: link.id },
     clickEventSearchWhere(options.search),
   );
+  const unfilteredClickWhere = { linkId: link.id };
   const clickQuery = (page: number) =>
     ClickEventModel.findAll({
       where: clickWhere,
@@ -1759,9 +1810,12 @@ export async function getStatsForLink(
   const insightsPromise = clickInsights(link.id, options.isAdmin);
 
   const loadPostgresPage = async () => {
-    const [count, pageClicks] = await Promise.all([
+    const [count, pageClicks, allClicks] = await Promise.all([
       ClickEventModel.count({ where: clickWhere }),
       clickQuery(requestedPage),
+      options.search
+        ? ClickEventModel.count({ where: unfilteredClickWhere })
+        : undefined,
     ]);
     totalItems = count;
     const page = paginationMeta({
@@ -1771,6 +1825,7 @@ export async function getStatsForLink(
     }).page;
     return {
       totalItems: count,
+      totalClicks: allClicks ?? count,
       clicks: page === requestedPage ? pageClicks : await clickQuery(page),
     };
   };
@@ -1783,9 +1838,10 @@ export async function getStatsForLink(
         limit: pageSize,
         offset: pageOffset({ page, pageSize }),
       });
-    const [count, pageClicks] = await Promise.all([
+    const [count, pageClicks, allClicks] = await Promise.all([
       countClickAnalyticsEvents({ linkId: link.id, search: options.search }),
       clickQueryForPage(requestedPage),
+      clickCountForLinkId(link.id),
     ]);
     const page = paginationMeta({
       totalItems: count,
@@ -1794,6 +1850,7 @@ export async function getStatsForLink(
     }).page;
     return {
       totalItems: count,
+      totalClicks: allClicks ?? count,
       clicks:
         page === requestedPage ? pageClicks : await clickQueryForPage(page),
     };
@@ -1810,6 +1867,7 @@ export async function getStatsForLink(
         })
       : await loadPostgresPage();
     totalItems = result.totalItems;
+    totalClicks = result.totalClicks;
     clicks = result.clicks;
   } catch (cause) {
     console.error('Failed to load link click statistics.', cause);
@@ -1827,6 +1885,7 @@ export async function getStatsForLink(
 
   return {
     ...link,
+    clicks: totalClicks,
     creator,
     clickEvents,
     insights,
@@ -1925,9 +1984,13 @@ export async function deleteLinks(
   const linksByKey = new Map(
     links.map((link) => [`${link.domain ?? ''}\u0000${link.code}`, link]),
   );
-  const deletableIds: number[] = [];
   const maxClicks = Math.max(0, Math.trunc(options.maxClicks ?? 0));
-  const clickLimitEnabled = maxClicks > 0;
+  const clickLimitEnabled =
+    maxClicks > 0 && !options.isAdmin && !options.allowAnyOwner;
+  const clickCounts = clickLimitEnabled
+    ? await clickCountsByLinkId(links.map((link) => link.id))
+    : new Map<number, number>();
+  const deletableIds: number[] = [];
 
   for (const selection of requestedLinks) {
     const link = linksByKey.get(
@@ -1953,7 +2016,7 @@ export async function deleteLinks(
       continue;
     }
 
-    if (clickLimitEnabled && link.clicks > maxClicks) {
+    if (clickLimitEnabled && (clickCounts.get(link.id) ?? 0) > maxClicks) {
       result.tooManyClicks += 1;
       continue;
     }
