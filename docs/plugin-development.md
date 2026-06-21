@@ -447,7 +447,7 @@ publicConfig(config) {
 }
 ```
 
-`publicConfig()`가 없으면 config 전체가 공개 상태에 들어갈 수 있다. secret, 내부 경로, 관리자 전용 flag가 조금이라도 있으면 반드시 구현한다.
+`publicConfig()`가 없으면 공개 상태의 `config`는 빈 객체가 된다. 공개 슬롯이나 클라이언트 코드가 필요한 값은 `publicConfig()`에서 secret, 내부 경로, 관리자 전용 flag를 제거한 뒤 명시적으로 반환한다.
 
 ### `transformCreateUrl(url, form, config)`
 

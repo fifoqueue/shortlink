@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
+import { publicLegalSettings } from '$lib/public-settings';
 
 export const load: PageServerLoad = async ({ locals }) => ({
-  settings: locals.localizedSettings,
+  settings: publicLegalSettings(locals.localizedSettings),
 });

@@ -9,7 +9,8 @@
   import PluginSlotOutlet from '$lib/components/PluginSlotOutlet.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
-  import type { LinkEditFieldKey, SiteLocale, SiteSettings } from '$lib/config';
+  import type { LinkEditFieldKey, SiteLocale } from '$lib/config';
+  import type { PublicHomeSettings } from '$lib/public-settings';
   import {
     LINK_SEARCH_OPTIONS,
     LINK_SEARCH_PARAMS,
@@ -70,7 +71,7 @@
 
   type PageData = {
     links: LinkItem[];
-    settings: SiteSettings;
+    settings: PublicHomeSettings;
     permissions: {
       links: {
         options: Record<string, boolean>;

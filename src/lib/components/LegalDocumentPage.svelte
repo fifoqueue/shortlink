@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
-  import type { SiteLocale, SiteSettings } from '$lib/config';
+  import type { SiteLocale } from '$lib/config';
+  import type { PublicLegalSettings } from '$lib/public-settings';
   import { siteThemeStyle } from '$lib/theme-vars';
   import { uiText } from '$lib/i18n/ui-text';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
@@ -12,7 +13,7 @@
     content,
     fallbackContent,
   }: {
-    settings: SiteSettings;
+    settings: PublicLegalSettings;
     title: string;
     content: string;
     fallbackContent: string;

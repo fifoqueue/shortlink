@@ -314,7 +314,7 @@ export function getPublicPluginStates(
           enabled: isRequiredPlugin(definition) || state.enabled,
           config: definition.publicConfig
             ? definition.publicConfig(state.config)
-            : structuredClone(state.config),
+            : {},
         },
       ];
     }),

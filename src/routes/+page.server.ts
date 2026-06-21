@@ -31,6 +31,7 @@ import {
   type EffectivePermissions,
 } from '$lib/server/permissions';
 import type { SiteSettings } from '$lib/config';
+import { publicHomeSettings, publicLinkSettings } from '$lib/public-settings';
 import { formatText, localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import { registrationAvailability } from '$lib/server/registration';
 import {
@@ -165,8 +166,11 @@ export const load: PageServerLoad = async ({
   });
   const displaySettings = locals.localizedSettings;
   const publicDomains = permissions.links.domains;
-  const publicSettings = {
-    ...displaySettings,
+  const permissionLinkSettings = linkSettingsForPermissions(
+    settings.links,
+    permissions,
+  );
+  const publicSettings = publicHomeSettings(displaySettings, {
     general: {
       ...displaySettings.general,
       defaultDomain: publicDomains.includes(settings.general.defaultDomain)
@@ -180,9 +184,9 @@ export const load: PageServerLoad = async ({
         ]),
       ),
     },
-    links: linkSettingsForPermissions(settings.links, permissions),
+    links: publicLinkSettings(permissionLinkSettings),
     plugins: getPublicPluginStates(settings.plugins),
-  };
+  });
   const canCreate =
     canCreateLinks(settings, locals, permissions) &&
     permissions.links.domains.length > 0;

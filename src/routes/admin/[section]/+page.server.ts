@@ -21,6 +21,7 @@ import {
 import { parseLinkSearch } from '$lib/server/link-search';
 import { DEFAULT_PAGE_SIZE, pageParam } from '$lib/server/pagination';
 import { getClientIp } from '$lib/server/client-ip';
+import { adminClientSettings } from '$lib/server/client-settings';
 import { validateGeoipSettings } from '$lib/server/geoip';
 import { hashWebActionBypassToken } from '$lib/server/web-action-guard';
 import { getLinkOwner } from '$lib/server/link-owner';
@@ -180,25 +181,34 @@ function parseProxyIpHeaders(value: string) {
   return uniqueHeaders.slice(0, 20);
 }
 
-function parseGeoipSettings(form: FormData) {
+function preservedStringValue(form: FormData, name: string, current = '') {
+  return stringValue(form, name) || current;
+}
+
+function parseGeoipSettings(
+  form: FormData,
+  current: Awaited<
+    ReturnType<typeof getSettings>
+  >['network']['geoip'] = defaultGeoipSettings,
+) {
   const settings = {
     enabled: parseBoolean(form, 'geoipEnabled'),
     headersEnabled: parseBoolean(form, 'geoipHeadersEnabled'),
     maxmindEnabled: parseBoolean(form, 'geoipMaxmindEnabled'),
-    cityDatabasePath: stringValue(
+    cityDatabasePath: preservedStringValue(
       form,
       'geoipCityDatabasePath',
-      defaultGeoipSettings.cityDatabasePath,
+      current.cityDatabasePath,
     ),
-    countryDatabasePath: stringValue(
+    countryDatabasePath: preservedStringValue(
       form,
       'geoipCountryDatabasePath',
-      defaultGeoipSettings.countryDatabasePath,
+      current.countryDatabasePath,
     ),
-    asnDatabasePath: stringValue(
+    asnDatabasePath: preservedStringValue(
       form,
       'geoipAsnDatabasePath',
-      defaultGeoipSettings.asnDatabasePath,
+      current.asnDatabasePath,
     ),
     countryCodeHeader: stringValue(
       form,
@@ -230,13 +240,17 @@ function parseGeoipSettings(form: FormData) {
   return settings;
 }
 
-function parseOutboundProxySettings(form: FormData) {
+function parseOutboundProxySettings(
+  form: FormData,
+  current: Awaited<
+    ReturnType<typeof getSettings>
+  >['network']['outboundProxy'] = defaultOutboundProxySettings,
+) {
   const enabled = parseBoolean(form, 'outboundProxyEnabled');
-  const url = stringValue(
-    form,
-    'outboundProxyUrl',
-    defaultOutboundProxySettings.url,
-  ).slice(0, 1_000);
+  const url = preservedStringValue(form, 'outboundProxyUrl', current.url).slice(
+    0,
+    1_000,
+  );
   if (enabled) parseOutboundProxyUrl(url);
   return { enabled, url };
 }
@@ -596,7 +610,7 @@ export const load: PageServerLoad = async ({
     authenticated: true as const,
     locale: locals.locale,
     section,
-    settings,
+    settings: adminClientSettings(settings),
     plugins: pluginDefinitions.map((definition) =>
       localizedPluginMeta(
         definition,
@@ -878,8 +892,11 @@ export const actions: Actions = {
         proxyIpHeaders: parseProxyIpHeaders(
           stringValue(form, 'proxyIpHeaders'),
         ),
-        geoip: parseGeoipSettings(form),
-        outboundProxy: parseOutboundProxySettings(form),
+        geoip: parseGeoipSettings(form, settings.network.geoip),
+        outboundProxy: parseOutboundProxySettings(
+          form,
+          settings.network.outboundProxy,
+        ),
       };
       settings.links = {
         ...settings.links,
