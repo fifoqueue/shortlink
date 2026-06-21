@@ -6,32 +6,57 @@
     PluginLocaleKey,
     PluginLocaleStrings,
   } from '$lib/plugin-contracts';
+  import type { PublicCaptchaChallenge } from '$lib/public-plugin-slots';
   import {
     actionName,
     isActionProtected,
     normalizeCaptchaConfig,
     scriptUrlForProvider,
     type CaptchaAction,
+    type CaptchaConfig,
   } from './config';
 
   let {
     config,
+    challenge = null,
     action,
     user = null,
     strings = {},
   }: {
-    config: PluginConfig;
+    config?: PluginConfig;
+    challenge?: PublicCaptchaChallenge | null;
     action: CaptchaAction;
     user?: AuthenticatedUser | null;
     strings?: PluginLocaleStrings;
   } = $props();
 
-  const captcha = $derived(normalizeCaptchaConfig(config));
+  function configFromChallenge(value: PublicCaptchaChallenge): PluginConfig {
+    return {
+      provider: value.provider,
+      siteKey: value.siteKey,
+      tokenFieldName: value.tokenFieldName,
+      customScriptUrl: value.scriptUrl,
+      customWidgetHtml: value.customWidgetHtml,
+      loginEnabled: value.actions.login === true,
+      signupEnabled: value.actions.signup === true,
+      linkCreateEnabled: value.actions['link-create'] === true,
+      accountSecurityUnlockEnabled:
+        value.actions['account-security-unlock'] === true,
+    };
+  }
+
+  const captcha: CaptchaConfig = $derived(
+    normalizeCaptchaConfig(
+      challenge ? configFromChallenge(challenge) : (config ?? {}),
+    ),
+  );
   const enabled = $derived(
     user?.isAdmin !== true && isActionProtected(captcha, action),
   );
   const tokenField = $derived(captcha.tokenFieldName);
-  const scriptUrl = $derived(enabled ? scriptUrlForProvider(captcha) : '');
+  const scriptUrl: string = $derived(
+    enabled ? (challenge?.scriptUrl ?? scriptUrlForProvider(captcha)) : '',
+  );
   const actionValue = $derived(actionName(action));
   let clientError = $state('');
   let resetNonce = $state(0);

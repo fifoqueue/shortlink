@@ -5,6 +5,7 @@ import type {
   PluginConfig,
   PluginDefinition,
   PluginGuardResult,
+  PluginLocaleStrings,
   PluginProtectedAction,
   PluginSlot,
   RuntimePluginSlotRender,
@@ -299,26 +300,11 @@ export function normalizePluginStates(
   return normalized;
 }
 
-export function getPublicPluginStates(
-  states: Record<string, PluginState>,
-): Record<string, PluginState> {
-  return Object.fromEntries(
-    pluginDefinitions.map((definition) => {
-      const state = states[definition.meta.id] ?? {
-        enabled: isRequiredPlugin(definition),
-        config: definition.defaultConfig,
-      };
-      return [
-        definition.meta.id,
-        {
-          enabled: isRequiredPlugin(definition) || state.enabled,
-          config: definition.publicConfig
-            ? definition.publicConfig(state.config)
-            : {},
-        },
-      ];
-    }),
-  );
+export function publicPluginConfig(
+  definition: PluginDefinition,
+  state: PluginState,
+): PluginConfig {
+  return definition.publicConfig ? definition.publicConfig(state.config) : {};
 }
 
 export function hasEnabledRequestPlugin(states: Record<string, PluginState>) {
@@ -328,12 +314,22 @@ export function hasEnabledRequestPlugin(states: Record<string, PluginState>) {
   });
 }
 
+function publicLocaleStrings(
+  strings: PluginLocaleStrings,
+): PluginLocaleStrings {
+  return Object.fromEntries(
+    Object.entries(strings).filter(([key]) => key.startsWith('public.')),
+  ) as PluginLocaleStrings;
+}
+
 export async function loadRuntimePluginSlots(input: {
   states: Record<string, PluginState>;
   locale: SiteLocale;
   fallbackLocale: SiteLocale;
   user: AuthenticatedUser | null;
+  slots?: readonly PluginSlot[];
 }) {
+  const allowedSlots = input.slots ? new Set(input.slots) : null;
   const slotGroups = await Promise.all(
     pluginDefinitions.map(async (definition) => {
       const slots: RuntimePluginSlotRender[] = [];
@@ -350,6 +346,7 @@ export async function loadRuntimePluginSlots(input: {
         [PluginSlot, NonNullable<typeof definition.runtime.slots>[PluginSlot]]
       >) {
         if (!descriptor) continue;
+        if (allowedSlots && !allowedSlots.has(slot)) continue;
         const schema =
           descriptor.mode === 'schema'
             ? ((await definition.slotSchema?.({
@@ -372,8 +369,8 @@ export async function loadRuntimePluginSlots(input: {
           pluginName: definition.meta.name,
           slot,
           ui,
-          config: state.config,
-          strings,
+          config: publicPluginConfig(definition, state),
+          strings: publicLocaleStrings(strings),
         });
       }
       return slots;

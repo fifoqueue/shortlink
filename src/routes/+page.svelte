@@ -11,6 +11,7 @@
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import type { LinkEditFieldKey, SiteLocale } from '$lib/config';
   import type { PublicHomeSettings } from '$lib/public-settings';
+  import type { PublicPluginSlots } from '$lib/public-plugin-slots';
   import {
     LINK_SEARCH_OPTIONS,
     LINK_SEARCH_PARAMS,
@@ -19,11 +20,7 @@
   } from '$lib/search';
   import { siteThemeStyle } from '$lib/theme-vars';
   import { formatText, uiText } from '$lib/i18n/ui-text';
-  import type {
-    AuthenticatedUser,
-    RuntimePluginSlotRender,
-  } from '$lib/plugin-contracts';
-  import { publicPluginRegistry } from '../plugins/public-registry';
+  import type { AuthenticatedUser } from '$lib/plugin-contracts';
 
   type LinkItem = {
     id: number;
@@ -106,7 +103,7 @@
       totalPages: number;
     };
     auth: { enabled: boolean; setupRequired: boolean };
-    runtimeSlots: RuntimePluginSlotRender[];
+    publicSlots: PublicPluginSlots;
   };
   type ActionData = {
     ok?: boolean;
@@ -295,11 +292,8 @@
   {/if}
 
   <PluginSlotOutlet
-    registry={publicPluginRegistry}
-    states={data.settings.plugins}
+    slots={data.publicSlots}
     slot="top"
-    runtimeSlots={data.runtimeSlots}
-    user={data.user}
     {locale}
     fallbackLocale={data.settings.i18n.defaultLocale}
   />
@@ -442,8 +436,6 @@
                     name="code"
                     type="text"
                     placeholder="my-link"
-                    minlength={data.settings.links.codeMinLength}
-                    maxlength={data.settings.links.codeMaxLength}
                     pattern="[A-Za-z0-9_-]+"
                     value={createForm?.values?.code ?? ''}
                   />
@@ -470,11 +462,8 @@
           />
 
           <PluginSlotOutlet
-            registry={publicPluginRegistry}
-            states={data.settings.plugins}
+            slots={data.publicSlots}
             slot="form-extra"
-            runtimeSlots={data.runtimeSlots}
-            user={data.user}
             {locale}
             fallbackLocale={data.settings.i18n.defaultLocale}
           />
@@ -502,11 +491,8 @@
           {/if}
 
           <PluginSlotOutlet
-            registry={publicPluginRegistry}
-            states={data.settings.plugins}
+            slots={data.publicSlots}
             slot="form-footer"
-            runtimeSlots={data.runtimeSlots}
-            user={data.user}
             {locale}
             fallbackLocale={data.settings.i18n.defaultLocale}
           />
@@ -616,11 +602,8 @@
       >
     </nav>
     <PluginSlotOutlet
-      registry={publicPluginRegistry}
-      states={data.settings.plugins}
+      slots={data.publicSlots}
       slot="footer"
-      runtimeSlots={data.runtimeSlots}
-      user={data.user}
       {locale}
       fallbackLocale={data.settings.i18n.defaultLocale}
     />

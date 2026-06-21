@@ -31,13 +31,12 @@ import {
   type EffectivePermissions,
 } from '$lib/server/permissions';
 import type { SiteSettings } from '$lib/config';
-import { publicHomeSettings, publicLinkSettings } from '$lib/public-settings';
+import { publicHomeSettings } from '$lib/public-settings';
+import { loadPublicPluginSlots } from '$lib/server/public-plugin-slots';
 import { formatText, localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import { registrationAvailability } from '$lib/server/registration';
 import {
   applyCreateUrlPlugins,
-  getPublicPluginStates,
-  loadRuntimePluginSlots,
   verifyFormSubmissionPlugins,
 } from '../plugins/server';
 import { getAuthLoginMethods } from '../plugins/auth-registry';
@@ -166,10 +165,6 @@ export const load: PageServerLoad = async ({
   });
   const displaySettings = locals.localizedSettings;
   const publicDomains = permissions.links.domains;
-  const permissionLinkSettings = linkSettingsForPermissions(
-    settings.links,
-    permissions,
-  );
   const publicSettings = publicHomeSettings(displaySettings, {
     general: {
       ...displaySettings.general,
@@ -184,8 +179,6 @@ export const load: PageServerLoad = async ({
         ]),
       ),
     },
-    links: publicLinkSettings(permissionLinkSettings),
-    plugins: getPublicPluginStates(settings.plugins),
   });
   const canCreate =
     canCreateLinks(settings, locals, permissions) &&
@@ -214,11 +207,12 @@ export const load: PageServerLoad = async ({
       enabled: authEnabled,
       setupRequired: registration.setupRequired,
     },
-    runtimeSlots: await loadRuntimePluginSlots({
-      states: settings.plugins,
+    publicSlots: await loadPublicPluginSlots({
+      settings,
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
       user: locals.user,
+      slots: ['top', 'form-extra', 'form-footer', 'footer'],
     }),
   };
 };

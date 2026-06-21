@@ -6,9 +6,7 @@ export type PublicLegalSettings = Pick<
 >;
 
 export type PublicHomeSettings = PublicLegalSettings &
-  Pick<SiteSettings, 'i18n' | 'plugins'> & {
-    links: Pick<SiteSettings['links'], 'codeMinLength' | 'codeMaxLength'>;
-  };
+  Pick<SiteSettings, 'i18n'>;
 
 export function publicLegalSettings(
   settings: SiteSettings,
@@ -21,28 +19,15 @@ export function publicLegalSettings(
   };
 }
 
-export function publicLinkSettings(
-  settings: SiteSettings['links'],
-): PublicHomeSettings['links'] {
-  return {
-    codeMinLength: settings.codeMinLength,
-    codeMaxLength: settings.codeMaxLength,
-  };
-}
-
 export function publicHomeSettings(
   settings: SiteSettings,
   overrides: {
     general?: SiteSettings['general'];
-    links?: PublicHomeSettings['links'];
-    plugins?: SiteSettings['plugins'];
   } = {},
 ): PublicHomeSettings {
   return {
     ...publicLegalSettings(settings),
     general: overrides.general ?? settings.general,
     i18n: settings.i18n,
-    links: overrides.links ?? publicLinkSettings(settings.links),
-    plugins: overrides.plugins ?? {},
   };
 }

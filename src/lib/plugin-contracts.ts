@@ -11,7 +11,8 @@ export type CorePluginSlot =
   | 'form-footer'
   | 'login-extra'
   | 'signup-extra'
-  | 'footer';
+  | 'footer'
+  | 'account-security-unlock';
 export type PluginSlot = CorePluginSlot | (string & {});
 
 export interface PluginState {

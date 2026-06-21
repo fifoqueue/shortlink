@@ -553,13 +553,6 @@ const plugin: PluginDefinition = {
       })),
     };
   },
-  publicConfig(config) {
-    const normalized = normalizeOidcConfig(config);
-    return {
-      passwordLoginEnabled: normalized.passwordLoginEnabled,
-      providers: normalized.providers.map(({ id, name }) => ({ id, name })),
-    };
-  },
 };
 
 export default plugin;

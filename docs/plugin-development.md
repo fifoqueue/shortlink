@@ -49,7 +49,7 @@ src/user-plugins/example/
     form-extra.svelte   # 링크 생성 폼 내부 추가 필드
     form-footer.svelte  # 링크 생성 폼 하단
     login-extra.svelte  # 로그인 폼 내부
-    signup-extra.svelte # 회원 가입 폼 내부
+    signup-extra.svelte # 회원 가입 form 내부
     footer.svelte       # 공개 홈 페이지 footer 내부
   config.ts             # 선택. 플러그인 내부 정규화/검증 helper
 ```
@@ -64,6 +64,7 @@ src/user-plugins/example/
 - 플러그인 설정은 `app_settings.key = plugins:{pluginId}`에 저장된다. `key` 컬럼이 `STRING(64)`라서 `pluginId`는 `plugins:` 접두사를 포함해 64자를 넘기면 안 된다.
 - `plugin.ts`, `Admin.svelte`, `slots/*.svelte`에는 서버 전용 import를 넣지 않는다.
 - DB, 파일 시스템, 환경 변수, secret, private key 접근은 `server.ts`나 `auth.ts`에 둔다.
+- 공개 slot 컴포넌트는 저장된 플러그인 config를 직접 받지 않는다. route server loader가 만든 최소 공개 payload만 `config`로 받는다.
 
 ### 런타임 ABI 플러그인
 
@@ -130,12 +131,12 @@ user-plugins/example/
 | -------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
 | `src/plugins/server.ts`          | `src/plugins/*`, `src/user-plugins/*`의 `plugin.ts`, `server.ts`                           | 서버 훅, 설정 정규화, 요청 훅, 클릭 메타데이터 |
 | `src/plugins/admin-registry.ts`  | `src/plugins/*`, `src/user-plugins/*`의 `plugin.ts`, `Admin.svelte`, `AdminSubpage.svelte` | 관리자 페이지 컴포넌트                         |
-| `src/plugins/public-registry.ts` | `src/plugins/*`, `src/user-plugins/*`의 `plugin.ts`, `slots/*.svelte`                      | 공개 슬롯 컴포넌트                             |
+| `src/plugins/public-registry.ts` | `src/plugins/*`, `src/user-plugins/*`의 `slots/*.svelte`                                   | 공개 slot 컴포넌트                             |
 | `src/plugins/auth-registry.ts`   | `src/plugins/*`, `src/user-plugins/*`의 `auth.ts`, `plugin.ts`                             | 로그인/세션/계정 연결                          |
 
 `server.ts`는 `plugin.ts`의 `PluginDefinition` 위에 서버 전용 훅을 병합한다. 같은 훅 이름을 양쪽에 두면 `server.ts`가 이긴다. 그래도 원칙은 단순하다. 브라우저에 들어갈 수 있는 코드는 `plugin.ts`, 서버 전용 코드는 `server.ts`다.
 
-서버, 관리자, 공개 슬롯 레지스트리는 `meta.order` 오름차순, 그 다음 `meta.name` 순으로 정렬된다. URL 변환, 요청 훅, 클릭 메타데이터, 공개 슬롯처럼 여러 플러그인이 같은 흐름에 참여하는 경우 이 정렬을 따른다.
+서버와 관리자 레지스트리는 `meta.order` 오름차순, 그 다음 `meta.name` 순으로 정렬된다. URL 변환, 요청 훅, 클릭 메타데이터처럼 여러 플러그인이 같은 흐름에 참여하는 경우 이 정렬을 따른다. 공개 slot registry는 컴포넌트 lookup만 제공하고, 실제 렌더링 여부와 순서는 서버가 만든 `publicSlots` payload가 정한다.
 
 인증 레지스트리는 현재 `auth.ts` 발견 결과를 별도 정렬하지 않는다. 여러 인증 플러그인이 동시에 `getUser()`나 `authenticatePassword()`를 제공할 때 어느 플러그인이 먼저 성공할지에 의존하지 않는다.
 
@@ -436,7 +437,7 @@ secret 값을 `<input value>`로 그대로 보내지 않는다.
 
 ### `publicConfig(config)`
 
-공개 페이지와 공개 슬롯에 넘길 설정을 제한한다.
+클라이언트 렌더러에 넘길 플러그인 설정을 제한한다.
 
 ```ts
 publicConfig(config) {
@@ -447,7 +448,7 @@ publicConfig(config) {
 }
 ```
 
-`publicConfig()`가 없으면 공개 상태의 `config`는 빈 객체가 된다. 공개 슬롯이나 클라이언트 코드가 필요한 값은 `publicConfig()`에서 secret, 내부 경로, 관리자 전용 flag를 제거한 뒤 명시적으로 반환한다.
+`publicConfig()`가 없으면 클라이언트 config payload는 빈 객체가 된다. account iframe, user-admin iframe, runtime slot처럼 클라이언트 코드가 필요한 값은 `publicConfig()`에서 secret, 내부 경로, 관리자 전용 flag를 제거한 뒤 명시적으로 반환한다.
 
 ### `transformCreateUrl(url, form, config)`
 
@@ -960,35 +961,23 @@ getClickMetadataSearchFields({ isAdmin, isOwner }) {
 
 ## 공개 슬롯
 
-이 섹션은 빌드 시점 플러그인 기준이다. 공개 슬롯 컴포넌트도 `PluginComponentProps`를 받는다.
+공개 route는 플러그인 `states` 전체나 플러그인 목록을 클라이언트에 내려보내지 않는다. core가 서버에서 `publicSlots`를 만들고, `PluginSlotOutlet`은 payload의 `pluginId`와 `slot`에 맞는 `slots/*.svelte` 컴포넌트를 렌더링한다.
 
-```svelte
-<script lang="ts">
-  import type { PluginComponentProps } from '$lib/plugin-contracts';
-  import { pluginText } from '$lib/i18n/plugin';
+현재 core가 렌더링하는 slot:
 
-  let { config, user, strings = {} }: PluginComponentProps = $props();
-</script>
+| slot                      | 렌더링 위치                   |
+| ------------------------- | ----------------------------- |
+| `top`                     | 공개 홈 페이지 최상단         |
+| `form-extra`              | 공개 링크 생성 form 내부      |
+| `form-footer`             | 공개 링크 생성 form 하단      |
+| `footer`                  | 공개 홈 페이지 footer 내부    |
+| `login-extra`             | 로그인 form 내부              |
+| `signup-extra`            | 회원 가입 form 내부           |
+| `account-security-unlock` | 계정 보안 잠금 해제 form 내부 |
 
-{#if config.enabled}
-  <aside>{pluginText(strings, 'public.message')}</aside>
-{/if}
-```
+빌드 시점 플러그인의 `slots/*.svelte`는 `PluginComponentProps`를 받지만, `config`는 저장된 `state.config`가 아니다. 서버 전용 public slot loader가 만든 최소 공개 payload다. 서버 전용 값이나 secret이 필요하면 설계가 잘못된 것이다.
 
-현재 렌더링되는 slot:
-
-| slot           | 렌더링 위치                |
-| -------------- | -------------------------- |
-| `top`          | 공개 홈 페이지 최상단      |
-| `form-extra`   | 공개 링크 생성 form 내부   |
-| `form-footer`  | 공개 링크 생성 form 하단   |
-| `footer`       | 공개 홈 페이지 footer 내부 |
-| `login-extra`  | 로그인 form 내부           |
-| `signup-extra` | 회원 가입 form 내부        |
-
-타입상 임의 slot 이름을 만들 수 있지만, 코어에 `PluginSlotOutlet`이 없으면 렌더링되지 않는다.
-
-공개 슬롯에는 `getPublicPluginStates()` 결과가 들어간다. 즉 `publicConfig()`가 반환한 값만 믿어야 한다. 서버 전용 값이나 secret이 필요하면 설계가 잘못된 것이다.
+런타임 ABI slot도 같은 원칙을 따른다. runtime iframe/schema가 클라이언트에서 꼭 필요한 값은 `publicConfig()`가 반환한 최소 config만 사용한다.
 
 런타임 ABI 플러그인은 Svelte 슬롯 파일을 제공하지 않는다. `manifest.json`의 `slots`에 schema/iframe descriptor를 선언한다.
 
@@ -1276,7 +1265,7 @@ function formatText(template: string, values: Record<string, string | number>) {
 - 폴더명, `meta.id`, `auth.ts id`가 일치한다.
 - `plugin.ts`, `Admin.svelte`, `slots/*.svelte`에 서버 전용 import가 없다.
 - `defaultConfig`가 JSON-safe다.
-- `publicConfig()`가 secret과 내부 설정을 제거한다.
+- 클라이언트 렌더링이 필요한 플러그인은 `publicConfig()`가 secret과 내부 설정을 제거한 최소 config만 반환한다.
 - 관리자 UI 문장이 `translations`와 `pluginText()`를 통해 렌더링된다.
 - 언어별 설정 UI가 `siteLocaleKeys`를 사용하고 `ko`/`en`을 고정하지 않는다.
 - `handleAdminAction`이 있으면 `Admin.svelte`가 자체 form을 가진다.

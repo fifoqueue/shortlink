@@ -9,13 +9,10 @@ import {
 } from '$lib/server/registration';
 import { getSettings, stringValue } from '$lib/server/settings';
 import { effectivePermissionsForEvent } from '$lib/server/permissions';
-import {
-  getPublicPluginStates,
-  loadRuntimePluginSlots,
-  verifyFormSubmissionPlugins,
-} from '../../plugins/server';
+import { verifyFormSubmissionPlugins } from '../../plugins/server';
 import { getAuthLoginMethods } from '../../plugins/auth-registry';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import { loadPublicPluginSlots } from '$lib/server/public-plugin-slots';
 
 function passwordLoginEnabled(
   settings: Awaited<ReturnType<typeof getSettings>>,
@@ -56,7 +53,6 @@ export const load: PageServerLoad = async ({
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
     customHead: displaySettings.seo.customHead,
-    plugins: getPublicPluginStates(settings.plugins),
     setupRequired: availability.setupRequired,
     passwordPolicy: passwordPolicyDescription(
       settings.auth.password,
@@ -70,11 +66,12 @@ export const load: PageServerLoad = async ({
       availability.reason,
       settings.i18n.defaultLocale,
     ),
-    runtimeSlots: await loadRuntimePluginSlots({
-      states: settings.plugins,
+    publicSlots: await loadPublicPluginSlots({
+      settings,
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
       user: null,
+      slots: ['signup-extra'],
     }),
   };
 };

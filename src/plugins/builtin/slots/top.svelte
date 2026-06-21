@@ -1,35 +1,15 @@
 <script lang="ts">
-  import { defaultSiteLocale, type SiteLocale } from '$lib/config';
   import type { PluginComponentProps } from '$lib/plugin-contracts';
 
-  let {
-    config,
-    locale = defaultSiteLocale,
-    fallbackLocale = locale,
-  }: PluginComponentProps = $props();
-
-  function localizedConfigString(field: string, itemLocale: SiteLocale) {
-    const value = config[field];
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const source = value as Partial<Record<SiteLocale, unknown>>;
-      const localized = source[itemLocale];
-      if (typeof localized === 'string') return localized;
-      const fallback = source[fallbackLocale];
-      if (typeof fallback === 'string') return fallback;
-    }
-    return '';
-  }
-
-  const announcementHtml = $derived(
-    localizedConfigString('announcementMessages', locale),
-  );
+  let { config }: PluginComponentProps = $props();
+  const html = $derived(typeof config.html === 'string' ? config.html : '');
 </script>
 
-{#if config.announcementEnabled === true && announcementHtml}
+{#if html}
   <aside>
     <div class="content">
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-      {@html announcementHtml}
+      {@html html}
     </div>
   </aside>
 {/if}

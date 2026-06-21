@@ -8,11 +8,11 @@ import {
   startPluginSecurityUnlock,
 } from '../../plugins/auth-registry';
 import {
-  getPublicPluginStates,
-  loadRuntimePluginSlots,
   pluginDefinitions,
+  publicPluginConfig,
   verifyFormSubmissionPlugins,
 } from '../../plugins/server';
+import { loadPublicPluginSlots } from '$lib/server/public-plugin-slots';
 import { pluginLocaleStrings } from '$lib/i18n/plugin';
 import { createUserSessionFromModel } from '$lib/server/auth-session';
 import { pluginActionName } from '$lib/server/plugin-actions';
@@ -145,7 +145,7 @@ async function loadIntegrations(
       return {
         pluginId: definition.meta.id,
         pluginName: definition.meta.name,
-        config: state.config,
+        config: publicPluginConfig(definition, state),
         strings,
         runtimeUi: runtimeUi ?? null,
         runtimeSchema,
@@ -264,12 +264,12 @@ export const load: PageServerLoad = async ({
     pendingEmail: storedUser?.pendingEmail ?? null,
     permissionGroups,
     security,
-    plugins: getPublicPluginStates(settings.plugins),
-    runtimeSlots: await loadRuntimePluginSlots({
-      states: settings.plugins,
+    publicSlots: await loadPublicPluginSlots({
+      settings,
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
       user,
+      slots: ['account-security-unlock'],
     }),
     passwordMinLength: settings.auth.password.minLength,
     passwordPolicy: passwordPolicyDescription(

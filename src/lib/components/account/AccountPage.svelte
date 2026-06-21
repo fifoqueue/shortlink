@@ -25,13 +25,12 @@
   import type {
     AuthenticatedUser,
     PluginIntegrationData,
-    RuntimePluginSlotRender,
   } from '$lib/plugin-contracts';
+  import type { PublicPluginSlots } from '$lib/public-plugin-slots';
   import { siteThemeStyle } from '$lib/theme-vars';
   import type { SiteLocale, SiteSettings } from '$lib/config';
   import { formatText, uiText } from '$lib/i18n/ui-text';
   import { accountPluginRegistry } from '../../../plugins/account-registry';
-  import { publicPluginRegistry } from '../../../plugins/public-registry';
 
   type Token = {
     id: number;
@@ -96,8 +95,7 @@
       customHead: string;
       pendingEmail: string | null;
       security: AccountSecurity;
-      plugins: SiteSettings['plugins'];
-      runtimeSlots: RuntimePluginSlotRender[];
+      publicSlots: PublicPluginSlots;
       passwordMinLength: number;
       passwordPolicy: string;
     };
@@ -825,11 +823,8 @@
             {/if}
           </div>
           <PluginSlotOutlet
-            registry={publicPluginRegistry}
-            states={data.plugins}
+            slots={data.publicSlots}
             slot="account-security-unlock"
-            runtimeSlots={data.runtimeSlots}
-            user={data.user}
             locale={data.locale}
             fallbackLocale={data.defaultLocale}
           />

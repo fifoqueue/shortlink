@@ -185,14 +185,20 @@ const plugin: PluginDefinition = {
     };
   },
   publicConfig(config) {
-    return {
-      announcementEnabled: config.announcementEnabled === true,
-      announcementMessages: config.announcementMessages,
-      socialLinksEnabled: config.socialLinksEnabled === true,
-      socialLinks: normalizedSocialLinks(config.socialLinks),
-      privacyNoticeEnabled: config.privacyNoticeEnabled === true,
-      privacyNoticeMessages: config.privacyNoticeMessages,
-    };
+    const publicConfig: Record<string, unknown> = {};
+    if (config.announcementEnabled === true) {
+      publicConfig.announcementEnabled = true;
+      publicConfig.announcementMessages = config.announcementMessages;
+    }
+    if (config.socialLinksEnabled === true) {
+      publicConfig.socialLinksEnabled = true;
+      publicConfig.socialLinks = normalizedSocialLinks(config.socialLinks);
+    }
+    if (config.privacyNoticeEnabled === true) {
+      publicConfig.privacyNoticeEnabled = true;
+      publicConfig.privacyNoticeMessages = config.privacyNoticeMessages;
+    }
+    return publicConfig;
   },
 };
 

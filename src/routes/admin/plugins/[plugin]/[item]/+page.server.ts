@@ -8,7 +8,10 @@ import {
   effectivePermissions,
   type EffectivePermissions,
 } from '$lib/server/permissions';
-import { pluginDefinitions } from '../../../../../plugins/server';
+import {
+  pluginDefinitions,
+  publicPluginConfig,
+} from '../../../../../plugins/server';
 import { clearPluginSessions } from '../../../../../plugins/auth-registry';
 import { localizedPluginMeta, pluginLocaleStrings } from '$lib/i18n/plugin';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
@@ -130,7 +133,9 @@ async function loadIntegrations(
         pluginId: definition.meta.id,
         pluginName: localizedPluginMeta(definition, locale, fallbackLocale)
           .name,
-        config: state.config,
+        config: definition.prepareAdminConfig
+          ? definition.prepareAdminConfig(state.config)
+          : publicPluginConfig(definition, state),
         strings,
         runtimeUi: runtimeUi ?? null,
         runtimeSchema,

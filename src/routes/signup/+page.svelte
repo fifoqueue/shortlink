@@ -6,9 +6,8 @@
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import type { SiteLocale, SiteSettings } from '$lib/config';
-  import type { RuntimePluginSlotRender } from '$lib/plugin-contracts';
+  import type { PublicPluginSlots } from '$lib/public-plugin-slots';
   import { siteThemeStyle } from '$lib/theme-vars';
-  import { publicPluginRegistry } from '../../plugins/public-registry';
   import { uiText } from '$lib/i18n/ui-text';
 
   let {
@@ -21,13 +20,12 @@
       siteName: string;
       theme: SiteSettings['theme'];
       customHead: string;
-      plugins: SiteSettings['plugins'];
       setupRequired: boolean;
       passwordPolicy: string;
       emailVerificationEnabled: boolean;
       registrationAllowed: boolean;
       registrationUnavailableReason: string;
-      runtimeSlots: RuntimePluginSlotRender[];
+      publicSlots: PublicPluginSlots;
     };
     form?: {
       ok?: boolean;
@@ -107,10 +105,8 @@
           <span>{data.passwordPolicy}</span>
         </label>
         <PluginSlotOutlet
-          registry={publicPluginRegistry}
-          states={data.plugins}
+          slots={data.publicSlots}
           slot="signup-extra"
-          runtimeSlots={data.runtimeSlots}
           locale={data.locale}
           fallbackLocale={data.defaultLocale}
         />

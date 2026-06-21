@@ -499,16 +499,9 @@ interface RuntimePluginLifecycle {
 - `src/user-plugins/*`: 빌드 시점 유저 플러그인
 - `USER_PLUGIN_DIR`: 런타임 ABI 플러그인
 
-서버 측 `pluginDefinitions`는 정적 정의와 런타임 정의를 합친다. 클라이언트 측 `RegisteredPlugin`은 정적 Svelte 컴포넌트와 런타임 schema/iframe renderer를 모두 표현할 수 있도록 확장한다.
+서버 측 `pluginDefinitions`는 정적 정의와 런타임 정의를 합친다. 공개 route는 클라이언트에 플러그인 목록이나 전체 state를 내려보내지 않고, 서버에서 `loadRuntimePluginSlots()` 결과를 `publicSlots.runtimeSlots`에 담아 전달한다.
 
-```ts
-type RegisteredPluginUi =
-  | { kind: 'svelte'; component: Component<PluginComponentProps> }
-  | { kind: 'schema'; schema: RuntimeAdminSchema }
-  | { kind: 'iframe'; src: string };
-```
-
-기존 Svelte 플러그인은 `kind: 'svelte'`로 adapter 처리한다.
+관리자/계정/사용자 관리자 UI는 각 registry가 정적 Svelte 컴포넌트를 직접 로드하거나 런타임 schema/iframe descriptor를 렌더링한다. 공개 slot은 runtime schema/iframe descriptor만 클라이언트 렌더러로 전달한다.
 
 ## 보안 모델
 

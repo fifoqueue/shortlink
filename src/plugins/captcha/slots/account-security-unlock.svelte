@@ -1,8 +1,12 @@
 <script lang="ts">
   import type { PluginComponentProps } from '$lib/plugin-contracts';
   import CaptchaField from '../CaptchaField.svelte';
+  import { captchaChallengeFromConfig } from '../slot';
 
-  let { config, user = null, strings = {} }: PluginComponentProps = $props();
+  let { config, strings = {} }: PluginComponentProps = $props();
+  const challenge = $derived(captchaChallengeFromConfig(config));
 </script>
 
-<CaptchaField {config} {user} {strings} action="account-security-unlock" />
+{#if challenge}
+  <CaptchaField {challenge} {strings} action="account-security-unlock" />
+{/if}

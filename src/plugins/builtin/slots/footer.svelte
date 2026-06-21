@@ -3,12 +3,9 @@
   import type { PluginComponentProps } from '$lib/plugin-contracts';
 
   let { config, strings = {} }: PluginComponentProps = $props();
-  const externalLinksLabel = $derived(
-    pluginText(strings, 'public.externalLinks'),
-  );
   const links = $derived(
-    Array.isArray(config.socialLinks)
-      ? config.socialLinks.filter(
+    Array.isArray(config.links)
+      ? config.links.filter(
           (link): link is { label: string; url: string } =>
             typeof link === 'object' &&
             link !== null &&
@@ -19,9 +16,12 @@
         )
       : [],
   );
+  const externalLinksLabel = $derived(
+    pluginText(strings, 'public.externalLinks'),
+  );
 </script>
 
-{#if config.socialLinksEnabled === true}
+{#if links.length > 0}
   <nav aria-label={externalLinksLabel}>
     {#each links as link (link.url)}
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->

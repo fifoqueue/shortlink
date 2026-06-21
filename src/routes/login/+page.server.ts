@@ -28,11 +28,8 @@ import {
   authenticatePluginPassword,
   getAuthLoginMethods,
 } from '../../plugins/auth-registry';
-import {
-  getPublicPluginStates,
-  loadRuntimePluginSlots,
-  verifyFormSubmissionPlugins,
-} from '../../plugins/server';
+import { verifyFormSubmissionPlugins } from '../../plugins/server';
+import { loadPublicPluginSlots } from '$lib/server/public-plugin-slots';
 
 function safeReturnTo(value: string | null) {
   return value?.startsWith('/') && !value.startsWith('//') ? value : '/';
@@ -97,7 +94,6 @@ export const load: PageServerLoad = async ({
     siteName: displaySettings.general.siteName,
     theme: displaySettings.theme,
     customHead: displaySettings.seo.customHead,
-    plugins: getPublicPluginStates(settings.plugins),
     passwordEnabled,
     passkeyEnabled,
     registrationAllowed: registration.allowed,
@@ -124,11 +120,12 @@ export const load: PageServerLoad = async ({
           identifier,
         }),
       ),
-    runtimeSlots: await loadRuntimePluginSlots({
-      states: settings.plugins,
+    publicSlots: await loadPublicPluginSlots({
+      settings,
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
       user: null,
+      slots: ['login-extra'],
     }),
   };
 };

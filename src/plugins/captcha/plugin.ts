@@ -383,18 +383,24 @@ const plugin: PluginDefinition = {
   },
   publicConfig(config) {
     const normalized = normalizeCaptchaConfig(config);
-    return {
+    if (normalized.provider === 'none') return {};
+
+    const publicConfig: Record<string, unknown> = {
       provider: normalized.provider,
       siteKey: normalized.siteKey,
-      scoreThreshold: normalized.scoreThreshold,
       tokenFieldName: normalized.tokenFieldName,
-      loginEnabled: normalized.loginEnabled,
-      signupEnabled: normalized.signupEnabled,
-      linkCreateEnabled: normalized.linkCreateEnabled,
-      accountSecurityUnlockEnabled: normalized.accountSecurityUnlockEnabled,
-      customScriptUrl: normalized.customScriptUrl,
-      customWidgetHtml: normalized.customWidgetHtml,
     };
+    if (normalized.loginEnabled) publicConfig.loginEnabled = true;
+    if (normalized.signupEnabled) publicConfig.signupEnabled = true;
+    if (normalized.linkCreateEnabled) publicConfig.linkCreateEnabled = true;
+    if (normalized.accountSecurityUnlockEnabled) {
+      publicConfig.accountSecurityUnlockEnabled = true;
+    }
+    if (normalized.provider === 'custom') {
+      publicConfig.customScriptUrl = normalized.customScriptUrl;
+      publicConfig.customWidgetHtml = normalized.customWidgetHtml;
+    }
+    return publicConfig;
   },
 };
 

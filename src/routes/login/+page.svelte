@@ -9,8 +9,7 @@
   import { providerButtonStyle } from '$lib/auth-provider-style';
   import { siteThemeStyle } from '$lib/theme-vars';
   import type { SiteLocale, SiteSettings } from '$lib/config';
-  import type { RuntimePluginSlotRender } from '$lib/plugin-contracts';
-  import { publicPluginRegistry } from '../../plugins/public-registry';
+  import type { PublicPluginSlots } from '$lib/public-plugin-slots';
   import { uiText } from '$lib/i18n/ui-text';
 
   type LoginProvider = {
@@ -42,14 +41,13 @@
       siteName: string;
       theme: SiteSettings['theme'];
       customHead: string;
-      plugins: SiteSettings['plugins'];
       passwordEnabled: boolean;
       passkeyEnabled: boolean;
       registrationAllowed: boolean;
       resendVerificationAvailable: boolean;
       passwordResetAvailable: boolean;
       providers: LoginProvider[];
-      runtimeSlots: RuntimePluginSlotRender[];
+      publicSlots: PublicPluginSlots;
     };
     form?: { message?: string; totpRequired?: boolean };
   } = $props();
@@ -213,10 +211,8 @@
           /></label
         >
         <PluginSlotOutlet
-          registry={publicPluginRegistry}
-          states={data.plugins}
+          slots={data.publicSlots}
           slot="login-extra"
-          runtimeSlots={data.runtimeSlots}
           locale={data.locale}
           fallbackLocale={data.defaultLocale}
         />
