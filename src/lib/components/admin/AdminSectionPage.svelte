@@ -15,6 +15,15 @@
     type LinkSearchState,
   } from '$lib/search';
   import {
+    editableFieldsForManagedLink,
+    linkCanCheckHealth,
+    linkCanDelete,
+    linkCanEdit,
+    linkCanManagePermission,
+    linkCanViewStats,
+    type ManagedLinkItem,
+  } from '$lib/link-types';
+  import {
     isRedirectRuleConditionKey,
     linkedLinkEditFieldPairs,
     linkedLinkOptionKeyPairs,
@@ -41,49 +50,7 @@
   } from '$lib/plugin-contracts';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
 
-  type AdminLink = {
-    id: number;
-    code: string;
-    domain: string;
-    url: string;
-    preview: {
-      title: string;
-      description: string;
-      imageUrl: string;
-      themeColor: string;
-    };
-    tags: string[];
-    shortUrl: string;
-    owned?: boolean;
-    clicks: number;
-    createdAt: string;
-    lastClickedAt: string | null;
-    smart: {
-      expiresAt: string | null;
-      maxClicks: number;
-      passwordProtected: boolean;
-    };
-    routing: {
-      redirectRules: unknown[];
-    };
-    health: {
-      status: 'unchecked' | 'ok' | 'warning' | 'broken';
-      statusCode: number | null;
-      checkedAt: string | null;
-      error: string;
-      responseBody: string;
-      latencyMs: number | null;
-    };
-    share: {
-      recipientCount: number;
-      access: {
-        canEdit: boolean;
-        canViewStats: boolean;
-        editableFields: LinkEditFieldKey[];
-        expiresAt: string | null;
-      } | null;
-    };
-  };
+  type AdminLink = ManagedLinkItem;
 
   type AdminData = {
     authenticated: true;
@@ -147,8 +114,7 @@
     ['shareLinks', 'shareLinks'],
     ['healthAllLinks', 'healthAllLinks'],
   ] as const;
-  const linkOptionDefaults = [
-    ['customCode', 'customCode'],
+  const sharedLinkFieldDefaults = [
     ['previewTitle', 'previewTitle'],
     ['previewDescription', 'previewDescriptionLabel'],
     ['previewImageUrl', 'previewImageUrl'],
@@ -170,28 +136,13 @@
     ['redirectRuleGeo', 'redirectRuleGeo'],
     ['redirectRulePercentage', 'redirectRulePercentage'],
   ] as const;
+  const linkOptionDefaults = [
+    ['customCode', 'customCode'],
+    ...sharedLinkFieldDefaults,
+  ] as const;
   const editableFieldDefaults = [
     ['url', 'destinationUrl'],
-    ['previewTitle', 'previewTitle'],
-    ['previewDescription', 'previewDescriptionLabel'],
-    ['previewImageUrl', 'previewImageUrl'],
-    ['themeColor', 'themeColor'],
-    ['utmSource', 'utmSource'],
-    ['utmMedium', 'utmMedium'],
-    ['utmCampaign', 'utmCampaign'],
-    ['utmTerm', 'utmTerm'],
-    ['utmContent', 'utmContent'],
-    ['expiresAt', 'expirationDate'],
-    ['maxClicks', 'maxClicks'],
-    ['password', 'password'],
-    ['tags', 'tags'],
-    ['redirectRules', 'redirectRules'],
-    ['redirectRuleDevice', 'redirectRuleDevice'],
-    ['redirectRuleLanguage', 'redirectRuleLanguage'],
-    ['redirectRuleQuery', 'redirectRuleQuery'],
-    ['redirectRuleIp', 'redirectRuleIp'],
-    ['redirectRuleGeo', 'redirectRuleGeo'],
-    ['redirectRulePercentage', 'redirectRulePercentage'],
+    ...sharedLinkFieldDefaults,
   ] as const;
   const localePanels = $derived(
     siteLocaleKeys.map((id) => ({
@@ -583,54 +534,27 @@
   );
 
   function canDeleteAdminLink(link: { clicks: number; owned?: boolean }) {
-    if (data.permissions.links.deleteAll) return true;
-    return (
-      data.permissions.links.deleteOwn &&
-      link.owned === true &&
-      (data.permissions.links.deleteMaxClicks <= 0 ||
-        link.clicks <= data.permissions.links.deleteMaxClicks)
-    );
+    return linkCanDelete(link, data.permissions);
   }
 
   function canViewAdminLinkStats(link: AdminLink) {
-    return (
-      data.permissions.links.statsAll ||
-      link.owned === true ||
-      link.share.access?.canViewStats === true
-    );
+    return linkCanViewStats(link, data.permissions);
   }
 
   function canCheckAdminLinkHealth(link: AdminLink) {
-    return data.permissions.links.healthAll || link.owned === true;
+    return linkCanCheckHealth(link, data.permissions);
   }
 
   function canManageAdminLinkPermission(link: AdminLink) {
-    return (
-      data.permissions.links.share &&
-      (data.permissions.isAdmin ||
-        data.permissions.links.editAll ||
-        link.owned === true)
-    );
+    return linkCanManagePermission(link, data.permissions);
   }
 
   function canEditAdminLink(link: AdminLink) {
-    return (
-      (data.permissions.links.editableFields.length > 0 &&
-        (data.permissions.links.editAll ||
-          (data.permissions.links.editOwn && link.owned === true))) ||
-      link.share.access?.canEdit === true
-    );
+    return linkCanEdit(link, data.permissions);
   }
 
   function editableFieldsForAdminLink(link: AdminLink) {
-    if (
-      data.permissions.links.editableFields.length > 0 &&
-      (data.permissions.links.editAll ||
-        (data.permissions.links.editOwn && link.owned === true))
-    ) {
-      return data.permissions.links.editableFields;
-    }
-    return link.share.access?.editableFields ?? [];
+    return editableFieldsForManagedLink(link, data.permissions);
   }
 
   function hasAdminAccessPermission(permission: AdminPluginAccessPermission) {

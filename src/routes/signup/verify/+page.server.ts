@@ -3,9 +3,12 @@ import {
   registrationAvailability,
   verifySignupEmail,
 } from '$lib/server/registration';
+import {
+  passwordLoginEnabled,
+  publicAuthPageData,
+} from '$lib/server/auth-page';
 import { getSettings } from '$lib/server/settings';
 import { effectivePermissionsForEvent } from '$lib/server/permissions';
-import { getAuthLoginMethods } from '../../../plugins/auth-registry';
 
 export const load: PageServerLoad = async ({
   getClientAddress,
@@ -14,7 +17,6 @@ export const load: PageServerLoad = async ({
   url,
 }) => {
   const settings = await getSettings();
-  const displaySettings = locals.localizedSettings;
   const token = url.searchParams.get('token') ?? '';
   const result = token ? await verifySignupEmail(token) : null;
   const permissions = await effectivePermissionsForEvent({
@@ -22,22 +24,17 @@ export const load: PageServerLoad = async ({
     request,
     getClientAddress,
   });
-  const methods = getAuthLoginMethods(
-    settings.plugins,
-    locals.locale,
-    settings.i18n.defaultLocale,
-    permissions.auth.providers,
-  );
   const registration = await registrationAvailability(settings, {
-    passwordLoginEnabled: methods.some((method) => method.type === 'password'),
+    passwordLoginEnabled: passwordLoginEnabled(
+      settings,
+      locals.locale,
+      permissions.auth.providers,
+    ),
   });
   return {
-    locale: locals.locale,
+    ...publicAuthPageData(settings, locals),
     ok: Boolean(result),
     purpose: result?.purpose ?? 'signup',
-    siteName: displaySettings.general.siteName,
-    theme: displaySettings.theme,
-    customHead: displaySettings.seo.customHead,
     registrationAllowed: registration.allowed,
   };
 };

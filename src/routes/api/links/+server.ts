@@ -1,17 +1,11 @@
-import { json, type RequestHandler } from '@sveltejs/kit';
-import {
-  createLink,
-  deleteLinks as deleteShortLinks,
-  listLinks,
-} from '$lib/server/shortener';
+import type { RequestHandler } from '@sveltejs/kit';
+import { createLink, listLinks } from '$lib/server/shortener';
 import {
   selectedShortLinkDomainForCreate,
   shortLinkLookupDomain,
-  shortUrl,
 } from '$lib/server/url';
 import { requireApiPermissionContext } from '$lib/server/api-permissions';
 import {
-  deleteLinksMessage,
   linkOperationsFromForm,
   linkPreviewFromForm,
   linkSelectionsFromForm,
@@ -20,9 +14,15 @@ import { formDataFromJson, recordValue } from '$lib/server/api-link-input';
 import {
   assertCreateOptionsAllowed,
   linkSettingsForPermissions,
-  publicPermissionGroupReasons,
 } from '$lib/server/permissions';
-import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import { uiText } from '$lib/i18n/ui-text';
+import {
+  apiLinkErrorMessage,
+  apiLinkJson,
+  apiLinkMessageJson,
+  deleteApiLinksJson,
+  linkWithShortUrl,
+} from '$lib/server/api-link-response';
 import { applyCreateUrlPlugins } from '../../../plugins/server';
 
 export const GET: RequestHandler = async ({
@@ -45,15 +45,9 @@ export const GET: RequestHandler = async ({
   const owner = permissions.links.viewAll ? undefined : currentOwner;
   const links = (
     await listLinks(30, owner, currentOwner, api.principal.id)
-  ).map((link) => ({
-    ...link,
-    shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
-  }));
+  ).map((link) => linkWithShortUrl(link, url.origin, settings));
 
-  return json({
-    links,
-    permissionGroups: publicPermissionGroupReasons(permissions),
-  });
+  return apiLinkJson({ links }, permissions);
 };
 
 export const POST: RequestHandler = async ({
@@ -104,29 +98,24 @@ export const POST: RequestHandler = async ({
       operations: linkOperationsFromForm(form),
     });
 
-    return json(
+    return apiLinkJson(
       {
-        link: {
-          ...link,
-          shortUrl: shortUrl(url.origin, link.code, link.domain, settings),
-        },
-        permissionGroups: publicPermissionGroupReasons(permissions),
+        link: linkWithShortUrl(link, url.origin, settings),
       },
+      permissions,
       { status: 201 },
     );
   } catch (error) {
-    return json(
+    return apiLinkJson(
       {
-        message:
-          error instanceof Error
-            ? localizeServerMessage(
-                settings.i18n.defaultLocale,
-                error.message,
-                settings.i18n.defaultLocale,
-              )
-            : text.createFailed,
-        permissionGroups: publicPermissionGroupReasons(permissions),
+        message: apiLinkErrorMessage(
+          error,
+          text.createFailed,
+          settings.i18n.defaultLocale,
+          settings.i18n.defaultLocale,
+        ),
       },
+      permissions,
       { status: 400 },
     );
   }
@@ -153,45 +142,18 @@ export const DELETE: RequestHandler = async ({
   const form = formDataFromJson(body);
   const links = linkSelectionsFromForm(form);
   if (links.length === 0) {
-    return json(
-      {
-        message: text.deleteNeedsSelection,
-        permissionGroups: publicPermissionGroupReasons(permissions),
-      },
-      { status: 400 },
-    );
+    return apiLinkMessageJson(text.deleteNeedsSelection, permissions, 400);
   }
 
-  const result = await deleteShortLinks(links, {
-    isAdmin: api.principal.isAdmin,
-    allowAnyOwner: permissions.links.deleteAll,
-    owner: { userId: api.principal.id },
-    allowUserDelete: permissions.links.deleteOwn,
-    maxClicks: permissions.links.deleteMaxClicks,
+  return deleteApiLinksJson({
+    links,
     domain: shortLinkLookupDomain(
       settings,
       String(form.get('domain') || url.searchParams.get('domain') || ''),
       url.origin,
     ),
-  });
-  const message = deleteLinksMessage(result, { text });
-
-  if (result.deleted === 0) {
-    return json(
-      {
-        ok: false,
-        message: message || text.deleteNoLinks,
-        result,
-        permissionGroups: publicPermissionGroupReasons(permissions),
-      },
-      { status: 403 },
-    );
-  }
-
-  return json({
-    ok: true,
-    message,
-    result,
-    permissionGroups: publicPermissionGroupReasons(permissions),
+    principal: api.principal,
+    permissions,
+    text,
   });
 };

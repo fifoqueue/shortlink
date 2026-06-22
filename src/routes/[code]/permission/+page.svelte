@@ -9,6 +9,7 @@
   } from '$lib/config';
   import CopyValue from '$lib/components/CopyValue.svelte';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
+  import LinkShareResultPanel from '$lib/components/LinkShareResultPanel.svelte';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
   import SearchForm from '$lib/components/SearchForm.svelte';
@@ -313,6 +314,10 @@
     }
 
     return resolvePath(`${target.pathname}${target.search}`);
+  }
+
+  function resultMode(mode: PageData['mode']): 'accepted' | 'inviteExpired' {
+    return mode === 'accepted' ? 'accepted' : 'inviteExpired';
   }
 </script>
 
@@ -730,33 +735,15 @@
           <p class="empty-note">{text.linkPermission.emptyRecipients}</p>
         {/if}
       </section>
-    {:else if data.mode === 'accepted'}
-      <section class="result-panel">
-        <p>{text.linkPermission.acceptedKicker}</p>
-        <h1>
-          {data.acceptedAsOwner
-            ? text.linkPermission.ownerAcceptedTitle
-            : text.linkPermission.acceptedTitle}
-        </h1>
-        <span>{data.link.shortUrl}</span>
-        <div class="result-actions">
-          <a href={homeHref}>{text.linkPermission.openLinkList}</a>
-          {#if data.access?.canViewStats && data.statsHref}
-            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-            <a href={data.statsHref}>{text.managedLinks.stats}</a>
-          {/if}
-        </div>
-      </section>
     {:else}
-      <section class="result-panel">
-        <p>{text.linkPermission.acceptedKicker}</p>
-        <h1>{text.linkPermission.inviteExpiredTitle}</h1>
-        <span>{data.link.shortUrl}</span>
-        <p>{text.linkPermission.inviteExpiredDescription}</p>
-        <div class="result-actions">
-          <a href={homeHref}>{text.common.home}</a>
-        </div>
-      </section>
+      <LinkShareResultPanel
+        mode={resultMode(data.mode)}
+        shortUrl={data.link.shortUrl}
+        acceptedAsOwner={data.acceptedAsOwner}
+        canViewStats={data.access?.canViewStats}
+        statsHref={data.statsHref}
+        locale={data.locale}
+      />
     {/if}
   </main>
 </div>
@@ -795,16 +782,14 @@
     --search-text: var(--text);
   }
   .link-panel a,
-  .invite-actions a,
-  .result-actions a {
+  .invite-actions a {
     color: var(--primary);
     text-decoration: none;
   }
   .link-panel a,
   .invite-actions a,
   .invite-actions button,
-  .form-actions button,
-  .result-actions a {
+  .form-actions button {
     display: inline-flex;
     min-height: 42px;
     align-items: center;
@@ -818,8 +803,7 @@
     font-weight: 850;
     cursor: pointer;
   }
-  .panel-head p,
-  .result-panel > p {
+  .panel-head p {
     margin: 0;
     color: var(--primary);
     font-size: 0.72rem;
@@ -837,17 +821,9 @@
     font-size: 1.25rem;
     font-weight: 650;
   }
-  .result-panel > span {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.92rem;
-    line-height: 1.6;
-    overflow-wrap: anywhere;
-  }
   .link-panel,
   .share-panel,
-  .recipients-panel,
-  .result-panel {
+  .recipients-panel {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
@@ -873,8 +849,7 @@
     overflow-wrap: anywhere;
   }
   .share-panel,
-  .recipients-panel,
-  .result-panel {
+  .recipients-panel {
     display: grid;
     gap: 18px;
     padding: 22px;
@@ -892,8 +867,7 @@
     white-space: nowrap;
   }
   .invite-actions,
-  .form-actions,
-  .result-actions {
+  .form-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -905,8 +879,7 @@
   .danger-zone {
     justify-content: flex-end;
   }
-  .form-actions button,
-  .result-actions a:first-child {
+  .form-actions button {
     border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
     background: var(--primary);
     color: var(--primary-contrast);
@@ -1101,8 +1074,7 @@
     font-weight: 900;
   }
   .recipient-summary span,
-  .recipient-summary time,
-  .result-panel p:not(:first-child) {
+  .recipient-summary time {
     color: var(--muted);
     font-size: 0.82rem;
   }
@@ -1179,13 +1151,6 @@
     grid-column: 2;
     align-items: stretch;
   }
-  .result-panel {
-    max-width: 680px;
-    margin: 70px auto 0;
-  }
-  .result-panel h1 {
-    font-size: clamp(2.2rem, 6vw, 4rem);
-  }
   @media (max-width: 720px) {
     .link-panel,
     .panel-head {
@@ -1212,15 +1177,13 @@
     .form-actions,
     .danger-zone,
     .recipient-danger,
-    .invite-actions,
-    .result-actions {
+    .invite-actions {
       display: grid;
     }
     .form-actions button,
     .recipient-danger :global(.danger-confirm-trigger),
     .invite-actions a,
     .invite-actions button,
-    .result-actions a,
     .link-panel a {
       width: 100%;
     }

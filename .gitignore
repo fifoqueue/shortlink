@@ -71,4 +71,5 @@ src/user-plugins/*
 # Miscellaneous important file
 .svelte-kit/
 .idea/
+.codex/
 build/

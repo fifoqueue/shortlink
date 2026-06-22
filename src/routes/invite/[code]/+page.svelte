@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import type { LinkEditFieldKey, SiteLocale, SiteSettings } from '$lib/config';
+  import LinkShareResultPanel from '$lib/components/LinkShareResultPanel.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import { uiText } from '$lib/i18n/ui-text';
   import { siteThemeStyle } from '$lib/theme-vars';
@@ -58,34 +59,14 @@
   </header>
 
   <main>
-    {#if data.mode === 'accepted'}
-      <section class="result-panel">
-        <p>{text.linkPermission.acceptedKicker}</p>
-        <h1>
-          {data.acceptedAsOwner
-            ? text.linkPermission.ownerAcceptedTitle
-            : text.linkPermission.acceptedTitle}
-        </h1>
-        <span>{data.link.shortUrl}</span>
-        <div class="result-actions">
-          <a href={homeHref}>{text.linkPermission.openLinkList}</a>
-          {#if data.access?.canViewStats && data.statsHref}
-            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-            <a href={data.statsHref}>{text.managedLinks.stats}</a>
-          {/if}
-        </div>
-      </section>
-    {:else}
-      <section class="result-panel">
-        <p>{text.linkPermission.acceptedKicker}</p>
-        <h1>{text.linkPermission.inviteExpiredTitle}</h1>
-        <span>{data.link.shortUrl}</span>
-        <p>{text.linkPermission.inviteExpiredDescription}</p>
-        <div class="result-actions">
-          <a href={homeHref}>{text.common.home}</a>
-        </div>
-      </section>
-    {/if}
+    <LinkShareResultPanel
+      mode={data.mode}
+      shortUrl={data.link.shortUrl}
+      acceptedAsOwner={data.acceptedAsOwner}
+      canViewStats={data.access?.canViewStats}
+      statsHref={data.statsHref}
+      locale={data.locale}
+    />
   </main>
 </div>
 
@@ -115,8 +96,7 @@
     gap: 16px;
   }
   .brand,
-  .back-link,
-  .result-actions a {
+  .back-link {
     color: inherit;
     text-decoration: none;
   }
@@ -141,8 +121,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .back-link,
-  .result-actions a {
+  .back-link {
     display: inline-flex;
     min-height: 42px;
     align-items: center;
@@ -160,55 +139,6 @@
     gap: 18px;
     padding: 56px 0 90px;
   }
-  .result-panel {
-    display: grid;
-    max-width: 680px;
-    gap: 18px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin: 70px auto 0;
-    padding: 22px;
-    background: var(--surface);
-    box-shadow: 0 22px 64px color-mix(in srgb, var(--text) 7%, transparent);
-  }
-  .result-panel > p:first-child {
-    margin: 0;
-    color: var(--primary);
-    font-size: 0.72rem;
-    font-weight: 900;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-  }
-  h1,
-  p {
-    margin-top: 0;
-  }
-  h1 {
-    max-width: 780px;
-    margin-bottom: 0;
-    font-size: clamp(2.2rem, 6vw, 4rem);
-    font-weight: 500;
-    line-height: 1;
-  }
-  .result-panel > span {
-    color: var(--muted);
-    font-size: 0.92rem;
-    overflow-wrap: anywhere;
-  }
-  .result-panel p:not(:first-child) {
-    color: var(--muted);
-    font-size: 0.82rem;
-  }
-  .result-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .result-actions a:first-child {
-    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
-    background: var(--primary);
-    color: var(--primary-contrast);
-  }
   @media (max-width: 720px) {
     header,
     main {
@@ -216,12 +146,6 @@
     }
     main {
       padding-top: 36px;
-    }
-    .result-actions {
-      display: grid;
-    }
-    .result-actions a {
-      width: 100%;
     }
   }
 </style>

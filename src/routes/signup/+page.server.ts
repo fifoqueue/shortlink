@@ -1,7 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createUserSessionFromModel } from '$lib/server/auth-session';
-import { getClientIp } from '$lib/server/client-ip';
+import {
+  localizedAuthMessage,
+  passwordLoginEnabled,
+  publicAuthPageData,
+  requestClientIp,
+} from '$lib/server/auth-page';
 import { passwordPolicyDescription } from '$lib/server/password-policy';
 import {
   registerUser,
@@ -10,22 +15,8 @@ import {
 import { getSettings, stringValue } from '$lib/server/settings';
 import { effectivePermissionsForEvent } from '$lib/server/permissions';
 import { verifyFormSubmissionPlugins } from '../../plugins/server';
-import { getAuthLoginMethods } from '../../plugins/auth-registry';
-import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import { uiText } from '$lib/i18n/ui-text';
 import { loadPublicPluginSlots } from '$lib/server/public-plugin-slots';
-
-function passwordLoginEnabled(
-  settings: Awaited<ReturnType<typeof getSettings>>,
-  locale: App.Locals['locale'] = settings.i18n.defaultLocale,
-  allowedProviders?: readonly string[] | null,
-) {
-  return getAuthLoginMethods(
-    settings.plugins,
-    locale,
-    settings.i18n.defaultLocale,
-    allowedProviders,
-  ).some((method) => method.type === 'password');
-}
 
 export const load: PageServerLoad = async ({
   getClientAddress,
@@ -34,7 +25,6 @@ export const load: PageServerLoad = async ({
 }) => {
   if (locals.user) redirect(303, '/account');
   const settings = await getSettings();
-  const displaySettings = locals.localizedSettings;
   const permissions = await effectivePermissionsForEvent({
     locals,
     request,
@@ -48,11 +38,7 @@ export const load: PageServerLoad = async ({
     ),
   });
   return {
-    locale: locals.locale,
-    defaultLocale: settings.i18n.defaultLocale,
-    siteName: displaySettings.general.siteName,
-    theme: displaySettings.theme,
-    customHead: displaySettings.seo.customHead,
+    ...publicAuthPageData(settings, locals),
     setupRequired: availability.setupRequired,
     passwordPolicy: passwordPolicyDescription(
       settings.auth.password,
@@ -61,10 +47,10 @@ export const load: PageServerLoad = async ({
     emailVerificationEnabled:
       settings.auth.emailVerification.enabled && !availability.setupRequired,
     registrationAllowed: availability.allowed,
-    registrationUnavailableReason: localizeServerMessage(
+    registrationUnavailableReason: localizedAuthMessage(
+      settings,
       locals.locale,
       availability.reason,
-      settings.i18n.defaultLocale,
     ),
     publicSlots: await loadPublicPluginSlots({
       settings,
@@ -96,10 +82,10 @@ export const actions: Actions = {
     if (!availability.allowed) {
       return fail(403, {
         registrationBlocked: true,
-        message: localizeServerMessage(
+        message: localizedAuthMessage(
+          settings,
           locals.locale,
           availability.reason,
-          settings.i18n.defaultLocale,
         ),
       });
     }
@@ -118,12 +104,7 @@ export const actions: Actions = {
       states: settings.plugins,
       user: locals.user,
       isAdmin: locals.isAdmin,
-      ip: getClientIp(
-        request,
-        getClientAddress,
-        settings.network.trustProxyHeaders,
-        settings.network.proxyIpHeaders,
-      ),
+      ip: requestClientIp(settings, request, getClientAddress),
       locale: locals.locale,
       fallbackLocale: settings.i18n.defaultLocale,
       settings,
@@ -132,11 +113,7 @@ export const actions: Actions = {
       return fail(400, {
         values,
         message: verification.message
-          ? localizeServerMessage(
-              locals.locale,
-              verification.message,
-              settings.i18n.defaultLocale,
-            )
+          ? localizedAuthMessage(settings, locals.locale, verification.message)
           : text.messages.formVerificationFailed,
       });
     }
@@ -170,11 +147,7 @@ export const actions: Actions = {
         values,
         message:
           cause instanceof Error
-            ? localizeServerMessage(
-                locals.locale,
-                cause.message,
-                settings.i18n.defaultLocale,
-              )
+            ? localizedAuthMessage(settings, locals.locale, cause.message)
             : text.messages.signupFailed,
       });
     }

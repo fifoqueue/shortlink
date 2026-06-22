@@ -2,12 +2,13 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getSettings } from '$lib/server/settings';
 import { pluginActionName } from '$lib/server/plugin-actions';
-import { getClientIp } from '$lib/server/client-ip';
 import {
-  canAccessAdminPlugin,
-  effectivePermissions,
+  adminPluginPermissions,
+  definitionForAdminPlugin,
   type EffectivePermissions,
-} from '$lib/server/permissions';
+  pluginAdminPermissionContext,
+  requireAdminPluginAccess,
+} from '$lib/server/admin-plugin-context';
 import {
   pluginDefinitions,
   publicPluginConfig,
@@ -18,56 +19,8 @@ import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import type { SiteLocale } from '$lib/config';
 import type {
   PluginAdminAccessStatus,
-  PluginAdminPermissionContext,
   PluginDefinition,
 } from '$lib/plugin-contracts';
-
-function definitionFor(id: string) {
-  return pluginDefinitions.find((definition) => definition.meta.id === id);
-}
-
-async function permissionsFor(input: {
-  locals: App.Locals;
-  request: Request;
-  getClientAddress: () => string;
-}) {
-  const settings = input.locals.settings;
-  return effectivePermissions({
-    settings,
-    user: input.locals.user,
-    isAdmin: input.locals.isAdmin,
-    ip: getClientIp(
-      input.request,
-      input.getClientAddress,
-      settings.network.trustProxyHeaders,
-      settings.network.proxyIpHeaders,
-    ),
-  });
-}
-
-function requirePluginAccess(
-  permissions: EffectivePermissions,
-  definition: PluginDefinition,
-) {
-  if (
-    !canAccessAdminPlugin(
-      permissions,
-      definition.meta.id,
-      definition.meta.adminAccessPermissions,
-    )
-  ) {
-    redirect(303, '/admin');
-  }
-}
-
-function pluginAdminPermissionContext(
-  permissions: EffectivePermissions,
-): PluginAdminPermissionContext {
-  return {
-    isAdmin: permissions.isAdmin,
-    admin: permissions.admin,
-  };
-}
 
 async function pluginSubpageAccessStatus(input: {
   definition: PluginDefinition;
@@ -155,14 +108,14 @@ export const load: PageServerLoad = async ({
   request,
   getClientAddress,
 }) => {
-  const definition = definitionFor(params.plugin);
+  const definition = definitionForAdminPlugin(params.plugin);
   if (!definition) redirect(303, '/admin/plugins');
-  const permissions = await permissionsFor({
+  const permissions = await adminPluginPermissions({
     locals,
     request,
     getClientAddress,
   });
-  requirePluginAccess(permissions, definition);
+  requireAdminPluginAccess(permissions, definition);
   const access = await pluginSubpageAccessStatus({
     definition,
     permissions,
@@ -244,16 +197,16 @@ export const actions: Actions = {
   pluginAction: async ({ request, locals, params, url, getClientAddress }) => {
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
       .messages;
-    const definition = definitionFor(params.plugin);
+    const definition = definitionForAdminPlugin(params.plugin);
     if (!definition?.handleAdminSubpageAction) {
       return fail(404, { message: text.pluginActionNotFound });
     }
-    const permissions = await permissionsFor({
+    const permissions = await adminPluginPermissions({
       locals,
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, definition);
+    requireAdminPluginAccess(permissions, definition);
     const access = await pluginSubpageAccessStatus({
       definition,
       permissions,
@@ -327,16 +280,16 @@ export const actions: Actions = {
   }) => {
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
       .messages;
-    const permissions = await permissionsFor({
+    const permissions = await adminPluginPermissions({
       locals,
       request,
       getClientAddress,
     });
-    const parentDefinition = definitionFor(params.plugin);
+    const parentDefinition = definitionForAdminPlugin(params.plugin);
     if (!parentDefinition) {
       return fail(404, { message: text.pluginNotFound });
     }
-    requirePluginAccess(permissions, parentDefinition);
+    requireAdminPluginAccess(permissions, parentDefinition);
     const access = await pluginSubpageAccessStatus({
       definition: parentDefinition,
       permissions,
@@ -358,7 +311,7 @@ export const actions: Actions = {
     const form = await request.formData();
     const pluginId = String(form.get('integrationPlugin') ?? '');
     const action = String(form.get('integrationAction') ?? '');
-    const definition = definitionFor(pluginId);
+    const definition = definitionForAdminPlugin(pluginId);
     const settings = await getSettings();
     const state = settings.plugins[pluginId];
     if (!definition?.handleUserAdminAction || !state?.enabled) {

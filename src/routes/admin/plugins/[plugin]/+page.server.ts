@@ -5,21 +5,17 @@ import {
   parseBoolean,
   updateSettings,
 } from '$lib/server/settings';
-import { getClientIp } from '$lib/server/client-ip';
 import {
-  canAccessAdminPlugin,
-  effectivePermissions,
-  type EffectivePermissions,
-} from '$lib/server/permissions';
+  adminPluginPermissions,
+  definitionForAdminPlugin,
+  pluginAdminPermissionContext,
+  requireAdminPluginAccess,
+} from '$lib/server/admin-plugin-context';
 import { pluginActionName } from '$lib/server/plugin-actions';
 import { clearPluginSessions } from '../../../../plugins/auth-registry';
-import {
-  isRequiredPlugin,
-  pluginDefinitions,
-} from '../../../../plugins/server';
+import { isRequiredPlugin } from '../../../../plugins/server';
 import { localizedPluginMeta, pluginLocaleStrings } from '$lib/i18n/plugin';
 import type {
-  PluginAdminPermissionContext,
   PluginActivationStatus,
   PluginDefinition,
   RuntimePluginAdminSchema,
@@ -28,53 +24,6 @@ import type {
 } from '$lib/plugin-contracts';
 import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
 import type { SiteLocale } from '$lib/config';
-
-function definitionFor(id: string) {
-  return pluginDefinitions.find((definition) => definition.meta.id === id);
-}
-
-async function permissionsFor(input: {
-  locals: App.Locals;
-  request: Request;
-  getClientAddress: () => string;
-}) {
-  const settings = input.locals.settings;
-  return effectivePermissions({
-    settings,
-    user: input.locals.user,
-    isAdmin: input.locals.isAdmin,
-    ip: getClientIp(
-      input.request,
-      input.getClientAddress,
-      settings.network.trustProxyHeaders,
-      settings.network.proxyIpHeaders,
-    ),
-  });
-}
-
-function requirePluginAccess(
-  permissions: EffectivePermissions,
-  definition: PluginDefinition,
-) {
-  if (
-    !canAccessAdminPlugin(
-      permissions,
-      definition.meta.id,
-      definition.meta.adminAccessPermissions,
-    )
-  ) {
-    redirect(303, '/admin');
-  }
-}
-
-function pluginAdminPermissionContext(
-  permissions: EffectivePermissions,
-): PluginAdminPermissionContext {
-  return {
-    isAdmin: permissions.isAdmin,
-    admin: permissions.admin,
-  };
-}
 
 async function activationStatus(
   definition: PluginDefinition,
@@ -157,14 +106,14 @@ export const load: PageServerLoad = async ({
   request,
   getClientAddress,
 }) => {
-  const definition = definitionFor(params.plugin);
+  const definition = definitionForAdminPlugin(params.plugin);
   if (!definition) redirect(303, '/admin/plugins');
-  const permissions = await permissionsFor({
+  const permissions = await adminPluginPermissions({
     locals,
     request,
     getClientAddress,
   });
-  requirePluginAccess(permissions, definition);
+  requireAdminPluginAccess(permissions, definition);
   const settings = await getSettings();
   const storedState = settings.plugins[definition.meta.id];
   const state = {
@@ -239,14 +188,14 @@ export const actions: Actions = {
   save: async ({ request, locals, params, url, getClientAddress }) => {
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
       .messages;
-    const definition = definitionFor(params.plugin);
+    const definition = definitionForAdminPlugin(params.plugin);
     if (!definition) return fail(404, { message: text.pluginNotFound });
-    const permissions = await permissionsFor({
+    const permissions = await adminPluginPermissions({
       locals,
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, definition);
+    requireAdminPluginAccess(permissions, definition);
     const settings = await getSettings({ mutable: true });
     const current = settings.plugins[definition.meta.id];
     const form = await request.formData();
@@ -292,16 +241,16 @@ export const actions: Actions = {
   pluginAction: async ({ request, locals, params, url, getClientAddress }) => {
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale).admin
       .messages;
-    const definition = definitionFor(params.plugin);
+    const definition = definitionForAdminPlugin(params.plugin);
     if (!definition?.handleAdminAction) {
       return fail(404, { message: text.pluginActionNotFound });
     }
-    const permissions = await permissionsFor({
+    const permissions = await adminPluginPermissions({
       locals,
       request,
       getClientAddress,
     });
-    requirePluginAccess(permissions, definition);
+    requireAdminPluginAccess(permissions, definition);
     const settings = await getSettings({ mutable: true });
     const state = settings.plugins[definition.meta.id];
     if (!state.enabled) {

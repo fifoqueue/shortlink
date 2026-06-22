@@ -18,6 +18,7 @@
     type SiteLocale,
     type SiteSettings,
   } from '$lib/config';
+  import type { ManagedLinkItem } from '$lib/link-types';
   import type { SearchOption } from '$lib/search';
   import { formatText, uiText } from '$lib/i18n/ui-text';
   import DangerConfirmButton from './DangerConfirmButton.svelte';
@@ -26,50 +27,6 @@
   import Pagination from './Pagination.svelte';
   import SearchForm from './SearchForm.svelte';
   import ToggleField from './ToggleField.svelte';
-
-  type ManagedLinkItem = {
-    id: number;
-    code: string;
-    domain: string;
-    url: string;
-    preview: {
-      title: string;
-      description: string;
-      imageUrl: string;
-      themeColor: string;
-    };
-    tags: string[];
-    shortUrl: string;
-    owned?: boolean;
-    createdAt: string;
-    clicks: number;
-    lastClickedAt: string | null;
-    smart: {
-      expiresAt: string | null;
-      maxClicks: number;
-      passwordProtected: boolean;
-    };
-    routing: {
-      redirectRules: unknown[];
-    };
-    health: {
-      status: 'unchecked' | 'ok' | 'warning' | 'broken';
-      statusCode: number | null;
-      checkedAt: string | null;
-      error: string;
-      responseBody: string;
-      latencyMs: number | null;
-    };
-    share: {
-      recipientCount: number;
-      access: {
-        canEdit: boolean;
-        canViewStats: boolean;
-        editableFields: LinkEditFieldKey[];
-        expiresAt: string | null;
-      } | null;
-    };
-  };
 
   type HealthActionData = Record<string, unknown> & {
     healthResponseBody?: string;

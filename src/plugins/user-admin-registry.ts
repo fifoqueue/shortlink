@@ -1,16 +1,8 @@
-import type { Component } from 'svelte';
-import type {
-  PluginComponentProps,
-  PluginDefinition,
-} from '$lib/plugin-contracts';
 import {
-  assertUniquePluginId,
-  pluginFolderFromPath,
-  pluginModuleFromFolder,
-} from './utils';
-
-type PluginModule = { default: PluginDefinition };
-type ComponentModule = { default: Component<PluginComponentProps> };
+  createComponentPluginRegistry,
+  type ComponentModule,
+  type PluginModule,
+} from './component-registry';
 
 const definitionModules = import.meta.glob<PluginModule>(
   ['./*/plugin.ts', '../user-plugins/*/plugin.ts'],
@@ -24,29 +16,9 @@ const userAdminModules = import.meta.glob<ComponentModule>(
     eager: true,
   },
 );
-const seenPluginIds = new Set<string>();
-
-export const userAdminPluginRegistry = Object.entries(definitionModules)
-  .map(([path, module]) => {
-    const folder = pluginFolderFromPath(path);
-    const definition = module.default;
-    if (definition.meta.id !== folder) {
-      throw new Error(
-        `Plugin "${folder}" must use the same meta.id (received "${definition.meta.id}").`,
-      );
-    }
-    assertUniquePluginId(seenPluginIds, definition.meta.id, path);
-
-    return {
-      definition,
-      userAdmin:
-        pluginModuleFromFolder(userAdminModules, folder, 'UserAdmin.svelte')
-          ?.default ?? null,
-    };
-  })
-  .sort(
-    (left, right) =>
-      (left.definition.meta.order ?? 100) -
-        (right.definition.meta.order ?? 100) ||
-      left.definition.meta.name.localeCompare(right.definition.meta.name),
-  );
+export const userAdminPluginRegistry = createComponentPluginRegistry(
+  definitionModules,
+  userAdminModules,
+  'UserAdmin.svelte',
+  'userAdmin',
+);

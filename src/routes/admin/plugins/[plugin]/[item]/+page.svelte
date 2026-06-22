@@ -1,7 +1,5 @@
 <script lang="ts">
-  import AdminShell from '$lib/components/AdminShell.svelte';
-  import ToastNotice from '$lib/components/ToastNotice.svelte';
-  import { adminSections } from '$lib/admin-sections';
+  import AdminPluginShell from '$lib/components/admin/AdminPluginShell.svelte';
   import type {
     PluginIntegrationData,
     PluginLocaleStrings,
@@ -42,39 +40,15 @@
       (plugin) => plugin.definition.meta.id === data.plugin.id,
     ),
   );
-  const allowedAdminSections = $derived(
-    data.permissions.isAdmin
-      ? adminSections
-      : adminSections.filter((section) =>
-          data.permissions.admin.sections.includes(section.id),
-        ),
-  );
   const text = $derived(uiText(data.locale, data.defaultLocale));
 </script>
 
-<svelte:head><title>{data.plugin.name} · {data.siteName}</title></svelte:head>
-
-<AdminShell
-  siteName={data.siteName}
-  logoUrl={data.logoUrl}
-  theme={data.theme}
-  locale={data.locale}
-  activeSection="plugins"
-  title={data.plugin.name}
-  kicker={text.admin.pluginSettings}
-  description={data.plugin.description}
-  status={`v${data.plugin.version}`}
+<AdminPluginShell
+  {data}
+  {form}
   backHref={`/admin/plugins/${data.plugin.id}`}
   backLabel={data.plugin.name}
-  sections={allowedAdminSections}
-  customHead={data.customHead}
 >
-  {#if form?.message}
-    {#key form}
-      <ToastNotice message={form.message} ok={form.ok} />
-    {/key}
-  {/if}
-
   <section class="plugin-panel">
     {#if registered?.adminSubpage}
       {@const PluginAdminSubpage = registered.adminSubpage}
@@ -91,7 +65,7 @@
       <p>{text.admin.plugins.noSubpage}</p>
     {/if}
   </section>
-</AdminShell>
+</AdminPluginShell>
 
 <style>
   p,

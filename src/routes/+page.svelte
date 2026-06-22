@@ -20,51 +20,18 @@
   } from '$lib/search';
   import { siteThemeStyle } from '$lib/theme-vars';
   import { formatText, uiText } from '$lib/i18n/ui-text';
+  import {
+    editableFieldsForManagedLink,
+    linkCanCheckHealth,
+    linkCanDelete,
+    linkCanEdit,
+    linkCanManagePermission,
+    linkCanViewStats,
+    type ManagedLinkItem,
+  } from '$lib/link-types';
   import type { AuthenticatedUser } from '$lib/plugin-contracts';
 
-  type LinkItem = {
-    id: number;
-    code: string;
-    domain: string;
-    url: string;
-    preview: {
-      title: string;
-      description: string;
-      imageUrl: string;
-      themeColor: string;
-    };
-    tags: string[];
-    shortUrl: string;
-    owned?: boolean;
-    createdAt: string;
-    clicks: number;
-    lastClickedAt: string | null;
-    smart: {
-      expiresAt: string | null;
-      maxClicks: number;
-      passwordProtected: boolean;
-    };
-    routing: {
-      redirectRules: unknown[];
-    };
-    health: {
-      status: 'unchecked' | 'ok' | 'warning' | 'broken';
-      statusCode: number | null;
-      checkedAt: string | null;
-      error: string;
-      responseBody: string;
-      latencyMs: number | null;
-    };
-    share: {
-      recipientCount: number;
-      access: {
-        canEdit: boolean;
-        canViewStats: boolean;
-        editableFields: LinkEditFieldKey[];
-        expiresAt: string | null;
-      } | null;
-    };
-  };
+  type LinkItem = ManagedLinkItem;
 
   type PageData = {
     links: LinkItem[];
@@ -184,32 +151,19 @@
   }
 
   function canManageLinkPermission(link: LinkItem) {
-    return (
-      data.permissions.links.share &&
-      (data.permissions.links.editAll || link.owned === true)
-    );
+    return linkCanManagePermission(link, data.permissions);
   }
 
   function canViewStatsLink(link: LinkItem) {
-    return (
-      data.permissions.links.statsAll ||
-      link.owned === true ||
-      link.share.access?.canViewStats === true
-    );
+    return linkCanViewStats(link, data.permissions);
   }
 
   function canCheckHealthLink(link: LinkItem) {
-    return data.permissions.links.healthAll || link.owned === true;
+    return linkCanCheckHealth(link, data.permissions);
   }
 
   function canDeleteLink(link: { clicks: number; owned?: boolean }) {
-    const maxClicks = data.permissions.links.deleteMaxClicks;
-    return (
-      data.permissions.links.deleteAll ||
-      (data.permissions.links.deleteOwn &&
-        link.owned === true &&
-        (maxClicks <= 0 || link.clicks <= maxClicks))
-    );
+    return linkCanDelete(link, data.permissions);
   }
 
   function deleteDisabledReason(link: { clicks: number; owned?: boolean }) {
@@ -241,23 +195,11 @@
   }
 
   function canEditLink(link: LinkItem) {
-    return (
-      (data.permissions.links.editableFields.length > 0 &&
-        (data.permissions.links.editAll ||
-          (data.permissions.links.editOwn && link.owned === true))) ||
-      link.share.access?.canEdit === true
-    );
+    return linkCanEdit(link, data.permissions);
   }
 
   function editableFieldsForLink(link: LinkItem) {
-    if (
-      data.permissions.links.editableFields.length > 0 &&
-      (data.permissions.links.editAll ||
-        (data.permissions.links.editOwn && link.owned === true))
-    ) {
-      return data.permissions.links.editableFields;
-    }
-    return link.share.access?.editableFields ?? [];
+    return editableFieldsForManagedLink(link, data.permissions);
   }
 </script>
 

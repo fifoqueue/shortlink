@@ -40,6 +40,19 @@ This file applies to the entire repository.
 - For database shape changes, prefer migrations in `src/lib/server/migrations`; do not rely on Sequelize `alter` for production behavior.
 - Treat `src/lib/server/web-action-guard.ts` and the root layout/hook token injection as core form-security infrastructure. New forms should not need per-form CSRF or web action token wiring.
 
+## Duplication And Reuse
+
+- When project-wide duplication reduction is requested, run `jscpd` through Yarn, for example:
+
+```bash
+yarn dlx jscpd . --ignore="**/node_modules/**,**/.svelte-kit/**,**/build/**,**/.git/**,**/.yarn/**,**/.idea/**,**/.codex/**,**/yarn.lock,**/LICENSE.md,**/*.woff2" --reporters=console,json --output=.codex/jscpd --min-lines=5 --min-tokens=50 --exit-code=0
+```
+
+- Treat dependencies, generated build output, lockfiles, licenses, binary assets, and local `.codex` reports as scan exclusions rather than refactor targets.
+- Prefer extracting duplicated source behavior into focused modules under `src/lib` or `src/lib/server`, and duplicated UI structure into shared Svelte components under `src/lib/components`.
+- Keep extracted helpers aligned with existing route, plugin, settings, i18n, and permission boundaries. Do not create shared abstractions that mix server-only code into client components.
+- Documentation and example snippets may intentionally repeat command shapes or configuration blocks. Refactor docs only when duplication causes maintenance risk or stale instructions.
+
 ## Styling And Svelte
 
 - Use existing shared components before adding one-off UI.

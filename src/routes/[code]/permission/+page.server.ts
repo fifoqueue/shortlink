@@ -218,6 +218,35 @@ async function requireManagedShare(input: {
   return { ...context, link: access.link };
 }
 
+async function managedShareForm(
+  input: Omit<Parameters<typeof requireManagedShare>[0], 'domain'>,
+) {
+  const form = await input.request.formData();
+  const managed = await requireManagedShare({
+    ...input,
+    domain: stringValue(form, 'domain'),
+  });
+  return { form, managed };
+}
+
+function shareSaveFailure(
+  managed: Awaited<ReturnType<typeof requireManagedShare>>,
+  locale: App.Locals['locale'],
+  cause: unknown,
+) {
+  return fail(400, {
+    ok: false,
+    message:
+      cause instanceof Error
+        ? localizeServerMessage(
+            locale,
+            cause.message,
+            managed.settings.i18n.defaultLocale,
+          )
+        : managed.text.messages.shareSaveFailed,
+  });
+}
+
 export const load: PageServerLoad = async ({
   params,
   url,
@@ -355,15 +384,13 @@ export const load: PageServerLoad = async ({
 
 export const actions: Actions = {
   save: async ({ params, url, locals, cookies, request, getClientAddress }) => {
-    const form = await request.formData();
-    const managed = await requireManagedShare({
+    const { form, managed } = await managedShareForm({
       params,
       url,
       locals,
       cookies,
       request,
       getClientAddress,
-      domain: stringValue(form, 'domain'),
     });
     try {
       await saveLinkShare({
@@ -378,17 +405,7 @@ export const actions: Actions = {
         message: managed.text.messages.shareSaved,
       };
     } catch (cause) {
-      return fail(400, {
-        ok: false,
-        message:
-          cause instanceof Error
-            ? localizeServerMessage(
-                locals.locale,
-                cause.message,
-                managed.settings.i18n.defaultLocale,
-              )
-            : managed.text.messages.shareSaveFailed,
-      });
+      return shareSaveFailure(managed, locals.locale, cause);
     }
   },
 
@@ -400,15 +417,13 @@ export const actions: Actions = {
     request,
     getClientAddress,
   }) => {
-    const form = await request.formData();
-    const managed = await requireManagedShare({
+    const { managed } = await managedShareForm({
       params,
       url,
       locals,
       cookies,
       request,
       getClientAddress,
-      domain: stringValue(form, 'domain'),
     });
     const share = await rotateLinkShareToken(managed.link.id);
     if (!share) {
@@ -431,15 +446,13 @@ export const actions: Actions = {
     request,
     getClientAddress,
   }) => {
-    const form = await request.formData();
-    const managed = await requireManagedShare({
+    const { managed } = await managedShareForm({
       params,
       url,
       locals,
       cookies,
       request,
       getClientAddress,
-      domain: stringValue(form, 'domain'),
     });
     await cancelLinkShare(managed.link.id);
     return {
@@ -456,15 +469,13 @@ export const actions: Actions = {
     request,
     getClientAddress,
   }) => {
-    const form = await request.formData();
-    const managed = await requireManagedShare({
+    const { form, managed } = await managedShareForm({
       params,
       url,
       locals,
       cookies,
       request,
       getClientAddress,
-      domain: stringValue(form, 'domain'),
     });
     const grantId = idValue(form, 'grantId');
     if (!grantId) {
@@ -493,17 +504,7 @@ export const actions: Actions = {
         message: managed.text.messages.shareGrantSaved,
       };
     } catch (cause) {
-      return fail(400, {
-        ok: false,
-        message:
-          cause instanceof Error
-            ? localizeServerMessage(
-                locals.locale,
-                cause.message,
-                managed.settings.i18n.defaultLocale,
-              )
-            : managed.text.messages.shareSaveFailed,
-      });
+      return shareSaveFailure(managed, locals.locale, cause);
     }
   },
 
@@ -515,15 +516,13 @@ export const actions: Actions = {
     request,
     getClientAddress,
   }) => {
-    const form = await request.formData();
-    const managed = await requireManagedShare({
+    const { form, managed } = await managedShareForm({
       params,
       url,
       locals,
       cookies,
       request,
       getClientAddress,
-      domain: stringValue(form, 'domain'),
     });
     const grantId = idValue(form, 'grantId');
     if (!grantId) {
@@ -557,15 +556,13 @@ export const actions: Actions = {
     request,
     getClientAddress,
   }) => {
-    const form = await request.formData();
-    const managed = await requireManagedShare({
+    const { form, managed } = await managedShareForm({
       params,
       url,
       locals,
       cookies,
       request,
       getClientAddress,
-      domain: stringValue(form, 'domain'),
     });
     const grantIds = idValues(form, 'grantIds');
     if (grantIds.length === 0) {
