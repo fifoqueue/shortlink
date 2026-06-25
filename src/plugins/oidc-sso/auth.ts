@@ -26,6 +26,7 @@ import {
 import {
   authenticateUser,
   createPendingSsoUser,
+  findEnabledUserByEmail,
   getUserById,
   upsertSsoUser,
 } from '$lib/server/users';
@@ -47,6 +48,7 @@ import {
 export const id = 'oidc-sso';
 
 const FLOW_COOKIE = 'shortlink_oidc_flow';
+const EMAIL_COOKIE = 'shortlink_oidc_email';
 const FLOW_TTL_SECONDS = 10 * 60;
 const configurationCache = new Map<string, Promise<oidc.Configuration>>();
 
@@ -67,6 +69,25 @@ interface FlowState {
     userInfoEndpoint: string;
     subjectHint: string;
   };
+}
+
+interface CallbackClaims {
+  flow: FlowState;
+  provider: OidcProvider;
+  subject: string;
+  email: string | null;
+  emailVerified: boolean;
+  emailSource: 'provider' | 'manual';
+  providerName: string;
+  name: string;
+}
+
+interface ManualEmailState {
+  providerId: string;
+  subject: string;
+  name: string;
+  returnTo: string;
+  expiresAt: number;
 }
 
 function t(
@@ -217,6 +238,37 @@ function booleanFromJson(value: unknown, path: string) {
   if (typeof current !== 'string') return false;
   const normalized = current.trim().toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
+function emailDomainAllowed(provider: OidcProvider, email: string) {
+  const domain = email.split('@').at(-1)?.toLowerCase() ?? '';
+  return (
+    provider.allowedEmailDomains.length === 0 ||
+    provider.allowedEmailDomains.includes(domain)
+  );
+}
+
+function assertKnownEmailDomainAllowed(
+  provider: OidcProvider,
+  email: string | null,
+  context?: PluginLocaleContext,
+) {
+  if (email && !emailDomainAllowed(provider, email)) {
+    throw new Error(t(context, 'auth.emailDomainNotAllowed'));
+  }
+}
+
+function assertRequiredEmailDomainAllowed(
+  provider: OidcProvider,
+  email: string | null,
+  context?: PluginLocaleContext,
+) {
+  if (
+    provider.allowedEmailDomains.length > 0 &&
+    (!email || !emailDomainAllowed(provider, email))
+  ) {
+    throw new Error(t(context, 'auth.emailDomainNotAllowed'));
+  }
 }
 
 function parseLinkHeader(value: string | undefined, baseUrl: string) {
@@ -898,14 +950,7 @@ async function resolveGenericOAuthCallbackClaims(
   }
 
   const email = stringFromJson(claims, provider.emailPath);
-  const allowedDomains = provider.allowedEmailDomains;
-  if (
-    allowedDomains.length > 0 &&
-    (!email ||
-      !allowedDomains.includes(email.split('@').at(-1)?.toLowerCase() ?? ''))
-  ) {
-    throw new Error(t(context, 'auth.emailDomainNotAllowed'));
-  }
+  assertKnownEmailDomainAllowed(provider, email, context);
 
   return {
     flow,
@@ -913,9 +958,10 @@ async function resolveGenericOAuthCallbackClaims(
     subject,
     email,
     emailVerified: booleanFromJson(claims, provider.emailVerifiedPath),
+    emailSource: 'provider',
     providerName: `${id}:${provider.id}`,
     name: stringFromJson(claims, provider.namePath) || email || subject,
-  };
+  } satisfies CallbackClaims;
 }
 
 async function resolveCallbackClaims(
@@ -981,14 +1027,7 @@ async function resolveCallbackClaims(
   if (!subject) throw new Error(t(context, 'auth.subjectMissing'));
 
   const email = stringFromJson(claims, provider.emailPath);
-  const allowedDomains = provider.allowedEmailDomains;
-  if (
-    allowedDomains.length > 0 &&
-    (!email ||
-      !allowedDomains.includes(email.split('@').at(-1)?.toLowerCase() ?? ''))
-  ) {
-    throw new Error(t(context, 'auth.emailDomainNotAllowed'));
-  }
+  assertKnownEmailDomainAllowed(provider, email, context);
 
   return {
     flow,
@@ -996,6 +1035,7 @@ async function resolveCallbackClaims(
     subject,
     email,
     emailVerified: booleanFromJson(claims, provider.emailVerifiedPath),
+    emailSource: 'provider',
     providerName: `${id}:${provider.id}`,
     name:
       stringFromJson(claims, provider.namePath) ||
@@ -1003,7 +1043,7 @@ async function resolveCallbackClaims(
         claims.preferred_username) ||
       email ||
       subject,
-  };
+  } satisfies CallbackClaims;
 }
 
 export async function finishLogin(
@@ -1022,8 +1062,6 @@ export async function finishLogin(
   return completeLogin(cookies, currentUrl, claims, context, allowedProviders);
 }
 
-type CallbackClaims = Awaited<ReturnType<typeof resolveCallbackClaims>>;
-
 async function completeLogin(
   cookies: Cookies,
   currentUrl: URL,
@@ -1031,8 +1069,16 @@ async function completeLogin(
   context?: PluginLocaleContext,
   allowedProviders?: readonly string[] | null,
 ) {
-  const { flow, provider, subject, email, emailVerified, providerName, name } =
-    claims;
+  const {
+    flow,
+    provider,
+    subject,
+    email,
+    emailVerified,
+    emailSource,
+    providerName,
+    name,
+  } = claims;
   assertAuthProviderAllowed(provider.id, allowedProviders, context);
   if (flow.purpose && flow.purpose !== 'login') {
     throw new Error(t(context, 'auth.notLoginRequest'));
@@ -1043,6 +1089,9 @@ async function completeLogin(
     : null;
   if (storedUser && !storedUser.enabled) {
     if (provider.emailTrustMode === 'local-verification') {
+      if (!email) {
+        return startManualSsoEmailInput(cookies, currentUrl, claims);
+      }
       return startLocalSsoEmailVerification({
         currentUrl,
         flow,
@@ -1059,7 +1108,24 @@ async function completeLogin(
     if (provider.emailTrustMode === 'existing-only') {
       throw new Error(t(context, 'auth.existingAccountRequired'));
     }
+    if (!email) {
+      return startManualSsoEmailInput(cookies, currentUrl, claims);
+    }
     if (provider.emailTrustMode === 'local-verification') {
+      return startLocalSsoEmailVerification({
+        currentUrl,
+        flow,
+        email,
+        name,
+        providerName,
+        subject,
+        context,
+      });
+    }
+    if (
+      emailSource === 'manual' &&
+      (await manualEmailRequiresLocalVerification(provider))
+    ) {
       return startLocalSsoEmailVerification({
         currentUrl,
         flow,
@@ -1072,6 +1138,9 @@ async function completeLogin(
     }
     if (provider.emailTrustMode === 'verified-claim' && !emailVerified) {
       throw new Error(t(context, 'auth.emailVerificationClaimRequired'));
+    }
+    if (emailSource === 'manual' && (await findEnabledUserByEmail(email))) {
+      throw new Error(t(context, 'auth.manualEmailExistingAccount'));
     }
     try {
       storedUser = await upsertSsoUser({
@@ -1107,6 +1176,7 @@ async function completeAccountLink(
 ) {
   const { flow, provider, subject, email, providerName } = claims;
   assertAuthProviderAllowed(provider.id, allowedProviders, context);
+  assertRequiredEmailDomainAllowed(provider, email, context);
   if (flow.purpose !== 'account-link' || flow.userId !== user.id) {
     throw new Error(t(context, 'auth.notAccountLinkRequest'));
   }
@@ -1126,8 +1196,9 @@ async function completeSecurityUnlock(
   context?: PluginLocaleContext,
   allowedProviders?: readonly string[] | null,
 ) {
-  const { flow, provider, subject, providerName } = claims;
+  const { flow, provider, subject, email, providerName } = claims;
   assertAuthProviderAllowed(provider.id, allowedProviders, context);
+  assertRequiredEmailDomainAllowed(provider, email, context);
   if (flow.purpose !== 'security-unlock' || flow.userId !== user.id) {
     throw new Error(t(context, 'auth.notSecurityUnlockRequest'));
   }
@@ -1323,6 +1394,120 @@ function emailVerificationNoticeUrl(currentUrl: URL, returnTo: string) {
   if (returnTo && returnTo !== '/')
     target.searchParams.set('returnTo', returnTo);
   return `${target.pathname}${target.search}`;
+}
+
+function manualEmailUrl(currentUrl: URL, returnTo: string) {
+  const target = new URL(`/auth/${id}/email`, currentUrl.origin);
+  if (returnTo && returnTo !== '/') {
+    target.searchParams.set('returnTo', returnTo);
+  }
+  return `${target.pathname}${target.search}`;
+}
+
+function readManualEmailState(cookies: Cookies) {
+  const state = decodeSigned<ManualEmailState>(cookies.get(EMAIL_COOKIE));
+  if (!state || state.expiresAt < Date.now()) {
+    cookies.delete(EMAIL_COOKIE, { path: '/' });
+    return null;
+  }
+  return state;
+}
+
+function startManualSsoEmailInput(
+  cookies: Cookies,
+  currentUrl: URL,
+  claims: CallbackClaims,
+) {
+  const state: ManualEmailState = {
+    providerId: claims.provider.id,
+    subject: claims.subject,
+    name: claims.name,
+    returnTo: claims.flow.returnTo,
+    expiresAt: Date.now() + FLOW_TTL_SECONDS * 1000,
+  };
+  cookies.set(
+    EMAIL_COOKIE,
+    encodeSigned(state),
+    authCookieOptions(FLOW_TTL_SECONDS),
+  );
+  return manualEmailUrl(currentUrl, claims.flow.returnTo);
+}
+
+async function manualEmailRequiresLocalVerification(provider: OidcProvider) {
+  const settings = await getSettings();
+  return (
+    settings.auth.emailVerification.enabled ||
+    provider.emailTrustMode !== 'disabled'
+  );
+}
+
+export function pendingManualEmailLogin(
+  cookies: Cookies,
+  config: PluginConfig,
+  emailVerificationEnabled = false,
+) {
+  const state = readManualEmailState(cookies);
+  if (!state) return null;
+  const provider = findProvider(config, state.providerId);
+  if (!provider) {
+    cookies.delete(EMAIL_COOKIE, { path: '/' });
+    return null;
+  }
+  return {
+    providerName: provider.name,
+    returnTo: state.returnTo,
+    emailVerificationRequired:
+      emailVerificationEnabled || provider.emailTrustMode !== 'disabled',
+  };
+}
+
+export async function finishManualEmailLogin(
+  cookies: Cookies,
+  currentUrl: URL,
+  config: PluginConfig,
+  email: string,
+  context?: PluginLocaleContext,
+  allowedProviders?: readonly string[] | null,
+) {
+  const state = readManualEmailState(cookies);
+  if (!state) throw new Error(t(context, 'auth.loginRequestExpired'));
+  const provider = findProvider(config, state.providerId);
+  if (!provider) {
+    cookies.delete(EMAIL_COOKIE, { path: '/' });
+    throw new Error(t(context, 'auth.providerRemoved'));
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    throw new Error(t(context, 'auth.manualEmailRequired'));
+  }
+  assertRequiredEmailDomainAllowed(provider, normalizedEmail, context);
+  const flow: FlowState = {
+    providerId: state.providerId,
+    verifier: '',
+    state: '',
+    nonce: '',
+    returnTo: state.returnTo,
+    purpose: 'login',
+    expiresAt: state.expiresAt,
+  };
+  const returnTo = await completeLogin(
+    cookies,
+    currentUrl,
+    {
+      flow,
+      provider,
+      subject: state.subject,
+      email: normalizedEmail,
+      emailVerified: false,
+      emailSource: 'manual',
+      providerName: `${id}:${provider.id}`,
+      name: state.name || normalizedEmail || state.subject,
+    },
+    context,
+    allowedProviders,
+  );
+  cookies.delete(EMAIL_COOKIE, { path: '/' });
+  return returnTo;
 }
 
 async function startLocalSsoEmailVerification(input: {

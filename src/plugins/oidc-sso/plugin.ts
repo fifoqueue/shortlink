@@ -180,6 +180,15 @@ const plugin: PluginDefinition = {
           'OIDC UserInfo 요청을 처리하지 못했습니다: {message}',
         'auth.subjectMissing': 'SSO 사용자 식별자를 확인할 수 없습니다.',
         'auth.emailDomainNotAllowed': '허용되지 않은 이메일 도메인입니다.',
+        'auth.manualEmailTitle': '이메일 입력',
+        'auth.manualEmailDescription':
+          '{provider}에서 이메일 주소를 제공하지 않았습니다. 계속하려면 이메일 주소를 입력하세요.',
+        'auth.manualEmailSubmit': '계속',
+        'auth.manualEmailRequired': '올바른 이메일 주소가 필요합니다.',
+        'auth.manualEmailVerificationRequired':
+          '입력한 이메일 주소로 인증 메일을 보냅니다. 인증을 완료해야 로그인할 수 있습니다.',
+        'auth.manualEmailExistingAccount':
+          '입력한 이메일은 이미 기존 계정에서 사용 중입니다. 먼저 기존 계정으로 로그인한 뒤 계정 연결에서 추가해주세요.',
         'auth.emailVerificationClaimRequired':
           '프로바이더가 이메일 인증 여부를 확인해주지 않았습니다.',
         'auth.existingAccountRequired':
@@ -443,6 +452,15 @@ const plugin: PluginDefinition = {
           'Could not process the OIDC UserInfo request: {message}',
         'auth.subjectMissing': 'Could not resolve the SSO user identifier.',
         'auth.emailDomainNotAllowed': 'Email domain is not allowed.',
+        'auth.manualEmailTitle': 'Enter Email',
+        'auth.manualEmailDescription':
+          '{provider} did not provide an email address. Enter one to continue.',
+        'auth.manualEmailSubmit': 'Continue',
+        'auth.manualEmailRequired': 'A valid email address is required.',
+        'auth.manualEmailVerificationRequired':
+          'A verification email will be sent to this address. You must verify it before signing in.',
+        'auth.manualEmailExistingAccount':
+          'The entered email address is already used by an existing account. Log in with that account first, then connect this provider from account settings.',
         'auth.emailVerificationClaimRequired':
           'The provider did not confirm that the email address is verified.',
         'auth.existingAccountRequired':
