@@ -311,7 +311,9 @@ async function updateLastClickedAt(
 
   const sequelize = getDatabase();
   const values = grouped.map(([linkId, lastClickedAt]) =>
-    [Number(linkId), sequelize.escape(lastClickedAt)].join(','),
+    [Number(linkId), `${sequelize.escape(lastClickedAt)}::timestamptz`].join(
+      ',',
+    ),
   );
 
   await sequelize.query(
