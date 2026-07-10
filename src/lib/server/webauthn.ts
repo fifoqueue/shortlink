@@ -281,8 +281,8 @@ function es256DerToRaw(signature: Uint8Array) {
 
 async function verifySignature(
   publicKey: StoredPasskeyPublicKey,
-  signature: Uint8Array,
-  data: Uint8Array,
+  signature: Uint8Array<ArrayBuffer>,
+  data: Uint8Array<ArrayBuffer>,
 ) {
   if (publicKey.kty === 'EC') {
     const key = await webcrypto.subtle.importKey(

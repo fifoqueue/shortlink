@@ -45,9 +45,7 @@ export interface RateLimitConfig extends Record<string, unknown> {
 }
 
 export type RateLimitConfigMessageKey =
-  | 'server.ruleDuplicate'
-  | 'server.ruleIdInvalid'
-  | 'server.regexInvalid';
+  'server.ruleDuplicate' | 'server.ruleIdInvalid' | 'server.regexInvalid';
 
 export type RateLimitConfigMessage = (
   key: RateLimitConfigMessageKey,

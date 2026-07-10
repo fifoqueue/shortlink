@@ -18,40 +18,40 @@
     "lint": "eslint --fix . && prettier --write ."
   },
   "dependencies": {
-    "@sveltejs/adapter-node": "^5.2.13",
-    "@sveltejs/kit": "^2.40.1",
-    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@sveltejs/adapter-node": "^5.5.7",
+    "@sveltejs/kit": "^2.69.2",
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@types/qrcode": "^1.5.6",
     "devalue": "^5.8.1",
-    "es-hangul": "^2.3.8",
+    "es-hangul": "^2.4.0",
     "maxmind": "^5.0.6",
-    "nodemailer": "^8.0.10",
+    "nodemailer": "^9.0.3",
     "openid-client": "^6",
-    "pg": "^8.21.0",
+    "pg": "^8.22.0",
     "pg-hstore": "^2.3.4",
     "qrcode": "^1.5.4",
-    "redis": "^6.0.0",
+    "redis": "^6.1.0",
     "sequelize": "^6.37.8",
-    "svelte": "^5.56.3",
-    "vite": "^8.0.16"
+    "svelte": "^5.56.4",
+    "vite": "^8.1.4"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.0",
     "@eslint/js": "^9",
-    "@types/node": "^24.5.2",
-    "@types/nodemailer": "^8.0.0",
+    "@types/node": "^26.1.1",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8",
     "eslint": "^9",
     "eslint-config-airbnb-extended": "^3.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-svelte": "^3.19.0",
-    "globals": "^17.6.0",
-    "prettier": "^3.8.3",
-    "prettier-plugin-svelte": "^4.1.0",
-    "svelte-check": "^4.3.2",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.60.1"
+    "globals": "^17.7.0",
+    "prettier": "^3.9.5",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte-check": "^4.7.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.63.0"
   },
-  "packageManager": "yarn@4.16.0"
+  "packageManager": "yarn@4.17.1"
 }

@@ -4,10 +4,7 @@ export type SsoProviderFlow = 'oidc' | 'oauth';
 export type OAuthMetadataSource = 'manual' | 'metadata-url' | 'profile-link';
 export type OAuthSubjectVerification = 'none' | 'authorization-endpoint';
 export type EmailTrustMode =
-  | 'verified-claim'
-  | 'local-verification'
-  | 'disabled'
-  | 'existing-only';
+  'verified-claim' | 'local-verification' | 'disabled' | 'existing-only';
 
 export interface OidcProvider {
   id: string;
@@ -60,8 +57,7 @@ export const defaultOidcScopes = 'openid profile email';
 export type ExtraRequestQueryError = 'invalid' | 'keyRequired';
 
 type JsonPathSegment =
-  | { type: 'key'; key: string }
-  | { type: 'index'; index: number };
+  { type: 'key'; key: string } | { type: 'index'; index: number };
 
 const blockedJsonPathKeys = new Set(['__proto__', 'prototype', 'constructor']);
 

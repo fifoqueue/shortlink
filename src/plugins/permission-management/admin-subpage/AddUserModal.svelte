@@ -51,8 +51,7 @@
           name="reason"
           rows="4"
           maxlength="1000"
-          placeholder={t('admin.assignmentReasonPlaceholder')}
-        ></textarea>
+          placeholder={t('admin.assignmentReasonPlaceholder')}></textarea>
       </label>
       <label class="checkbox-row">
         <input name="reasonPublic" type="checkbox" />

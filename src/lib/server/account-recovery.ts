@@ -11,8 +11,7 @@ import {
 } from './users';
 
 export type AccountRecoveryRequestKind =
-  | 'resend-verification'
-  | 'password-reset';
+  'resend-verification' | 'password-reset';
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();

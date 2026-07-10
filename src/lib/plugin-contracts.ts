@@ -156,10 +156,7 @@ export interface PluginAdminAccessStatus {
 }
 
 export type CorePluginProtectedAction =
-  | 'login'
-  | 'signup'
-  | 'link-create'
-  | 'account-security-unlock';
+  'login' | 'signup' | 'link-create' | 'account-security-unlock';
 export type PluginProtectedAction = CorePluginProtectedAction | (string & {});
 
 export interface PluginGuardResult {

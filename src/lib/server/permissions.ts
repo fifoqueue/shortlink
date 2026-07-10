@@ -827,19 +827,17 @@ export async function listPermissionGroupSummaries() {
     relationCounts('permission_group_users', groupIds),
     relationCounts('permission_group_cidrs', groupIds),
   ]);
-  return groups.map(
-    (group): PublicPermissionGroupSummary => ({
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      priority: group.priority,
-      enabled: group.enabled,
-      userCount: userCounts.get(group.id) ?? 0,
-      cidrCount: cidrCounts.get(group.id) ?? 0,
-      createdAt: group.createdAt.toISOString(),
-      updatedAt: group.updatedAt.toISOString(),
-    }),
-  );
+  return groups.map((group): PublicPermissionGroupSummary => ({
+    id: group.id,
+    name: group.name,
+    description: group.description,
+    priority: group.priority,
+    enabled: group.enabled,
+    userCount: userCounts.get(group.id) ?? 0,
+    cidrCount: cidrCounts.get(group.id) ?? 0,
+    createdAt: group.createdAt.toISOString(),
+    updatedAt: group.updatedAt.toISOString(),
+  }));
 }
 
 export async function getPermissionGroup(

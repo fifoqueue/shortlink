@@ -11,10 +11,7 @@ export type CaptchaProvider =
   | 'custom';
 
 export type CaptchaAction =
-  | 'login'
-  | 'signup'
-  | 'link-create'
-  | 'account-security-unlock';
+  'login' | 'signup' | 'link-create' | 'account-security-unlock';
 export type CaptchaVerifyMethod = 'POST' | 'GET';
 export type CaptchaRequestFormat = 'form' | 'json';
 

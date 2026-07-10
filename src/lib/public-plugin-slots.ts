@@ -6,10 +6,7 @@ import type {
 } from '$lib/plugin-contracts';
 
 export type PublicCaptchaAction =
-  | 'login'
-  | 'signup'
-  | 'link-create'
-  | 'account-security-unlock';
+  'login' | 'signup' | 'link-create' | 'account-security-unlock';
 
 export type PublicCaptchaChallenge = {
   provider:

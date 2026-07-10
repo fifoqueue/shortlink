@@ -23,13 +23,7 @@ export interface OutboundRequestResult {
 }
 
 export type OutboundRequestMethod =
-  | 'DELETE'
-  | 'GET'
-  | 'HEAD'
-  | 'PATCH'
-  | 'POST'
-  | 'PUT'
-  | (string & {});
+  'DELETE' | 'GET' | 'HEAD' | 'PATCH' | 'POST' | 'PUT' | (string & {});
 
 type OutboundRequestBody =
   | ArrayBuffer

@@ -1673,8 +1673,7 @@ export async function recordClick(
   const sequelize = getDatabase();
   const transaction = await sequelize.transaction();
   let analyticsRow:
-    | Parameters<typeof writeClickAnalytics>[0][number]
-    | undefined;
+    Parameters<typeof writeClickAnalytics>[0][number] | undefined;
 
   try {
     if (data.queueId) {
