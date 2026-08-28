@@ -1000,7 +1000,7 @@ async function resolveCallbackClaims(
       expectedNonce: flow.nonce,
     });
   } catch (cause) {
-    throw new Error(formatOAuthError(cause, context));
+    throw new Error(formatOAuthError(cause, context), { cause });
   }
   const idClaims = tokens.claims();
   let userInfo: oidc.UserInfoResponse | undefined;

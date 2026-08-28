@@ -1447,7 +1447,7 @@ async function insertLink(
     return publicLink(link, owner, emptyShareSummary, 0);
   } catch (error) {
     if (error instanceof UniqueConstraintError) {
-      throw new Error(serverMessage('codeInUse'));
+      throw new Error(serverMessage('codeInUse'), { cause: error });
     }
     throw error;
   }

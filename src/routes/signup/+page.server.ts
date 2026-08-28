@@ -91,7 +91,7 @@ export const actions: Actions = {
     }
 
     const form = await request.formData();
-    let redirectTo = '';
+    let redirectTo: string;
     const values = {
       email: stringValue(form, 'email'),
       name: stringValue(form, 'name'),

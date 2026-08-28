@@ -69,7 +69,7 @@ export const actions: Actions = {
       getClientAddress,
     });
     const form = await request.formData();
-    let returnTo = '';
+    let returnTo: string;
     try {
       returnTo = await finishManualEmailLogin(
         cookies,

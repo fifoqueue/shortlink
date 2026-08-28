@@ -356,14 +356,13 @@ async function flushMemoryBatch(batch: QueuedClick[]) {
   );
 
   const transaction = await getDatabase().transaction();
-  let analyticsRows: ClickAnalyticsRow[] = [];
   try {
     const createdClicks = await ClickEventModel.bulkCreate(rows, {
       validate: false,
       transaction,
       returning: true,
     });
-    analyticsRows = rows.map((row, index) => ({
+    const analyticsRows = rows.map((row, index) => ({
       ...row,
       eventId: Number(createdClicks[index]?.id ?? 0),
     }));
