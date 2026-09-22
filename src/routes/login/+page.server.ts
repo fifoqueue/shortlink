@@ -57,7 +57,7 @@ export const load: PageServerLoad = async ({
 }) => {
   if (locals.user)
     redirect(303, safeReturnTo(url.searchParams.get('returnTo')));
-  const settings = await getSettings();
+  const settings = locals.settings;
   const text = uiText(locals.locale, settings.i18n.defaultLocale);
   const displaySettings = locals.localizedSettings;
   const permissions = await effectivePermissionsForEvent({
@@ -189,7 +189,9 @@ export const actions: Actions = {
           totpRequired: true,
         });
       }
-      consumeTimedChallenge(cookies, TOTP_LOGIN_COOKIE);
+      if (!(await consumeTimedChallenge(cookies, TOTP_LOGIN_COOKIE))) {
+        return fail(401, { message: text.messages.invalidLogin });
+      }
       createUserSessionFromModel(
         cookies,
         storedUser,

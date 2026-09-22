@@ -1,6 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import { Op, QueryTypes, type Transaction, type WhereOptions } from 'sequelize';
-import { env } from '$env/dynamic/private';
+import { Op, QueryTypes, Transaction, type WhereOptions } from 'sequelize';
 import {
   linkEditFieldKeys,
   linkOptionKeys,
@@ -19,6 +18,7 @@ import { serverMessage } from '$lib/i18n/ui-text';
 import { redirectRulePermissionKeysFromValue } from './redirect-rules';
 import { pageOffset, paginationMeta } from './pagination';
 import {
+  USER_ADMIN_LOCK_KEY,
   PermissionGroupCidrModel,
   PermissionGroupModel,
   PermissionGroupUserModel,
@@ -30,36 +30,12 @@ import { getClientIp } from './client-ip';
 import { parseBoolean, stringValue } from './settings';
 import { normalizeShortLinkDomains } from './url';
 import {
-  ipMatchesCidr,
+  ipAddressForMatch,
   parseCidr,
   type NormalizedCidr,
 } from './permissions-cidr';
-import {
-  redisDelete,
-  redisGetJson,
-  redisPublish,
-  redisSetJson,
-  redisSubscribe,
-} from './redis';
-
 export const LINK_OPTION_KEYS = linkOptionKeys;
 export type LinkOptionKey = ConfigLinkOptionKey;
-const PERMISSION_GROUP_CACHE_TTL_MS = numberEnv(
-  'PERMISSION_GROUP_CACHE_TTL_MS',
-  5_000,
-  0,
-  300_000,
-);
-const PERMISSION_GROUP_REDIS_KEY = 'cache:permission-groups';
-const PERMISSION_GROUP_INVALIDATE_CHANNEL = 'invalidate:permission-groups';
-let cachedPermissionGroups:
-  | {
-      expiresAt: number;
-      value: PublicPermissionGroup[];
-    }
-  | undefined;
-let pendingPermissionGroups: Promise<PublicPermissionGroup[]> | undefined;
-
 export const LINK_EDIT_FIELD_KEYS = linkEditFieldKeys;
 export type LinkEditField = LinkEditFieldKey;
 
@@ -97,34 +73,6 @@ export function canUseAuthProvider(
     providers === null ||
     providers.includes(authProviderKey(pluginId, methodId))
   );
-}
-
-function numberEnv(name: string, fallback: number, min: number, max: number) {
-  const value = Number(env[name]);
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
-
-function deepFreeze<T>(value: T): T {
-  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) {
-    return value;
-  }
-  for (const property of Object.values(value)) deepFreeze(property);
-  return Object.freeze(value);
-}
-
-function invalidatePermissionGroupCache(
-  options: { redis?: boolean; publish?: boolean } = {
-    redis: true,
-    publish: true,
-  },
-) {
-  cachedPermissionGroups = undefined;
-  pendingPermissionGroups = undefined;
-  if (options.redis) void redisDelete(PERMISSION_GROUP_REDIS_KEY);
-  if (options.publish) {
-    void redisPublish(PERMISSION_GROUP_INVALIDATE_CHANNEL, {});
-  }
 }
 
 export interface PermissionRules {
@@ -403,7 +351,9 @@ function boundedNumber(
   min: number,
   max: number,
 ): number | null {
-  const number = typeof value === 'number' ? value : Number(value);
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim()))
+    return null;
+  const number = Number(value);
   if (!Number.isFinite(number)) return null;
   return Math.max(min, Math.min(max, Math.round(number)));
 }
@@ -602,9 +552,10 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
       codeMinLength: boundedNumber(links.codeMinLength, 1, 64),
       codeMaxLength: boundedNumber(links.codeMaxLength, 1, 64),
       generatedCodeLength: boundedNumber(links.generatedCodeLength, 1, 64),
-      domains: Object.prototype.hasOwnProperty.call(links, 'domains')
-        ? normalizeShortLinkDomains(stringList(links.domains, 100))
-        : null,
+      domains:
+        links.domains == null
+          ? null
+          : normalizeShortLinkDomains(stringList(links.domains, 100)),
       deleteOwn: nullableBoolean(links.deleteOwn),
       deleteMaxClicks: boundedNumber(links.deleteMaxClicks, 0, 1_000_000),
       editOwn: nullableBoolean(links.editOwn),
@@ -630,9 +581,8 @@ export function normalizePermissionRules(value: unknown): PermissionRules {
       managePermissions: nullableBoolean(admin.managePermissions),
     },
     auth: {
-      providers: Object.prototype.hasOwnProperty.call(auth, 'providers')
-        ? stringList(auth.providers, 200)
-        : null,
+      providers:
+        auth.providers == null ? null : stringList(auth.providers, 200),
       resendVerificationDailyLimit: boundedNumber(
         auth.resendVerificationDailyLimit,
         0,
@@ -675,7 +625,10 @@ function publicGroup(
   };
 }
 
-async function loadGroupRelations(groupIds: number[]) {
+async function loadGroupRelations(
+  groupIds: number[],
+  transaction: Transaction,
+) {
   const userMembershipsByGroup = new Map<
     number,
     PermissionGroupUserMembership[]
@@ -690,6 +643,7 @@ async function loadGroupRelations(groupIds: number[]) {
   const [memberships, cidrs] = await Promise.all([
     PermissionGroupUserModel.findAll({
       where: { groupId: { [Op.in]: groupIds } },
+      transaction,
       order: [
         ['groupId', 'ASC'],
         ['userId', 'ASC'],
@@ -697,6 +651,7 @@ async function loadGroupRelations(groupIds: number[]) {
     }),
     PermissionGroupCidrModel.findAll({
       where: { groupId: { [Op.in]: groupIds } },
+      transaction,
       order: [
         ['groupId', 'ASC'],
         ['family', 'ASC'],
@@ -729,65 +684,34 @@ async function loadGroupRelations(groupIds: number[]) {
   return { userMembershipsByGroup, cidrRulesByGroup };
 }
 
-async function loadPermissionGroups() {
-  await ensureDatabase();
-  const groups = await PermissionGroupModel.findAll({
-    order: [
-      ['priority', 'ASC'],
-      ['id', 'ASC'],
-    ],
-  });
-  const relations = await loadGroupRelations(groups.map((group) => group.id));
-  const value = groups.map((group) =>
-    publicGroup(
-      group,
-      relations.userMembershipsByGroup.get(group.id) ?? [],
-      relations.cidrRulesByGroup.get(group.id) ?? [],
-    ),
-  );
-  void redisSetJson(
-    PERMISSION_GROUP_REDIS_KEY,
-    value,
-    PERMISSION_GROUP_CACHE_TTL_MS,
-  );
-  return value;
-}
-
 export async function listPermissionGroups() {
-  const now = Date.now();
-  if (cachedPermissionGroups && cachedPermissionGroups.expiresAt > now) {
-    return cachedPermissionGroups.value;
-  }
-
-  if (!pendingPermissionGroups) {
-    pendingPermissionGroups = (async () => {
-      const redisGroups =
-        PERMISSION_GROUP_CACHE_TTL_MS > 0
-          ? await redisGetJson<PublicPermissionGroup[]>(
-              PERMISSION_GROUP_REDIS_KEY,
-            )
-          : null;
-      return redisGroups ?? loadPermissionGroups();
-    })()
-      .then((groups) => {
-        const value = deepFreeze(structuredClone(groups));
-        cachedPermissionGroups = {
-          expiresAt: Date.now() + PERMISSION_GROUP_CACHE_TTL_MS,
-          value,
-        };
-        return value;
-      })
-      .finally(() => {
-        pendingPermissionGroups = undefined;
+  await ensureDatabase();
+  // Read PostgreSQL on every authorization check: cache TTLs can retain revoked access.
+  // One snapshot keeps rules and memberships from different commits from mixing.
+  return getDatabase().transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ },
+    async (transaction) => {
+      const groups = await PermissionGroupModel.findAll({
+        order: [
+          ['priority', 'ASC'],
+          ['id', 'ASC'],
+        ],
+        transaction,
       });
-  }
-
-  return pendingPermissionGroups;
+      const relations = await loadGroupRelations(
+        groups.map((group) => group.id),
+        transaction,
+      );
+      return groups.map((group) =>
+        publicGroup(
+          group,
+          relations.userMembershipsByGroup.get(group.id) ?? [],
+          relations.cidrRulesByGroup.get(group.id) ?? [],
+        ),
+      );
+    },
+  );
 }
-
-redisSubscribe(PERMISSION_GROUP_INVALIDATE_CHANNEL, () => {
-  invalidatePermissionGroupCache({ redis: false, publish: false });
-});
 
 async function relationCounts(
   table: 'permission_group_users' | 'permission_group_cidrs',
@@ -845,14 +769,19 @@ export async function getPermissionGroup(
   options: { includeRelations?: boolean } = {},
 ) {
   await ensureDatabase();
-  const group = await PermissionGroupModel.findByPk(id);
-  if (!group) return null;
-  if (options.includeRelations === false) return publicGroup(group);
-  const relations = await loadGroupRelations([id]);
-  return publicGroup(
-    group,
-    relations.userMembershipsByGroup.get(id) ?? [],
-    relations.cidrRulesByGroup.get(id) ?? [],
+  return getDatabase().transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ },
+    async (transaction) => {
+      const group = await PermissionGroupModel.findByPk(id, { transaction });
+      if (!group) return null;
+      if (options.includeRelations === false) return publicGroup(group);
+      const relations = await loadGroupRelations([id], transaction);
+      return publicGroup(
+        group,
+        relations.userMembershipsByGroup.get(id) ?? [],
+        relations.cidrRulesByGroup.get(id) ?? [],
+      );
+    },
   );
 }
 
@@ -1169,6 +1098,10 @@ export async function createPermissionGroup(input: PermissionGroupInput) {
   await ensureDatabase();
   const normalized = normalizeGroupInput(input);
   const groupId = await getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
     const now = new Date();
     const group = await PermissionGroupModel.create(
       {
@@ -1184,10 +1117,12 @@ export async function createPermissionGroup(input: PermissionGroupInput) {
       { transaction },
     );
     await replaceGroupAssignments(group.id, normalized, transaction);
+    await syncAutomaticPermissionGroupMembershipsForGroup(
+      group.id,
+      transaction,
+    );
     return group.id;
   });
-  await syncAutomaticPermissionGroupMembershipsForGroup(groupId);
-  invalidatePermissionGroupCache();
   const group = await getPermissionGroup(groupId);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   return group;
@@ -1200,7 +1135,14 @@ export async function updatePermissionGroup(
   await ensureDatabase();
   const normalized = normalizeGroupInput(input);
   await getDatabase().transaction(async (transaction) => {
-    const group = await PermissionGroupModel.findByPk(id, { transaction });
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    const group = await PermissionGroupModel.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     await group.update(
       {
@@ -1215,9 +1157,8 @@ export async function updatePermissionGroup(
       { transaction },
     );
     await replaceGroupAssignments(group.id, normalized, transaction);
+    await syncAutomaticPermissionGroupMembershipsForGroup(id, transaction);
   });
-  await syncAutomaticPermissionGroupMembershipsForGroup(id);
-  invalidatePermissionGroupCache();
   const group = await getPermissionGroup(id);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   return group;
@@ -1234,7 +1175,14 @@ export async function updatePermissionGroupSettings(
     ipRules: [],
   });
   await getDatabase().transaction(async (transaction) => {
-    const group = await PermissionGroupModel.findByPk(id, { transaction });
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    const group = await PermissionGroupModel.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     await group.update(
       {
@@ -1248,9 +1196,8 @@ export async function updatePermissionGroupSettings(
       },
       { transaction },
     );
+    await syncAutomaticPermissionGroupMembershipsForGroup(id, transaction);
   });
-  await syncAutomaticPermissionGroupMembershipsForGroup(id);
-  invalidatePermissionGroupCache();
   const group = await getPermissionGroup(id);
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   return group;
@@ -1258,9 +1205,15 @@ export async function updatePermissionGroupSettings(
 
 export async function deletePermissionGroup(id: number) {
   await ensureDatabase();
-  const deleted = (await PermissionGroupModel.destroy({ where: { id } })) > 0;
-  if (deleted) invalidatePermissionGroupCache();
-  return deleted;
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    return (
+      (await PermissionGroupModel.destroy({ where: { id }, transaction })) > 0
+    );
+  });
 }
 
 export async function deletePermissionGroups(ids: number[]) {
@@ -1269,11 +1222,16 @@ export async function deletePermissionGroups(ids: number[]) {
     ...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
   ];
   if (uniqueIds.length === 0) return 0;
-  const deleted = await PermissionGroupModel.destroy({
-    where: { id: { [Op.in]: uniqueIds } },
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    return PermissionGroupModel.destroy({
+      where: { id: { [Op.in]: uniqueIds } },
+      transaction,
+    });
   });
-  if (deleted > 0) invalidatePermissionGroupCache();
-  return deleted;
 }
 
 export async function addPermissionGroupUser(
@@ -1290,8 +1248,15 @@ export async function addPermissionGroupUser(
     throw new Error(serverMessage('userIdInvalid'));
   }
   await getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
     const [group, user] = await Promise.all([
-      PermissionGroupModel.findByPk(groupId, { transaction }),
+      PermissionGroupModel.findByPk(groupId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      }),
       UserModel.findByPk(userId, { transaction }),
     ]);
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
@@ -1322,7 +1287,6 @@ export async function addPermissionGroupUser(
         { transaction },
       );
   });
-  invalidatePermissionGroupCache();
 }
 
 export async function removePermissionGroupUser(
@@ -1351,11 +1315,20 @@ export async function removePermissionGroupUsers(
     ...new Set(userIds.filter((id) => Number.isSafeInteger(id) && id > 0)),
   ];
   if (uniqueIds.length === 0) return 0;
-  const deleted = await PermissionGroupUserModel.destroy({
-    where: { groupId, userId: { [Op.in]: uniqueIds } },
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    await PermissionGroupModel.findByPk(groupId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    return PermissionGroupUserModel.destroy({
+      where: { groupId, userId: { [Op.in]: uniqueIds } },
+      transaction,
+    });
   });
-  if (deleted > 0) invalidatePermissionGroupCache();
-  return deleted;
 }
 
 async function userMatchesAutoAssign(
@@ -1372,7 +1345,11 @@ async function userMatchesAutoAssign(
   return true;
 }
 
-async function upsertAutomaticMembership(groupId: number, userId: number) {
+async function upsertAutomaticMembership(
+  groupId: number,
+  userId: number,
+  transaction: Transaction,
+) {
   const [membership, created] = await PermissionGroupUserModel.findOrCreate({
     where: { groupId, userId },
     defaults: {
@@ -1384,30 +1361,52 @@ async function upsertAutomaticMembership(groupId: number, userId: number) {
       assignmentSource: 'automatic',
       createdAt: new Date(),
     },
+    transaction,
   });
 
-  if (!created && membership.assignmentSource === 'automatic') {
-    await membership.update({
-      expiresAt: null,
-      reason: '',
-      reasonPublic: false,
-    });
+  if (!created) {
+    await PermissionGroupUserModel.update(
+      {
+        expiresAt: null,
+        reason: '',
+        reasonPublic: false,
+      },
+      {
+        where: { id: membership.id, assignmentSource: 'automatic' },
+        transaction,
+      },
+    );
   }
 }
 
 export async function syncAutomaticPermissionGroupMembershipsForUser(
   userId: number,
-) {
-  await ensureDatabase();
+  transaction?: Transaction,
+): Promise<void> {
+  if (!transaction) await ensureDatabase();
   if (!Number.isSafeInteger(userId) || userId <= 0) return;
-  const user = await UserModel.findByPk(userId);
+  if (!transaction) {
+    return getDatabase().transaction((transaction) =>
+      syncAutomaticPermissionGroupMembershipsForUser(userId, transaction),
+    );
+  }
+  await getDatabase().query(
+    `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+    { transaction },
+  );
+  // The account lock also prevents group creation between the scan and commit.
+  const groups = await PermissionGroupModel.findAll({
+    order: [['id', 'ASC']],
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+  });
+  const user = await UserModel.findByPk(userId, { transaction });
   if (!user) return;
-  const groups = await PermissionGroupModel.findAll();
 
   for (const group of groups) {
     const autoAssign = normalizePermissionGroupAutoAssign(group.autoAssign);
     if (await userMatchesAutoAssign(user, autoAssign)) {
-      await upsertAutomaticMembership(group.id, user.id);
+      await upsertAutomaticMembership(group.id, user.id, transaction);
       continue;
     }
     if (autoAssign.revokeWhenUnmatched) {
@@ -1417,18 +1416,31 @@ export async function syncAutomaticPermissionGroupMembershipsForUser(
           userId: user.id,
           assignmentSource: 'automatic',
         },
+        transaction,
       });
     }
   }
-  invalidatePermissionGroupCache();
 }
 
 export async function syncAutomaticPermissionGroupMembershipsForGroup(
   groupId: number,
-) {
-  await ensureDatabase();
+  transaction?: Transaction,
+): Promise<void> {
+  if (!transaction) await ensureDatabase();
   groupIdCondition(groupId);
-  const group = await PermissionGroupModel.findByPk(groupId);
+  if (!transaction) {
+    return getDatabase().transaction((transaction) =>
+      syncAutomaticPermissionGroupMembershipsForGroup(groupId, transaction),
+    );
+  }
+  await getDatabase().query(
+    `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+    { transaction },
+  );
+  const group = await PermissionGroupModel.findByPk(groupId, {
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+  });
   if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
   const autoAssign = normalizePermissionGroupAutoAssign(group.autoAssign);
 
@@ -1436,15 +1448,13 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
     if (autoAssign.revokeWhenUnmatched) {
       await PermissionGroupUserModel.destroy({
         where: { groupId: group.id, assignmentSource: 'automatic' },
+        transaction,
       });
-      invalidatePermissionGroupCache();
     }
     return;
   }
 
-  const users = await UserModel.findAll({
-    attributes: ['id', 'email'],
-  });
+  const users = await UserModel.findAll({ transaction });
   const matchedUserIds: number[] = [];
   for (const user of users) {
     if (await userMatchesAutoAssign(user, autoAssign)) {
@@ -1453,13 +1463,10 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
   }
 
   for (const userId of matchedUserIds) {
-    await upsertAutomaticMembership(group.id, userId);
+    await upsertAutomaticMembership(group.id, userId, transaction);
   }
 
-  if (!autoAssign.revokeWhenUnmatched) {
-    invalidatePermissionGroupCache();
-    return;
-  }
+  if (!autoAssign.revokeWhenUnmatched) return;
   const where: WhereOptions<PermissionGroupUserModel> = {
     groupId: group.id,
     assignmentSource: 'automatic',
@@ -1467,8 +1474,7 @@ export async function syncAutomaticPermissionGroupMembershipsForGroup(
   if (matchedUserIds.length > 0) {
     where.userId = { [Op.notIn]: matchedUserIds };
   }
-  await PermissionGroupUserModel.destroy({ where });
-  invalidatePermissionGroupCache();
+  await PermissionGroupUserModel.destroy({ where, transaction });
 }
 
 export async function addPermissionGroupCidr(
@@ -1482,8 +1488,13 @@ export async function addPermissionGroupCidr(
   }
   const cidr = parseCidr(rawCidr);
   await getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
     const group = await PermissionGroupModel.findByPk(groupId, {
       transaction,
+      lock: transaction.LOCK.UPDATE,
     });
     if (!group) throw new Error(serverMessage('permissionGroupNotFound'));
     const [rule, created] = await PermissionGroupCidrModel.findOrCreate({
@@ -1511,7 +1522,6 @@ export async function addPermissionGroupCidr(
       );
     }
   });
-  invalidatePermissionGroupCache();
 }
 
 export async function removePermissionGroupCidr(groupId: number, cidr: string) {
@@ -1536,50 +1546,20 @@ export async function removePermissionGroupCidrs(
     ...new Set(cidrs.map((cidr) => cidr.trim()).filter(Boolean)),
   ];
   if (uniqueCidrs.length === 0) return 0;
-  const deleted = await PermissionGroupCidrModel.destroy({
-    where: { groupId, cidr: { [Op.in]: uniqueCidrs } },
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    await PermissionGroupModel.findByPk(groupId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    return PermissionGroupCidrModel.destroy({
+      where: { groupId, cidr: { [Op.in]: uniqueCidrs } },
+      transaction,
+    });
   });
-  if (deleted > 0) invalidatePermissionGroupCache();
-  return deleted;
-}
-
-function isActiveAssignment(expiresAt: string | null) {
-  return !expiresAt || new Date(expiresAt).getTime() > Date.now();
-}
-
-function activeUserMembership(
-  group: PublicPermissionGroup,
-  user: AuthenticatedUser | null,
-) {
-  if (!user) return undefined;
-  return group.userMemberships.find(
-    (membership) =>
-      membership.userId === user.id && isActiveAssignment(membership.expiresAt),
-  );
-}
-
-function activeCidrRule(group: PublicPermissionGroup, ip: string) {
-  return group.cidrRules.find(
-    (rule) =>
-      isActiveAssignment(rule.expiresAt) && ipMatchesCidr(ip, rule.cidr),
-  );
-}
-
-function matchedGroupSummary(
-  group: PublicPermissionGroup,
-  user: AuthenticatedUser | null,
-  ip: string,
-) {
-  const membership = activeUserMembership(group, user);
-  const cidr = membership ? undefined : activeCidrRule(group, ip);
-  if (!membership && !cidr) return null;
-  const reason =
-    membership?.reasonPublic === true ? membership.reason.trim() : '';
-  return {
-    id: group.id,
-    name: group.name,
-    ...(reason ? { reason } : {}),
-  };
 }
 
 function basePermissions(
@@ -1694,11 +1674,10 @@ function adminPermissions(settings: SiteSettings): EffectivePermissions {
 
 function applyGroupRules(
   permissions: EffectivePermissions,
-  group: PublicPermissionGroup,
+  rules: PermissionRules,
   matchedGroup: EffectivePermissions['matchedGroups'][number],
   settings: SiteSettings,
 ) {
-  const rules = group.rules;
   permissions.matchedGroups.push(matchedGroup);
 
   if (rules.links.create !== null) {
@@ -1826,24 +1805,59 @@ export async function effectivePermissions(input: {
   ip: string;
 }) {
   if (input.isAdmin) return adminPermissions(input.settings);
+  await ensureDatabase();
   const permissions = basePermissions(input.settings, input.user);
-  const groups = (await listPermissionGroups())
-    .filter((group) => group.enabled)
-    .map((group) => ({
-      group,
-      matchedGroup: matchedGroupSummary(group, input.user, input.ip),
-    }))
-    .filter(
-      (
-        value,
-      ): value is {
-        group: PublicPermissionGroup;
-        matchedGroup: EffectivePermissions['matchedGroups'][number];
-      } => value.matchedGroup !== null,
+  const address = ipAddressForMatch(input.ip);
+  // One statement supplies a committed snapshot and only loads matching groups.
+  // Membership reasons take precedence over CIDR matches for the same group.
+  const groups = await getDatabase().query<{
+    id: number;
+    name: string;
+    rules: unknown;
+    reason: string | null;
+    reasonPublic: boolean;
+  }>(
+    `
+    WITH matches AS (
+      SELECT group_id, reason, reason_public, 0 AS precedence
+      FROM permission_group_users
+      WHERE user_id = $userId
+        AND (expires_at IS NULL OR expires_at > statement_timestamp())
+      UNION ALL
+      SELECT group_id, NULL, false, 1
+      FROM permission_group_cidrs
+      WHERE family = $family AND start_hex <= $address AND end_hex >= $address
+        AND (expires_at IS NULL OR expires_at > statement_timestamp())
+    )
+    SELECT DISTINCT ON (pg.priority, pg.id)
+      pg.id, pg.name, pg.rules, matches.reason,
+      matches.reason_public AS "reasonPublic"
+    FROM matches
+    JOIN permission_groups pg ON pg.id = matches.group_id
+    WHERE pg.enabled = true
+    ORDER BY pg.priority ASC, pg.id ASC, matches.precedence ASC
+  `,
+    {
+      bind: {
+        userId: input.user?.id ?? null,
+        family: address?.family ?? 0,
+        address: address?.hex ?? '',
+      },
+      type: QueryTypes.SELECT,
+    },
+  );
+  for (const group of groups) {
+    const reason = group.reasonPublic ? group.reason?.trim() : '';
+    applyGroupRules(
+      permissions,
+      normalizePermissionRules(group.rules),
+      {
+        id: group.id,
+        name: group.name,
+        ...(reason ? { reason } : {}),
+      },
+      input.settings,
     );
-
-  for (const { group, matchedGroup } of groups) {
-    applyGroupRules(permissions, group, matchedGroup, input.settings);
   }
 
   return normalizeEffectiveLinks(permissions, input.settings);

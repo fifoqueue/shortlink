@@ -129,7 +129,7 @@ export const load: PageServerLoad = async ({
   if (!definition.loadAdminSubpage)
     redirect(303, `/admin/plugins/${params.plugin}`);
 
-  const settings = await getSettings();
+  const settings = locals.settings;
   const storedState = settings.plugins[definition.meta.id];
   if (!storedState?.enabled) redirect(303, `/admin/plugins/${params.plugin}`);
 

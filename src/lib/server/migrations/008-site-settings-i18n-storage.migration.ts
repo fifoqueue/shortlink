@@ -165,32 +165,36 @@ const migration: DatabaseMigration = {
   async up(sequelize) {
     if (!(await tableExists(sequelize, 'app_settings'))) return;
 
-    const rows = await sequelize.query<{ value: unknown }>(
-      `
+    await sequelize.transaction(async (transaction) => {
+      const rows = await sequelize.query<{ value: unknown }>(
+        `
         SELECT value
         FROM app_settings
         WHERE key = 'site'
         LIMIT 1
+        FOR UPDATE
       `,
-      { type: QueryTypes.SELECT },
-    );
-    const value = rows[0]?.value;
-    if (!isRecord(value)) return;
+        { type: QueryTypes.SELECT, transaction },
+      );
+      const value = rows[0]?.value;
+      if (!isRecord(value)) return;
 
-    const normalized = withI18nSource(value);
-    await sequelize.query(
-      `
+      const normalized = withI18nSource(value);
+      await sequelize.query(
+        `
         UPDATE app_settings
         SET value = CAST($value AS jsonb),
             updated_at = NOW()
         WHERE key = 'site'
       `,
-      {
-        bind: {
-          value: JSON.stringify(stripPersistedLocalizedFields(normalized)),
+        {
+          transaction,
+          bind: {
+            value: JSON.stringify(stripPersistedLocalizedFields(normalized)),
+          },
         },
-      },
-    );
+      );
+    });
   },
 };
 

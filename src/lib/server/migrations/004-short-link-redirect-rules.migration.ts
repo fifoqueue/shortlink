@@ -1,5 +1,5 @@
 import type { Sequelize } from 'sequelize';
-import { columnExists, tableExists, withTransaction } from './helpers';
+import { columnExists, tableExists } from './helpers';
 import type { DatabaseMigration } from './types';
 
 const legacyRedirectColumns = [
@@ -130,7 +130,7 @@ const migration: DatabaseMigration = {
         : null,
     ].filter((expression): expression is string => expression !== null);
 
-    await withTransaction(sequelize, async (transaction) => {
+    await sequelize.transaction(async (transaction) => {
       await sequelize.query(
         `
           ALTER TABLE short_links

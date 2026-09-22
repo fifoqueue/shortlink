@@ -1,3 +1,4 @@
+import { literal, Op, QueryTypes } from 'sequelize';
 import { env } from '$env/dynamic/private';
 import {
   createCipheriv,
@@ -18,10 +19,15 @@ import {
 } from './auth-session';
 import {
   ensureDatabase,
+  getDatabase,
+  AuthRequestLimitModel,
+  UserModel,
+  UserIdentityModel,
   UserPasskeyCredentialModel,
   UserTotpSecretModel,
 } from './database';
-import type { UserModel } from './models';
+import type { LoginMethodAvailability } from './user-identities';
+import { serverMessage } from '$lib/i18n/ui-text';
 import type { StoredPasskeyPublicKey } from './webauthn';
 
 export const LOCAL_AUTH_PROVIDER_ID = 'local-auth';
@@ -42,7 +48,27 @@ const TOTP_SECRET_BYTES = 20;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 
+let authProofCleanupDate = '';
+
+async function cleanupExpiredAuthProofs() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (authProofCleanupDate === today) return;
+  authProofCleanupDate = today;
+  try {
+    await AuthRequestLimitModel.destroy({
+      where: {
+        kind: { [Op.in]: ['auth-challenge', 'totp-use'] },
+        dateKey: { [Op.lt]: today },
+      },
+    });
+  } catch (cause) {
+    authProofCleanupDate = '';
+    console.warn('Expired authentication proof cleanup failed.', cause);
+  }
+}
+
 export interface TimedChallenge {
+  nonce?: string;
   userId?: number;
   challenge?: string;
   secret?: string;
@@ -155,17 +181,31 @@ export function setTimedChallenge(
     name,
     encodeSigned({
       ...challenge,
+      nonce: randomBytes(16).toString('base64url'),
       expiresAt: Date.now() + CHALLENGE_TTL_SECONDS * 1000,
     }),
     challengeCookieOptions(),
   );
 }
 
-export function consumeTimedChallenge(cookies: Cookies, name: string) {
-  const challenge = decodeSigned<TimedChallenge>(cookies.get(name));
+export async function consumeTimedChallenge(cookies: Cookies, name: string) {
+  const token = cookies.get(name);
+  const challenge = decodeSigned<TimedChallenge>(token);
   cookies.delete(name, { path: '/' });
-  if (!challenge || challenge.expiresAt < Date.now()) return null;
-  return challenge;
+  if (!challenge || !token || challenge.expiresAt <= Date.now()) return null;
+  await ensureDatabase();
+  await cleanupExpiredAuthProofs();
+  const identifierHash = createHash('sha256')
+    .update(`${name}:${token}`)
+    .digest('hex');
+  const dateKey = new Date(challenge.expiresAt).toISOString().slice(0, 10);
+  const inserted = await getDatabase().query<{ id: number }>(
+    `INSERT INTO auth_request_limits (kind, identifier_hash, date_key, count, updated_at)
+     VALUES ('auth-challenge', $identifierHash, $dateKey, 1, now())
+     ON CONFLICT (kind, identifier_hash, date_key) DO NOTHING RETURNING id`,
+    { bind: { identifierHash, dateKey }, type: QueryTypes.SELECT },
+  );
+  return inserted.length > 0 ? challenge : null;
 }
 
 export function readTimedChallenge(cookies: Cookies, name: string) {
@@ -243,9 +283,9 @@ function hotp(secret: string, counter: number) {
   return String(code).padStart(TOTP_DIGITS, '0');
 }
 
-export function verifyTotpCode(secret: string, code: string) {
+export function totpCounterForCode(secret: string, code: string) {
   const normalized = code.replace(/\s+/g, '');
-  if (!/^\d{6}$/.test(normalized)) return false;
+  if (!/^\d{6}$/.test(normalized)) return null;
   const currentCounter = Math.floor(Date.now() / 1000 / TOTP_STEP_SECONDS);
   const received = Buffer.from(normalized);
   for (let offset = -TOTP_WINDOW; offset <= TOTP_WINDOW; offset += 1) {
@@ -254,10 +294,10 @@ export function verifyTotpCode(secret: string, code: string) {
       expected.length === received.length &&
       timingSafeEqual(expected, received)
     ) {
-      return true;
+      return currentCounter + offset;
     }
   }
-  return false;
+  return null;
 }
 
 export async function totpEnabledForUser(userId: number) {
@@ -269,11 +309,37 @@ export async function totpEnabledForUser(userId: number) {
 
 export async function verifyUserTotp(userId: number, code: string) {
   await ensureDatabase();
-  const record = await UserTotpSecretModel.findOne({
-    where: { userId, enabled: true },
+  await cleanupExpiredAuthProofs();
+  return getDatabase().transaction(async (transaction) => {
+    const record = await UserTotpSecretModel.findOne({
+      where: { userId, enabled: true },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!record) return false;
+    const secret = decryptSecret(record.secret);
+    const counter = totpCounterForCode(secret, code);
+    if (counter === null) return false;
+    const identifierHash = createHash('sha256')
+      .update(`${userId}:${secret}:${counter}`)
+      .digest('hex');
+    const dateKey = new Date(
+      (counter + TOTP_WINDOW + 1) * TOTP_STEP_SECONDS * 1000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const inserted = await getDatabase().query<{ id: number }>(
+      `INSERT INTO auth_request_limits (kind, identifier_hash, date_key, count, updated_at)
+       VALUES ('totp-use', $identifierHash, $dateKey, 1, now())
+       ON CONFLICT (kind, identifier_hash, date_key) DO NOTHING RETURNING id`,
+      {
+        bind: { identifierHash, dateKey },
+        type: QueryTypes.SELECT,
+        transaction,
+      },
+    );
+    return inserted.length > 0;
   });
-  if (!record) return false;
-  return verifyTotpCode(decryptSecret(record.secret), code);
 }
 
 export async function saveUserTotpSecret(userId: number, secret: string) {
@@ -357,18 +423,58 @@ export async function createPasskeyCredential(input: {
 }
 
 export async function updatePasskeyUse(credentialId: string, counter: number) {
-  const passkey = await findPasskeyCredential(credentialId);
-  if (!passkey) return null;
-  await passkey.update({
-    counter: Math.max(passkey.counter, counter),
-    lastUsedAt: new Date(),
-  });
-  return passkey;
+  await ensureDatabase();
+  if (!Number.isSafeInteger(counter) || counter < 0) return null;
+  const [, passkeys] = await UserPasskeyCredentialModel.update(
+    {
+      counter: literal(`GREATEST(counter, ${counter})`),
+      lastUsedAt: new Date(),
+    },
+    {
+      where: {
+        credentialId,
+        ...(counter > 0
+          ? { [Op.or]: [{ counter: 0 }, { counter: { [Op.lt]: counter } }] }
+          : {}),
+      },
+      returning: true,
+    },
+  );
+  return passkeys[0] ?? null;
 }
 
-export async function removeUserPasskey(userId: number, passkeyId: number) {
+export async function removeUserPasskey(
+  userId: number,
+  passkeyId: number,
+  methods: LoginMethodAvailability,
+) {
   await ensureDatabase();
-  return UserPasskeyCredentialModel.destroy({
-    where: { id: passkeyId, userId },
+  return getDatabase().transaction(async (transaction) => {
+    const user = await UserModel.findByPk(userId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
+    const passwordAvailable = methods.password && userHasLocalPassword(user);
+    const passkeyAvailable =
+      methods.passkey &&
+      (await UserPasskeyCredentialModel.count({
+        where: { userId, id: { [Op.ne]: passkeyId } },
+        transaction,
+      })) > 0;
+    const identityAvailable =
+      (await UserIdentityModel.count({
+        where: {
+          userId,
+          provider: { [Op.in]: [...methods.identityProviders] },
+        },
+        transaction,
+      })) > 0;
+    if (!passwordAvailable && !passkeyAvailable && !identityAvailable)
+      throw new Error(serverMessage('lastLoginMethodRemovalDenied'));
+    return UserPasskeyCredentialModel.destroy({
+      where: { id: passkeyId, userId },
+      transaction,
+    });
   });
 }

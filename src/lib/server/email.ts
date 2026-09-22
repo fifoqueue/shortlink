@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { parseHeaderRecord, parseSingleHeaderLine } from '$lib/delimited';
 import type { SiteSettings } from '$lib/config';
 import { formatText, serverMessage, uiText } from '$lib/i18n/ui-text';
@@ -88,10 +87,7 @@ async function sendSmtp(settings: SiteSettings, message: EmailMessage) {
     connectionTimeout: timeout,
     greetingTimeout: timeout,
     socketTimeout: timeout,
-    getSocket(
-      _options: SMTPTransport.Options,
-      callback: (error: Error | null, socketOptions?: unknown) => void,
-    ) {
+    getSocket(_options, callback) {
       outboundConnect({
         host,
         port: config.smtp.port,

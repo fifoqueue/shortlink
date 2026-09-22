@@ -19,17 +19,9 @@ import {
   type SiteSettings,
   type ThemePreset,
 } from '$lib/config';
-import { env } from '$env/dynamic/private';
 import type { PluginState } from '$lib/plugin-contracts';
-import { Op } from 'sequelize';
-import { AppSettingModel, ensureDatabase } from './database';
-import {
-  redisDelete,
-  redisGetJson,
-  redisPublish,
-  redisSetJson,
-  redisSubscribe,
-} from './redis';
+import { Op, type Transaction } from 'sequelize';
+import { AppSettingModel, ensureDatabase, getDatabase } from './database';
 import {
   normalizeShortLinkDomains,
   normalizeShortLinkDomainSettings,
@@ -37,31 +29,10 @@ import {
 
 const SITE_SETTINGS_KEY = 'site';
 const PLUGIN_SETTINGS_PREFIX = 'plugins:';
-const SETTINGS_REDIS_KEY = 'cache:settings:site';
-const SETTINGS_INVALIDATE_CHANNEL = 'invalidate:settings';
-const SETTINGS_CACHE_TTL_MS = numberEnv(
-  'SETTINGS_CACHE_TTL_MS',
-  5_000,
-  0,
-  300_000,
-);
 const clone = <T>(value: T): T => structuredClone(value);
-let cachedSettings:
-  | {
-      expiresAt: number;
-      value: SiteSettings;
-    }
-  | undefined;
-let pendingSettings: Promise<SiteSettings> | undefined;
 let normalizePluginStates: (value: unknown) => Record<string, PluginState> =
   loosePluginStates;
 const siteLocaleSet = new Set<string>(siteLocaleKeys);
-
-function numberEnv(name: string, fallback: number, min: number, max: number) {
-  const value = Number(env[name]);
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) {
@@ -104,22 +75,6 @@ export function setPluginStateNormalizer(
   normalizer: (value: unknown) => Record<string, PluginState>,
 ) {
   normalizePluginStates = normalizer;
-  cachedSettings = undefined;
-}
-
-export function invalidateSettingsCache(
-  options: { redis?: boolean; publish?: boolean } = {},
-) {
-  cachedSettings = undefined;
-  pendingSettings = undefined;
-  if (options.redis) void redisDelete(SETTINGS_REDIS_KEY);
-  if (options.publish) {
-    void redisPublish(SETTINGS_INVALIDATE_CHANNEL, { key: SITE_SETTINGS_KEY });
-  }
-}
-
-export function mutableSettings(settings: SiteSettings): SiteSettings {
-  return clone(settings);
 }
 
 function merge<T>(defaults: T, value: unknown): T {
@@ -331,7 +286,9 @@ function pluginIdFromSettingsKey(key: string) {
     : '';
 }
 
-function pluginValuesFromRecords(records: AppSettingModel[]) {
+function pluginValuesFromRecords(
+  records: Pick<AppSettingModel, 'key' | 'value'>[],
+) {
   return Object.fromEntries(
     records
       .map((record) => [pluginIdFromSettingsKey(record.key), record.value])
@@ -360,107 +317,81 @@ function normalizeSettings(
   return settings;
 }
 
-async function loadSettings(): Promise<SiteSettings> {
-  await ensureDatabase();
-  const settings = normalizeSettings(defaultSettings);
-  const [siteRecord] = await AppSettingModel.findOrCreate({
-    where: { key: SITE_SETTINGS_KEY },
-    defaults: {
-      key: SITE_SETTINGS_KEY,
-      value: siteSettingsValue(settings),
+// Read site and plugin rows in one statement so callers never observe a partial save.
+export async function getSettings(
+  options: { mutable?: boolean; transaction?: Transaction } = {},
+): Promise<SiteSettings> {
+  if (!options.transaction) await ensureDatabase();
+  const records = await AppSettingModel.findAll({
+    attributes: ['key', 'value'],
+    raw: true,
+    transaction: options.transaction,
+    where: {
+      [Op.or]: [
+        { key: SITE_SETTINGS_KEY },
+        { key: { [Op.like]: `${PLUGIN_SETTINGS_PREFIX}%` } },
+      ],
     },
   });
+  const settings = normalizeSettings(
+    records.find((record) => record.key === SITE_SETTINGS_KEY)?.value,
+    pluginValuesFromRecords(records),
+  );
+  return options.mutable ? settings : deepFreeze(settings);
+}
 
+// The mutation runs against locked, current data. Callers must not perform network
+// requests here or replace unrelated sections with an earlier settings snapshot.
+export async function updateSettings(
+  mutate: (settings: SiteSettings) => void | Promise<void>,
+  transaction?: Transaction,
+): Promise<SiteSettings> {
+  if (!transaction) {
+    await ensureDatabase();
+    return getDatabase().transaction((current) =>
+      updateSettings(mutate, current),
+    );
+  }
+  await AppSettingModel.bulkCreate(
+    [{ key: SITE_SETTINGS_KEY, value: siteSettingsValue(defaultSettings) }],
+    { transaction, ignoreDuplicates: true },
+  );
+  const site = await AppSettingModel.findByPk(SITE_SETTINGS_KEY, {
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+    rejectOnEmpty: true,
+  });
   const pluginRecords = await AppSettingModel.findAll({
     where: { key: { [Op.like]: `${PLUGIN_SETTINGS_PREFIX}%` } },
+    transaction,
   });
-  const normalized = normalizeSettings(
-    siteRecord.value,
+  const settings = normalizeSettings(
+    site.value,
     pluginValuesFromRecords(pluginRecords),
   );
-  const existingKeys = new Set(pluginRecords.map((record) => record.key));
-  const missingRows = pluginSettingsRows(normalized.plugins, new Date()).filter(
-    (row) => !existingKeys.has(row.key),
-  );
-  if (missingRows.length > 0) {
-    await AppSettingModel.bulkCreate(missingRows);
-  }
-
-  void redisSetJson(SETTINGS_REDIS_KEY, normalized, SETTINGS_CACHE_TTL_MS);
-  return normalized;
-}
-
-async function loadCachedSettings(): Promise<SiteSettings> {
-  const redisSettings =
-    SETTINGS_CACHE_TTL_MS > 0
-      ? await redisGetJson<SiteSettings>(SETTINGS_REDIS_KEY)
-      : null;
-  if (redisSettings) return redisSettings;
-  return loadSettings();
-}
-
-export async function getSettings(
-  options: { mutable?: boolean } = {},
-): Promise<SiteSettings> {
-  const now = Date.now();
-  if (cachedSettings && cachedSettings.expiresAt > now) {
-    return options.mutable
-      ? mutableSettings(cachedSettings.value)
-      : cachedSettings.value;
-  }
-
-  if (!pendingSettings) {
-    pendingSettings = loadCachedSettings()
-      .then((settings) => {
-        const value = deepFreeze(clone(settings));
-        cachedSettings = {
-          expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
-          value,
-        };
-        return value;
-      })
-      .finally(() => {
-        pendingSettings = undefined;
-      });
-  }
-
-  const settings = await pendingSettings;
-  return options.mutable ? mutableSettings(settings) : settings;
-}
-
-export async function updateSettings(settings: SiteSettings) {
-  await ensureDatabase();
+  await mutate(settings);
   const normalized = normalizeSettings(settings, settings.plugins);
   const now = new Date();
+  await site.update(
+    { value: siteSettingsValue(normalized), updatedAt: now },
+    { transaction },
+  );
   const pluginRows = pluginSettingsRows(normalized.plugins, now);
+  if (pluginRows.length > 0) {
+    await AppSettingModel.bulkCreate(pluginRows, {
+      transaction,
+      updateOnDuplicate: ['value', 'updatedAt'],
+    });
+  }
   const pluginKeys = new Set(pluginRows.map((row) => row.key));
-  const stalePluginRecords = await AppSettingModel.findAll({
-    where: { key: { [Op.like]: `${PLUGIN_SETTINGS_PREFIX}%` } },
-  });
-
-  await Promise.all([
-    AppSettingModel.upsert({
-      key: SITE_SETTINGS_KEY,
-      value: siteSettingsValue(normalized),
-      updatedAt: now,
-    }),
-    ...pluginRows.map((row) => AppSettingModel.upsert(row)),
-    ...stalePluginRecords
-      .filter((record) => !pluginKeys.has(record.key))
-      .map((record) => record.destroy()),
-  ]);
-  cachedSettings = {
-    expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
-    value: deepFreeze(clone(normalized)),
-  };
-  void redisSetJson(SETTINGS_REDIS_KEY, normalized, SETTINGS_CACHE_TTL_MS);
-  void redisPublish(SETTINGS_INVALIDATE_CHANNEL, { key: SITE_SETTINGS_KEY });
+  const staleKeys = pluginRecords
+    .filter((record) => !pluginKeys.has(record.key))
+    .map((record) => record.key);
+  if (staleKeys.length > 0) {
+    await AppSettingModel.destroy({ where: { key: staleKeys }, transaction });
+  }
   return clone(normalized);
 }
-
-redisSubscribe(SETTINGS_INVALIDATE_CHANNEL, () => {
-  invalidateSettingsCache();
-});
 
 export function parseBoolean(form: FormData, name: string) {
   return form.get(name) === 'on' || form.get(name) === 'true';

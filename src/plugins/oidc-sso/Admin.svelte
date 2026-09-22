@@ -238,9 +238,6 @@
                   <option value="metadata-url"
                     >{t('admin.oauthMetadataUrlSource')}</option
                   >
-                  <option value="profile-link"
-                    >{t('admin.oauthMetadataProfileLink')}</option
-                  >
                 </select>
               </label>
               <label class="wide">
@@ -275,28 +272,6 @@
                   type="url"
                   name="userInfoEndpoint"
                   value={provider.userInfoEndpoint}
-                />
-              </label>
-              <label>
-                {t('admin.metadataLinkRel')}
-                <input
-                  name="metadataLinkRel"
-                  value={provider.metadataLinkRel}
-                  placeholder={t('admin.metadataLinkRelPlaceholder')}
-                />
-              </label>
-              <label>
-                {t('admin.authorizationEndpointRel')}
-                <input
-                  name="authorizationEndpointRel"
-                  value={provider.authorizationEndpointRel}
-                />
-              </label>
-              <label>
-                {t('admin.tokenEndpointRel')}
-                <input
-                  name="tokenEndpointRel"
-                  value={provider.tokenEndpointRel}
                 />
               </label>
             {/if}
@@ -416,11 +391,7 @@
                 label={t('admin.loginInputRequired')}
                 checked={provider.loginInputRequired}
               />
-              <ToggleField
-                name="loginInputUrlCanonicalization"
-                label={t('admin.loginInputUrlCanonicalization')}
-                checked={provider.loginInputUrlCanonicalization}
-              />
+
               <label>
                 {t('admin.subjectPath')}
                 <input name="subjectPath" value={provider.subjectPath} />
@@ -466,24 +437,6 @@
               </select>
               <small>{t('admin.emailTrustModeHelp')}</small>
             </label>
-            {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
-              <label>
-                {t('admin.subjectVerification')}
-                <select
-                  name="subjectVerification"
-                  value={provider.subjectVerification}
-                >
-                  <option value="none"
-                    >{t('admin.subjectVerificationNone')}</option
-                  >
-                  <option value="authorization-endpoint"
-                    >{t(
-                      'admin.subjectVerificationAuthorizationEndpoint',
-                    )}</option
-                  >
-                </select>
-              </label>
-            {/if}
           </div>
           <div class="actions">
             {#if selectedProviderEmailTrustMode(provider.id, provider.emailTrustMode) === 'disabled'}
@@ -603,9 +556,6 @@
                 <option value="metadata-url"
                   >{t('admin.oauthMetadataUrlSource')}</option
                 >
-                <option value="profile-link"
-                  >{t('admin.oauthMetadataProfileLink')}</option
-                >
               </select>
             </label>
             <label class="wide">
@@ -628,21 +578,6 @@
             <label class="wide">
               {t('admin.userInfoEndpoint')}
               <input type="url" name="userInfoEndpoint" />
-            </label>
-            <label>
-              {t('admin.metadataLinkRel')}
-              <input
-                name="metadataLinkRel"
-                placeholder={t('admin.metadataLinkRelPlaceholder')}
-              />
-            </label>
-            <label>
-              {t('admin.authorizationEndpointRel')}
-              <input name="authorizationEndpointRel" />
-            </label>
-            <label>
-              {t('admin.tokenEndpointRel')}
-              <input name="tokenEndpointRel" />
             </label>
           {/if}
           <label
@@ -742,13 +677,10 @@
               name="loginInputRequired"
               label={t('admin.loginInputRequired')}
             />
-            <ToggleField
-              name="loginInputUrlCanonicalization"
-              label={t('admin.loginInputUrlCanonicalization')}
-            />
+
             <label>
               {t('admin.subjectPath')}
-              <input name="subjectPath" value="me" />
+              <input name="subjectPath" value="sub" />
             </label>
           {/if}
           <label>
@@ -782,19 +714,6 @@
             </select>
             <small>{t('admin.emailTrustModeHelp')}</small>
           </label>
-          {#if newProviderFlow === 'oauth'}
-            <label>
-              {t('admin.subjectVerification')}
-              <select name="subjectVerification">
-                <option value="none"
-                  >{t('admin.subjectVerificationNone')}</option
-                >
-                <option value="authorization-endpoint"
-                  >{t('admin.subjectVerificationAuthorizationEndpoint')}</option
-                >
-              </select>
-            </label>
-          {/if}
         </div>
         {#if newProviderEmailTrustMode === 'disabled'}
           <DangerConfirmButton

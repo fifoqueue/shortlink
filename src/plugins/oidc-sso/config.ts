@@ -1,8 +1,7 @@
 import type { PluginConfig } from '$lib/plugin-contracts';
 
 export type SsoProviderFlow = 'oidc' | 'oauth';
-export type OAuthMetadataSource = 'manual' | 'metadata-url' | 'profile-link';
-export type OAuthSubjectVerification = 'none' | 'authorization-endpoint';
+export type OAuthMetadataSource = 'manual' | 'metadata-url';
 export type EmailTrustMode =
   'verified-claim' | 'local-verification' | 'disabled' | 'existing-only';
 
@@ -19,9 +18,6 @@ export interface OidcProvider {
   authorizationEndpoint: string;
   tokenEndpoint: string;
   userInfoEndpoint: string;
-  metadataLinkRel: string;
-  authorizationEndpointRel: string;
-  tokenEndpointRel: string;
   clientId: string;
   clientSecret: string;
   clientAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none';
@@ -36,13 +32,11 @@ export interface OidcProvider {
   loginInputHelp: string;
   loginInputDefault: string;
   loginInputRequired: boolean;
-  loginInputUrlCanonicalization: boolean;
   authorizationHintParameter: string;
   subjectPath: string;
   emailPath: string;
   emailVerifiedPath: string;
   namePath: string;
-  subjectVerification: OAuthSubjectVerification;
   emailTrustMode: EmailTrustMode;
   allowedEmailDomains: string[];
 }
@@ -97,8 +91,7 @@ function provider(value: unknown): OidcProvider | null {
   const method = raw.clientAuthMethod;
   const flow = raw.flow === 'oauth' ? 'oauth' : 'oidc';
   const oauthMetadataSource =
-    raw.oauthMetadataSource === 'metadata-url' ||
-    raw.oauthMetadataSource === 'profile-link'
+    raw.oauthMetadataSource === 'metadata-url'
       ? raw.oauthMetadataSource
       : 'manual';
   return {
@@ -114,9 +107,6 @@ function provider(value: unknown): OidcProvider | null {
     authorizationEndpoint: stringValue(raw.authorizationEndpoint),
     tokenEndpoint: stringValue(raw.tokenEndpoint),
     userInfoEndpoint: stringValue(raw.userInfoEndpoint),
-    metadataLinkRel: stringValue(raw.metadataLinkRel),
-    authorizationEndpointRel: stringValue(raw.authorizationEndpointRel),
-    tokenEndpointRel: stringValue(raw.tokenEndpointRel),
     clientId: raw.clientId,
     clientSecret: typeof raw.clientSecret === 'string' ? raw.clientSecret : '',
     clientAuthMethod:
@@ -139,19 +129,11 @@ function provider(value: unknown): OidcProvider | null {
     loginInputHelp: stringValue(raw.loginInputHelp),
     loginInputDefault: stringValue(raw.loginInputDefault),
     loginInputRequired: booleanValue(raw.loginInputRequired),
-    loginInputUrlCanonicalization: booleanValue(
-      raw.loginInputUrlCanonicalization,
-    ),
     authorizationHintParameter: stringValue(raw.authorizationHintParameter),
-    subjectPath:
-      stringValue(raw.subjectPath) || (flow === 'oauth' ? 'me' : 'sub'),
+    subjectPath: stringValue(raw.subjectPath) || 'sub',
     emailPath: stringValue(raw.emailPath) || 'email',
     emailVerifiedPath: stringValue(raw.emailVerifiedPath) || 'email_verified',
     namePath: stringValue(raw.namePath) || 'name',
-    subjectVerification:
-      raw.subjectVerification === 'authorization-endpoint'
-        ? 'authorization-endpoint'
-        : 'none',
     emailTrustMode: emailTrustMode(raw.emailTrustMode),
     allowedEmailDomains: stringArray(raw.allowedEmailDomains),
   };

@@ -1,11 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { QueryTypes, type Sequelize, type Transaction } from 'sequelize';
-import {
-  columnExists,
-  indexExists,
-  tableExists,
-  withTransaction,
-} from './helpers';
+import { columnExists, indexExists, tableExists } from './helpers';
 import type { DatabaseMigration } from './types';
 
 type ShortLinkDomainScheme = 'http' | 'https';
@@ -156,7 +151,10 @@ async function initializeSiteDomainSettings(
   initialDomain: InitialShortLinkDomain | null,
   transaction: Transaction,
 ) {
-  if (!initialDomain || !(await tableExists(sequelize, 'app_settings'))) {
+  if (
+    !initialDomain ||
+    !(await tableExists(sequelize, 'app_settings', transaction))
+  ) {
     return;
   }
 
@@ -214,7 +212,7 @@ const migration: DatabaseMigration = {
 
     const initialDomain = configuredInitialShortLinkDomain();
 
-    await withTransaction(sequelize, async (transaction) => {
+    await sequelize.transaction(async (transaction) => {
       await sequelize.query(
         `
           ALTER TABLE short_links

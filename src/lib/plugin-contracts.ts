@@ -499,6 +499,7 @@ export interface PluginDefinition {
   }) => unknown | Promise<unknown>;
   handleAccountAction?: (input: {
     user: AuthenticatedUser;
+    permissions: PluginPermissionContext;
     action: string;
     form: FormData;
     state: PluginState;

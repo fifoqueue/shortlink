@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { QueryTypes } from 'sequelize';
+import { QueryTypes, type Transaction } from 'sequelize';
 import type { SiteSettings } from '$lib/config';
 import type { EffectivePermissions } from './permissions';
 import { ensureDatabase, getDatabase } from './database';
@@ -31,7 +31,7 @@ function identifierHash(scope: string, value: string) {
 async function incrementDailyLimit(
   kind: AccountRecoveryRequestKind,
   identifierHashValue: string,
-  limit: number,
+  transaction: Transaction,
 ) {
   const rows = await getDatabase().query<{ count: number }>(
     `
@@ -52,11 +52,10 @@ async function incrementDailyLimit(
         dateKey: localDateKey(),
       },
       type: QueryTypes.SELECT,
+      transaction,
     },
   );
-  if (Number(rows[0]?.count ?? 0) > limit) {
-    throw new Error(serverMessage('authRequestLimitExceeded'));
-  }
+  return Number(rows[0]?.count ?? 0);
 }
 
 async function enforceDailyLimit(input: {
@@ -72,10 +71,23 @@ async function enforceDailyLimit(input: {
   if (!email || !email.includes('@')) {
     throw new Error(serverMessage('validEmailRequired'));
   }
-  await Promise.all([
-    incrementDailyLimit(input.kind, identifierHash('email', email), limit),
-    incrementDailyLimit(input.kind, identifierHash('ip', input.ip), limit),
-  ]);
+  const counts = await getDatabase().transaction(async (transaction) => {
+    const emailCount = await incrementDailyLimit(
+      input.kind,
+      identifierHash('email', email),
+      transaction,
+    );
+    const ipCount = await incrementDailyLimit(
+      input.kind,
+      identifierHash('ip', input.ip),
+      transaction,
+    );
+    return [emailCount, ipCount];
+  });
+  // Rejected attempts still count, but both scopes commit or roll back together.
+  if (counts.some((count) => count > limit)) {
+    throw new Error(serverMessage('authRequestLimitExceeded'));
+  }
 }
 
 export function accountRecoveryAvailability(input: {

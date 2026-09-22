@@ -62,7 +62,7 @@ export const GET: RequestHandler = async (event) => {
 export const POST: RequestHandler = async (event) => {
   const { cookies, getClientAddress, locals, request, url } = event;
   const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
-  const challenge = consumeTimedChallenge(cookies, PASSKEY_LOGIN_COOKIE);
+  const challenge = await consumeTimedChallenge(cookies, PASSKEY_LOGIN_COOKIE);
   if (!challenge?.challenge) {
     throw error(400, text.messages.passkeyLoginExpired);
   }
@@ -106,15 +106,9 @@ export const POST: RequestHandler = async (event) => {
     origin: url.origin,
     rpId: url.hostname,
   });
-  if (
-    verified.counter > 0 &&
-    passkey.counter > 0 &&
-    verified.counter <= passkey.counter
-  ) {
+  if (!(await updatePasskeyUse(passkey.credentialId, verified.counter))) {
     throw error(401, text.messages.invalidLogin);
   }
-
-  await updatePasskeyUse(passkey.credentialId, verified.counter);
   createUserSessionFromModel(
     cookies,
     storedUser,

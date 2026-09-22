@@ -9,15 +9,25 @@ function tableName(value: unknown) {
   return '';
 }
 
-export async function tableExists(sequelize: Sequelize, table: string) {
+export async function tableExists(
+  sequelize: Sequelize,
+  table: string,
+  transaction?: Transaction,
+) {
   const queryInterface = sequelize.getQueryInterface();
   const actualTables = new Set(
-    (await queryInterface.showAllTables()).map(tableName).filter(Boolean),
+    (await queryInterface.showAllTables({ transaction }))
+      .map(tableName)
+      .filter(Boolean),
   );
   return actualTables.has(table);
 }
 
-export async function indexExists(sequelize: Sequelize, index: string) {
+export async function indexExists(
+  sequelize: Sequelize,
+  index: string,
+  transaction?: Transaction,
+) {
   const rows = await sequelize.query<{ exists: boolean }>(
     `
       SELECT EXISTS (
@@ -30,6 +40,7 @@ export async function indexExists(sequelize: Sequelize, index: string) {
     {
       bind: { index },
       type: QueryTypes.SELECT,
+      transaction,
     },
   );
   return rows[0]?.exists === true;
@@ -39,6 +50,7 @@ export async function columnExists(
   sequelize: Sequelize,
   table: string,
   column: string,
+  transaction?: Transaction,
 ) {
   const rows = await sequelize.query<{ exists: boolean }>(
     `
@@ -53,22 +65,8 @@ export async function columnExists(
     {
       bind: { table, column },
       type: QueryTypes.SELECT,
+      transaction,
     },
   );
   return rows[0]?.exists === true;
-}
-
-export async function withTransaction<T>(
-  sequelize: Sequelize,
-  run: (transaction: Transaction) => Promise<T>,
-) {
-  const transaction = await sequelize.transaction();
-  try {
-    const result = await run(transaction);
-    await transaction.commit();
-    return result;
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
-  }
 }

@@ -1,4 +1,3 @@
-import { env } from '$env/dynamic/private';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import {
   cast,
@@ -8,6 +7,7 @@ import {
   UniqueConstraintError,
   where as sqlWhere,
   type WhereOptions,
+  Transaction,
 } from 'sequelize';
 import {
   ClickEventModel,
@@ -37,20 +37,9 @@ import type { LinkOwner } from './link-owner';
 import type { LinkSearchState } from '$lib/search';
 import { serverMessage } from '$lib/i18n/ui-text';
 import {
-  clickAnalyticsEnabled,
-  countClickAnalyticsEvents,
-  listClickAnalyticsEvents,
-  writeClickAnalytics,
   type ClickAnalyticsEvent,
   type ClickAnalyticsSearch,
 } from './click-analytics';
-import {
-  redisDelete,
-  redisGetJson,
-  redisPublish,
-  redisSetJson,
-  redisSubscribe,
-} from './redis';
 import {
   activeShareAccessForLinkId,
   linkShareSummariesByLinkId,
@@ -232,19 +221,6 @@ export type LinkHealthResult =
 const ALPHABET =
   '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const MAX_STATS_PAGE = 10_000;
-const REDIRECT_LINK_CACHE_TTL_MS = numberEnv(
-  'REDIRECT_LINK_CACHE_TTL_MS',
-  5_000,
-  0,
-  300_000,
-);
-const REDIRECT_LINK_CACHE_LIMIT = numberEnv(
-  'REDIRECT_LINK_CACHE_LIMIT',
-  20_000,
-  0,
-  1_000_000,
-);
-const REDIRECT_LINK_INVALIDATE_CHANNEL = 'invalidate:redirect-link';
 const RESERVED_CODES = new Set([
   'api',
   'admin',
@@ -265,110 +241,6 @@ const UTM_FIELDS = [
 ] as const;
 type UtmField = (typeof UTM_FIELDS)[number][0];
 type UtmPermissions = Partial<Record<UtmField, boolean>>;
-
-const redirectLinkCache = new Map<
-  string,
-  { expiresAt: number; link: RedirectLink }
->();
-
-function numberEnv(name: string, fallback: number, min: number, max: number) {
-  const value = Number(env[name]);
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
-}
-
-function redirectLinkCacheKey(code: string, domain?: string) {
-  return `${domain ?? ''}\0${code}`;
-}
-
-function redisKeyPart(value: string | undefined) {
-  return Buffer.from(value ?? '', 'utf8').toString('base64url');
-}
-
-function redirectLinkRedisKey(code: string, domain?: string) {
-  return `cache:redirect-link:${redisKeyPart(domain)}:${redisKeyPart(code)}`;
-}
-
-function cacheableRedirectLink(link: RedirectLink) {
-  return REDIRECT_LINK_CACHE_TTL_MS > 0 && link.smart.maxClicks <= 0;
-}
-
-function cachedRedirectLink(code: string, domain?: string) {
-  const key = redirectLinkCacheKey(code, domain);
-  const entry = redirectLinkCache.get(key);
-  if (!entry) return undefined;
-  if (entry.expiresAt <= Date.now()) {
-    redirectLinkCache.delete(key);
-    return undefined;
-  }
-  redirectLinkCache.delete(key);
-  redirectLinkCache.set(key, entry);
-  return entry.link;
-}
-
-async function cachedRedirectLinkFromRedis(code: string, domain?: string) {
-  const link =
-    REDIRECT_LINK_CACHE_TTL_MS > 0
-      ? await redisGetJson<RedirectLink>(redirectLinkRedisKey(code, domain))
-      : null;
-  if (!link || !cacheableRedirectLink(link)) return undefined;
-  rememberRedirectLink(link, { redis: false });
-  return link;
-}
-
-function rememberRedirectLink(
-  link: RedirectLink,
-  options: { redis?: boolean } = { redis: true },
-) {
-  if (!cacheableRedirectLink(link) || REDIRECT_LINK_CACHE_LIMIT <= 0) return;
-  const key = redirectLinkCacheKey(link.code, link.domain);
-  redirectLinkCache.set(key, {
-    expiresAt: Date.now() + REDIRECT_LINK_CACHE_TTL_MS,
-    link,
-  });
-  if (options.redis) {
-    void redisSetJson(
-      redirectLinkRedisKey(link.code, link.domain),
-      link,
-      REDIRECT_LINK_CACHE_TTL_MS,
-    );
-  }
-  while (redirectLinkCache.size > REDIRECT_LINK_CACHE_LIMIT) {
-    const oldestKey = redirectLinkCache.keys().next().value;
-    if (oldestKey === undefined) break;
-    redirectLinkCache.delete(oldestKey);
-  }
-}
-
-function invalidateRedirectLinkCache(
-  code: string,
-  domain?: string,
-  options: { redis?: boolean; publish?: boolean } = {
-    redis: true,
-    publish: true,
-  },
-) {
-  redirectLinkCache.delete(redirectLinkCacheKey(code, domain));
-  if (options.redis) void redisDelete(redirectLinkRedisKey(code, domain));
-  if (options.publish) {
-    void redisPublish(REDIRECT_LINK_INVALIDATE_CHANNEL, { code, domain });
-  }
-}
-
-redisSubscribe(REDIRECT_LINK_INVALIDATE_CHANNEL, (message) => {
-  try {
-    const input = JSON.parse(message) as { code?: unknown; domain?: unknown };
-    if (typeof input.code === 'string') {
-      invalidateRedirectLinkCache(
-        input.code,
-        typeof input.domain === 'string' ? input.domain : undefined,
-        { redis: false, publish: false },
-      );
-    }
-  } catch {
-    // Ignore malformed cache invalidation messages from external publishers.
-  }
-});
 
 function domainWhere(domain: string | undefined): WhereOptions {
   if (domain === undefined) return {};
@@ -1051,17 +923,6 @@ function topEntries(counts: Map<string, number>, limit = 5) {
 }
 
 async function clickInsightEvents(linkId: number): Promise<ClickEventRecord[]> {
-  if (clickAnalyticsEnabled()) {
-    try {
-      return await listClickAnalyticsEvents({ linkId, limit: 1_000 });
-    } catch (cause) {
-      console.error(
-        'Failed to load link click insights from ClickHouse; falling back to PostgreSQL.',
-        cause,
-      );
-    }
-  }
-
   return ClickEventModel.findAll({
     attributes: ['createdAt', 'referer', 'metadata', 'userAgent', 'ipAddress'],
     where: { linkId },
@@ -1212,8 +1073,8 @@ function countedPublicLink(
   return publicLink(link, owner, share, counts.get(link.id) ?? 0);
 }
 
-async function clickCountForLinkId(linkId: number) {
-  return ClickEventModel.count({ where: { linkId } });
+async function clickCountForLinkId(linkId: number, transaction?: Transaction) {
+  return ClickEventModel.count({ where: { linkId }, transaction });
 }
 
 export async function listLinks(
@@ -1339,23 +1200,25 @@ export async function getLinkByCode(code: string, domain?: string) {
 }
 
 export async function getRedirectLinkByCode(code: string, domain?: string) {
-  const cached = cachedRedirectLink(code, domain);
-  if (cached) return cached;
-
-  const redisCached = await cachedRedirectLinkFromRedis(code, domain);
-  if (redisCached) return redisCached;
-
   await ensureDatabase();
   const link = await ShortLinkModel.findOne({
+    attributes: [
+      'id',
+      'code',
+      'domain',
+      'url',
+      'preview',
+      'redirectCount',
+      'expiresAt',
+      'maxClicks',
+      'passwordHash',
+      'passwordSalt',
+      'redirectRules',
+    ],
     where: linkLookupWhere(code, domain),
   });
   if (!link) return undefined;
-  const clickCount =
-    Math.max(0, link.maxClicks ?? 0) > 0
-      ? await clickCountForLinkId(link.id)
-      : 0;
-  const result = redirectLink(link, clickCount);
-  rememberRedirectLink(result);
+  const result = redirectLink(link, Number(link.redirectCount));
   return result;
 }
 
@@ -1443,7 +1306,6 @@ async function insertLink(
       creatorIpHash: owner?.ipHash ?? null,
       creatorIpAddress: owner?.ipAddress ?? null,
     });
-    invalidateRedirectLinkCache(code, domain);
     return publicLink(link, owner, emptyShareSummary, 0);
   } catch (error) {
     if (error instanceof UniqueConstraintError) {
@@ -1526,98 +1388,113 @@ export async function updateLink(
 ): Promise<UpdateLinkResult> {
   await ensureDatabase();
   const settings = options.linkSettings ?? (await getSettings()).links;
-  const link = await ShortLinkModel.findOne({
-    where: linkLookupWhere(code, options.domain),
-  });
-  if (!link) return { status: 'not_found' };
+  const result = await getDatabase().transaction(
+    async (transaction): Promise<UpdateLinkResult> => {
+      const link = await ShortLinkModel.findOne({
+        where: linkLookupWhere(code, options.domain),
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!link) return { status: 'not_found' };
 
-  let sharedEditableFields: LinkEditField[] | null = null;
-  if (!options.isAdmin && !options.allowAnyOwner) {
-    const ownerMatches = options.owner
-      ? linkMatchesOwner(link, options.owner)
-      : false;
-    if (!ownerMatches && options.sharedUserId) {
-      const access = await activeShareAccessForLinkId(
-        link.id,
-        options.sharedUserId,
-      );
-      if (access?.canEdit) {
-        sharedEditableFields = access.editableFields as LinkEditField[];
+      let sharedEditableFields: LinkEditField[] | null = null;
+      if (!options.isAdmin && !options.allowAnyOwner) {
+        const ownerMatches = options.owner
+          ? linkMatchesOwner(link, options.owner)
+          : false;
+        if (!ownerMatches && options.sharedUserId) {
+          const access = await activeShareAccessForLinkId(
+            link.id,
+            options.sharedUserId,
+            transaction,
+          );
+          if (access?.canEdit) {
+            sharedEditableFields = access.editableFields as LinkEditField[];
+          }
+        }
+        if (!ownerMatches && !sharedEditableFields) {
+          return { status: 'denied' };
+        }
       }
-    }
-    if (!ownerMatches && !sharedEditableFields) {
-      return { status: 'denied' };
-    }
-  }
 
-  const editableFields = editableFieldsSet(
-    sharedEditableFields ?? options.editableFields,
-  );
-  if (editableFields.size === 0) return { status: 'denied' };
-  const utmPermissions = utmPermissionsFromEditableFields(editableFields);
-  const updates: Record<string, unknown> = {};
-  const partial = options.partial === true;
-  const editableUtmFields = UTM_FIELDS.map(([field]) => field).filter(
-    (field) =>
-      editableFields.has(field) &&
-      (!partial || input.operations?.[field] !== undefined),
-  );
-  if (
-    (editableFields.has('url') && (!partial || input.url !== undefined)) ||
-    editableUtmFields.length > 0
-  ) {
-    const baseUrl =
-      editableFields.has('url') && input.url !== undefined
-        ? input.url
-        : link.url;
-    const operations = Object.fromEntries(
-      editableUtmFields.map((field) => [field, input.operations?.[field]]),
-    ) as LinkOperationsInput;
-    updates.url = applyCreateUrlOptions(
-      normalizeUrl(baseUrl, settings, {
-        isAdmin: options.isAdmin,
-        utmPermissions,
-      }),
-      operations,
-      { isAdmin: options.isAdmin, utmPermissions },
-    );
-  }
-  const hasEditablePreviewField =
-    editableFields.has('previewTitle') ||
-    editableFields.has('previewDescription') ||
-    editableFields.has('previewImageUrl') ||
-    editableFields.has('themeColor');
-  if (hasEditablePreviewField && (!partial || input.preview !== undefined)) {
-    Object.assign(
-      updates,
-      normalizePreviewForUpdate(input.preview, editableFields, link, partial),
-    );
-  }
-  if (input.operations !== undefined) {
-    Object.assign(
-      updates,
-      normalizeLinkOperationsForUpdate(
-        input.operations,
-        settings,
-        { isAdmin: options.isAdmin },
-        link,
-        editableFields,
-        partial,
-      ),
-    );
-  }
-  await link.update(updates);
-  invalidateRedirectLinkCache(link.code, link.domain);
+      const editableFields = editableFieldsSet(
+        sharedEditableFields ?? options.editableFields,
+      );
+      if (editableFields.size === 0) return { status: 'denied' };
+      const utmPermissions = utmPermissionsFromEditableFields(editableFields);
+      const updates: Record<string, unknown> = {};
+      const partial = options.partial === true;
+      const editableUtmFields = UTM_FIELDS.map(([field]) => field).filter(
+        (field) =>
+          editableFields.has(field) &&
+          (!partial || input.operations?.[field] !== undefined),
+      );
+      if (
+        (editableFields.has('url') && (!partial || input.url !== undefined)) ||
+        editableUtmFields.length > 0
+      ) {
+        const baseUrl =
+          editableFields.has('url') && input.url !== undefined
+            ? input.url
+            : link.url;
+        const operations = Object.fromEntries(
+          editableUtmFields.map((field) => [field, input.operations?.[field]]),
+        ) as LinkOperationsInput;
+        updates.url = applyCreateUrlOptions(
+          normalizeUrl(baseUrl, settings, {
+            isAdmin: options.isAdmin,
+            utmPermissions,
+          }),
+          operations,
+          { isAdmin: options.isAdmin, utmPermissions },
+        );
+      }
+      const hasEditablePreviewField =
+        editableFields.has('previewTitle') ||
+        editableFields.has('previewDescription') ||
+        editableFields.has('previewImageUrl') ||
+        editableFields.has('themeColor');
+      if (
+        hasEditablePreviewField &&
+        (!partial || input.preview !== undefined)
+      ) {
+        Object.assign(
+          updates,
+          normalizePreviewForUpdate(
+            input.preview,
+            editableFields,
+            link,
+            partial,
+          ),
+        );
+      }
+      if (input.operations !== undefined) {
+        Object.assign(
+          updates,
+          normalizeLinkOperationsForUpdate(
+            input.operations,
+            settings,
+            { isAdmin: options.isAdmin },
+            link,
+            editableFields,
+            partial,
+          ),
+        );
+      }
+      await link.update(updates, { transaction });
 
-  return {
-    status: 'updated',
-    link: publicLink(
-      link,
-      undefined,
-      emptyShareSummary,
-      await clickCountForLinkId(link.id),
-    ),
-  };
+      return {
+        status: 'updated',
+        link: publicLink(
+          link,
+          undefined,
+          emptyShareSummary,
+          await clickCountForLinkId(link.id, transaction),
+        ),
+      };
+    },
+  );
+  return result;
 }
 
 export async function checkLinkHealth(
@@ -1638,15 +1515,18 @@ export async function checkLinkHealth(
 
   const settings = options.siteSettings ?? (await getSettings());
   const result = await fetchLinkHealth(link.url, settings);
-  await link.update({
-    healthStatus: result.status,
-    healthStatusCode: result.statusCode,
-    healthCheckedAt: new Date(),
-    healthError: result.error,
-    healthResponseBody: result.responseBody || null,
-    healthLatencyMs: result.latencyMs,
-  });
-  invalidateRedirectLinkCache(link.code, link.domain);
+  const [updated] = await ShortLinkModel.update(
+    {
+      healthStatus: result.status,
+      healthStatusCode: result.statusCode,
+      healthCheckedAt: new Date(),
+      healthError: result.error,
+      healthResponseBody: result.responseBody || null,
+      healthLatencyMs: result.latencyMs,
+    },
+    { where: { id: link.id, url: link.url } },
+  );
+  if (updated > 0) await link.reload();
 
   return {
     status: 'checked',
@@ -1657,71 +1537,6 @@ export async function checkLinkHealth(
       await clickCountForLinkId(link.id),
     ),
   };
-}
-
-export async function recordClick(
-  linkId: number,
-  data: {
-    queueId?: number | null;
-    ip?: string | null;
-    userAgent?: string | null;
-    referer?: string | null;
-    metadata?: Record<string, unknown>;
-  },
-) {
-  await ensureDatabase();
-  const sequelize = getDatabase();
-  const transaction = await sequelize.transaction();
-  let analyticsRow:
-    Parameters<typeof writeClickAnalytics>[0][number] | undefined;
-
-  try {
-    if (data.queueId) {
-      const existingClick = await ClickEventModel.findOne({
-        where: { queueId: data.queueId },
-        transaction,
-      });
-      if (existingClick) {
-        await transaction.commit();
-        return;
-      }
-    }
-
-    const clickedAt = new Date();
-    const [updatedLinks] = await ShortLinkModel.update(
-      { lastClickedAt: clickedAt },
-      { where: { id: linkId }, transaction },
-    );
-    if (updatedLinks === 0) {
-      await transaction.rollback();
-      return;
-    }
-
-    analyticsRow = {
-      linkId,
-      createdAt: clickedAt,
-      ipAddress: data.ip || null,
-      userAgent: data.userAgent || null,
-      referer: data.referer || null,
-      metadata: data.metadata ?? {},
-    };
-
-    const click = await ClickEventModel.create(
-      {
-        queueId: data.queueId ?? null,
-        ...analyticsRow,
-      },
-      { transaction },
-    );
-    analyticsRow.eventId = Number(click.id);
-
-    await transaction.commit();
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
-  }
-
-  if (analyticsRow) await writeClickAnalytics([analyticsRow]);
 }
 
 export async function getStats(
@@ -1748,21 +1563,6 @@ export async function listClickEventsForLink(
   options: { isAdmin?: boolean; search?: ClickEventSearch } = {},
 ) {
   await ensureDatabase();
-  if (clickAnalyticsEnabled()) {
-    try {
-      const clicks = await listClickAnalyticsEvents({
-        linkId: link.id,
-        search: options.search,
-      });
-      return clicks.map((click) => publicClickEvent(click, options));
-    } catch (cause) {
-      console.error(
-        'Failed to load link click events from ClickHouse; falling back to PostgreSQL.',
-        cause,
-      );
-    }
-  }
-
   const clicks = await ClickEventModel.findAll({
     where: combineWhere(
       { linkId: link.id },
@@ -1794,13 +1594,6 @@ export async function getStatsForLink(
     clickEventSearchWhere(options.search),
   );
   const unfilteredClickWhere = { linkId: link.id };
-  const clickQuery = (page: number) =>
-    ClickEventModel.findAll({
-      where: clickWhere,
-      order: [['createdAt', 'DESC']],
-      limit: pageSize,
-      offset: pageOffset({ page, pageSize }),
-    });
 
   const creatorPromise = linkCreatorInfo(
     link.id,
@@ -1808,63 +1601,45 @@ export async function getStatsForLink(
   );
   const insightsPromise = clickInsights(link.id, options.isAdmin);
 
-  const loadPostgresPage = async () => {
-    const [count, pageClicks, allClicks] = await Promise.all([
-      ClickEventModel.count({ where: clickWhere }),
-      clickQuery(requestedPage),
-      options.search
-        ? ClickEventModel.count({ where: unfilteredClickWhere })
-        : undefined,
-    ]);
-    totalItems = count;
-    const page = paginationMeta({
-      totalItems,
-      page: requestedPage,
-      pageSize,
-    }).page;
-    return {
-      totalItems: count,
-      totalClicks: allClicks ?? count,
-      clicks: page === requestedPage ? pageClicks : await clickQuery(page),
-    };
-  };
-
-  const loadClickHousePage = async () => {
-    const clickQueryForPage = (page: number) =>
-      listClickAnalyticsEvents({
-        linkId: link.id,
-        search: options.search,
-        limit: pageSize,
-        offset: pageOffset({ page, pageSize }),
-      });
-    const [count, pageClicks, allClicks] = await Promise.all([
-      countClickAnalyticsEvents({ linkId: link.id, search: options.search }),
-      clickQueryForPage(requestedPage),
-      clickCountForLinkId(link.id),
-    ]);
-    const page = paginationMeta({
-      totalItems: count,
-      page: requestedPage,
-      pageSize,
-    }).page;
-    return {
-      totalItems: count,
-      totalClicks: allClicks ?? count,
-      clicks:
-        page === requestedPage ? pageClicks : await clickQueryForPage(page),
-    };
-  };
+  const loadPostgresPage = () =>
+    getDatabase().transaction(
+      {
+        isolationLevel: Transaction.ISOLATION_LEVELS.REPEATABLE_READ,
+      },
+      async (transaction) => {
+        const clickQuery = (page: number) =>
+          ClickEventModel.findAll({
+            where: clickWhere,
+            order: [['createdAt', 'DESC']],
+            limit: pageSize,
+            offset: pageOffset({ page, pageSize }),
+            transaction,
+          });
+        const count = await ClickEventModel.count({
+          where: clickWhere,
+          transaction,
+        });
+        const allClicks = options.search
+          ? await ClickEventModel.count({
+              where: unfilteredClickWhere,
+              transaction,
+            })
+          : count;
+        const page = paginationMeta({
+          totalItems: count,
+          page: requestedPage,
+          pageSize,
+        }).page;
+        return {
+          totalItems: count,
+          totalClicks: allClicks,
+          clicks: await clickQuery(page),
+        };
+      },
+    );
 
   try {
-    const result = clickAnalyticsEnabled()
-      ? await loadClickHousePage().catch(async (cause: unknown) => {
-          console.error(
-            'Failed to load link click statistics from ClickHouse; falling back to PostgreSQL.',
-            cause,
-          );
-          return loadPostgresPage();
-        })
-      : await loadPostgresPage();
+    const result = await loadPostgresPage();
     totalItems = result.totalItems;
     totalClicks = result.totalClicks;
     clicks = result.clicks;
@@ -1929,7 +1704,6 @@ export async function deleteLink(code: string, domain?: string) {
   const deleted =
     (await ShortLinkModel.destroy({ where: linkLookupWhere(code, domain) })) >
     0;
-  if (deleted) invalidateRedirectLinkCache(code, domain);
   return deleted;
 }
 
@@ -1973,67 +1747,64 @@ export async function deleteLinks(
 
   if (requestedLinks.length === 0) return result;
 
-  const links = await ShortLinkModel.findAll({
-    where: {
-      [Op.or]: requestedLinks.map((link) =>
-        linkLookupWhere(link.code, link.domain),
-      ),
-    },
-  });
-  const linksByKey = new Map(
-    links.map((link) => [`${link.domain ?? ''}\u0000${link.code}`, link]),
-  );
-  const maxClicks = Math.max(0, Math.trunc(options.maxClicks ?? 0));
-  const clickLimitEnabled =
-    maxClicks > 0 && !options.isAdmin && !options.allowAnyOwner;
-  const clickCounts = clickLimitEnabled
-    ? await clickCountsByLinkId(links.map((link) => link.id))
-    : new Map<number, number>();
-  const deletableIds: number[] = [];
-
-  for (const selection of requestedLinks) {
-    const link = linksByKey.get(
-      `${selection.domain ?? ''}\u0000${selection.code}`,
-    );
-    if (!link) {
-      result.notFound += 1;
-      continue;
-    }
-
-    if (options.isAdmin || options.allowAnyOwner) {
-      deletableIds.push(link.id);
-      continue;
-    }
-
-    if (!options.allowUserDelete) {
-      result.disabled += 1;
-      continue;
-    }
-
-    if (!options.owner || !linkMatchesOwner(link, options.owner)) {
-      result.denied += 1;
-      continue;
-    }
-
-    if (clickLimitEnabled && (clickCounts.get(link.id) ?? 0) > maxClicks) {
-      result.tooManyClicks += 1;
-      continue;
-    }
-
-    deletableIds.push(link.id);
-  }
-
-  if (deletableIds.length > 0) {
-    result.deleted = await ShortLinkModel.destroy({
-      where: { id: { [Op.in]: deletableIds } },
+  await getDatabase().transaction(async (transaction) => {
+    const links = await ShortLinkModel.findAll({
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+      order: [['id', 'ASC']],
+      where: {
+        [Op.or]: requestedLinks.map((link) =>
+          linkLookupWhere(link.code, link.domain),
+        ),
+      },
     });
-    const deletedIdSet = new Set(deletableIds);
-    for (const link of links) {
-      if (deletedIdSet.has(link.id)) {
-        invalidateRedirectLinkCache(link.code, link.domain);
+    const linksByKey = new Map(
+      links.map((link) => [`${link.domain ?? ''}\u0000${link.code}`, link]),
+    );
+    const maxClicks = Math.max(0, Math.trunc(options.maxClicks ?? 0));
+    const clickLimitEnabled =
+      maxClicks > 0 && !options.isAdmin && !options.allowAnyOwner;
+    const deletableIds: number[] = [];
+
+    for (const selection of requestedLinks) {
+      const link = linksByKey.get(
+        `${selection.domain ?? ''}\u0000${selection.code}`,
+      );
+      if (!link) {
+        result.notFound += 1;
+        continue;
       }
+
+      if (options.isAdmin || options.allowAnyOwner) {
+        deletableIds.push(link.id);
+        continue;
+      }
+
+      if (!options.allowUserDelete) {
+        result.disabled += 1;
+        continue;
+      }
+
+      if (!options.owner || !linkMatchesOwner(link, options.owner)) {
+        result.denied += 1;
+        continue;
+      }
+
+      if (clickLimitEnabled && Number(link.redirectCount) > maxClicks) {
+        result.tooManyClicks += 1;
+        continue;
+      }
+
+      deletableIds.push(link.id);
     }
-  }
+
+    if (deletableIds.length > 0) {
+      result.deleted = await ShortLinkModel.destroy({
+        where: { id: { [Op.in]: deletableIds } },
+        transaction,
+      });
+    }
+  });
 
   return result;
 }

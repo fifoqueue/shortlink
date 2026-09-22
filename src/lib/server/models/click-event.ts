@@ -1,5 +1,6 @@
 import {
   DataTypes,
+  literal,
   Model,
   type CreationOptional,
   type InferAttributes,
@@ -14,6 +15,9 @@ export class ClickEventModel extends Model<
 > {
   declare id: CreationOptional<number>;
   declare queueId: CreationOptional<number | null>;
+  declare sourceId: CreationOptional<string | null>;
+  declare clickhouseSyncedAt: CreationOptional<Date | null>;
+  declare clickhouseNextAttemptAt: CreationOptional<Date>;
   declare linkId: number;
   declare createdAt: CreationOptional<Date>;
   declare ipAddress: string | null;
@@ -29,6 +33,16 @@ export function initClickEventModel(sequelize: Sequelize) {
         type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true,
+      },
+      sourceId: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      clickhouseSyncedAt: { type: DataTypes.DATE, allowNull: true },
+      clickhouseNextAttemptAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: literal('CURRENT_TIMESTAMP'),
       },
       queueId: {
         type: DataTypes.BIGINT,
@@ -71,6 +85,12 @@ export function initClickEventModel(sequelize: Sequelize) {
       indexes: [
         { fields: ['link_id', 'created_at'] },
         { fields: ['queue_id'], unique: true },
+        { fields: ['source_id'], unique: true },
+        {
+          name: 'click_events_clickhouse_pending_idx',
+          fields: ['clickhouse_next_attempt_at', 'id'],
+          where: { clickhouse_synced_at: null },
+        },
       ],
     },
   );

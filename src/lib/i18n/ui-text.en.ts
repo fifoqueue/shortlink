@@ -797,6 +797,8 @@ const en: UiTextKo = {
     },
   },
   messages: {
+    settingsChanged:
+      'Another request changed these settings. Reload and save again.',
     createDisabledTitle: 'Link creation is currently disabled.',
     createDisabledDetail: 'This site is not accepting new short links.',
     createPrivateDeniedTitle: 'You cannot create links from this connection.',
@@ -954,6 +956,8 @@ const en: UiTextKo = {
     passwordChangeFailed: 'Could not change the password.',
     passwordDeleted: 'Password deleted.',
     passwordDeleteFailed: 'Could not delete the password.',
+    lastLoginMethodRemovalDenied:
+      'Add another usable login method before removing the last one.',
     passwordDeleteAlternativeRequired:
       'Add a passkey or link an external login account before deleting the password.',
     otherSessionsLoggedOut: 'Logged out other devices.',

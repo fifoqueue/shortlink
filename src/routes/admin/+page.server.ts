@@ -1,7 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { registrationAvailability } from '$lib/server/registration';
-import { getSettings } from '$lib/server/settings';
 import { getClientIp } from '$lib/server/client-ip';
 import {
   effectivePermissions,
@@ -16,7 +15,7 @@ export const load: PageServerLoad = async ({
   getClientAddress,
 }) => {
   if (locals.isAdmin) redirect(303, '/admin/core');
-  const settings = await getSettings();
+  const settings = locals.settings;
   if (!locals.user) {
     const ip = getClientIp(
       request,

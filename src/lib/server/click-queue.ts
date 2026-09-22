@@ -1,6 +1,7 @@
+import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { randomUUID } from 'node:crypto';
-import { Op, type Transaction } from 'sequelize';
+import { Op, literal, type Transaction } from 'sequelize';
 import type { SiteSettings } from '$lib/config';
 import type { PluginState } from '$lib/plugin-contracts';
 import {
@@ -11,25 +12,10 @@ import {
   ShortLinkModel,
 } from './database';
 import { clientHintsFromHeaders } from './client-hints';
-import { writeClickAnalytics, type ClickAnalyticsRow } from './click-analytics';
 import { getClientIp } from './client-ip';
 import { getSettings } from './settings';
-import { recordClick } from './shortener';
 import { redisKey, redisSendCommand } from './redis';
 import { registerServerShutdownTask } from './shutdown';
-
-type QueuedClick = {
-  linkId: number;
-  requestUrl: string;
-  requestHeaders: Record<string, string>;
-  pluginStates: Record<string, PluginState>;
-  metadata: Record<string, unknown>;
-  ipAddress: string | null;
-  userAgent: string | null;
-  referer: string | null;
-  clickedAt: Date;
-  attempts: number;
-};
 
 type ClickMetadataCollector = (input: {
   request: Request;
@@ -44,18 +30,11 @@ const DB_QUEUE_BATCH_SIZE = numberEnv(
   1,
   5_000,
 );
-const MEMORY_BATCH_SIZE = numberEnv('CLICK_QUEUE_BATCH_SIZE', 5_000, 1, 20_000);
-const MEMORY_QUEUE_LIMIT = numberEnv(
-  'CLICK_QUEUE_MEMORY_LIMIT',
-  200_000,
-  1_000,
-  1_000_000,
-);
 const METADATA_CONCURRENCY = numberEnv(
   'CLICK_QUEUE_METADATA_CONCURRENCY',
-  128,
+  16,
   1,
-  1_024,
+  128,
 );
 const FLUSH_DELAY_MS = numberEnv('CLICK_QUEUE_FLUSH_MS', 10, 0, 1_000);
 const SHUTDOWN_DRAIN_MS = numberEnv(
@@ -71,7 +50,8 @@ const HEADER_BYTE_LIMIT = numberEnv(
   65_536,
 );
 const CLICK_HEADER_SKIP = new Set(['authorization', 'cookie']);
-const REDIS_QUEUE_ENABLED =
+// Drain streams left by older releases; all new clicks are committed to PostgreSQL.
+const LEGACY_REDIS_QUEUE =
   env.CLICK_QUEUE_BACKEND === 'redis' || env.CLICK_QUEUE_REDIS === 'true';
 const REDIS_STREAM_KEY = redisKey(
   env.CLICK_QUEUE_REDIS_STREAM?.trim() || 'click-events',
@@ -79,96 +59,28 @@ const REDIS_STREAM_KEY = redisKey(
 const REDIS_STREAM_GROUP =
   env.CLICK_QUEUE_REDIS_GROUP?.trim() || 'shortlink-click-writers';
 const REDIS_STREAM_CONSUMER =
-  env.CLICK_QUEUE_REDIS_CONSUMER?.trim() ||
-  `${process.pid}-${randomUUID().slice(0, 8)}`;
-const REDIS_STREAM_MAXLEN = numberEnv(
-  'CLICK_QUEUE_REDIS_MAXLEN',
-  1_000_000,
-  1_000,
-  100_000_000,
-);
-
-let memoryQueue: QueuedClick[] = [];
+  env.CLICK_QUEUE_REDIS_CONSUMER?.trim() || `${process.pid}-${randomUUID()}`;
+let redisGroupReady: Promise<void> | undefined;
+let reclaimCursor = '0-0';
 let drainTimer: NodeJS.Timeout | undefined;
 let draining: Promise<void> | undefined;
-let drainDeadline = Infinity;
 let shuttingDown = false;
-let overflowWarningAt = 0;
 let collectClickMetadata: ClickMetadataCollector = () => ({});
-let redisGroupReady: Promise<void> | undefined;
 
 export function setClickMetadataCollector(collector: ClickMetadataCollector) {
   collectClickMetadata = collector;
 }
 
 function numberEnv(name: string, fallback: number, min: number, max: number) {
-  const value = Number(env[name]);
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(value)));
+  const raw = env[name];
+  const value = raw?.trim() ? Number(raw) : NaN;
+  return Number.isFinite(value)
+    ? Math.max(min, Math.min(max, Math.trunc(value)))
+    : fallback;
 }
 
 function retryDelayMs(attempts: number) {
   return Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function serializeClick(item: QueuedClick) {
-  return JSON.stringify({
-    ...item,
-    clickedAt: item.clickedAt.toISOString(),
-  });
-}
-
-function parseQueuedClick(value: string): QueuedClick | null {
-  try {
-    const parsed = JSON.parse(value) as Omit<QueuedClick, 'clickedAt'> & {
-      clickedAt: string;
-    };
-    return {
-      ...parsed,
-      requestHeaders: metadataRecord(parsed.requestHeaders) as Record<
-        string,
-        string
-      >,
-      pluginStates: metadataRecord(parsed.pluginStates) as Record<
-        string,
-        PluginState
-      >,
-      metadata: metadataRecord(parsed.metadata),
-      ipAddress: parsed.ipAddress || null,
-      userAgent: parsed.userAgent || null,
-      referer: parsed.referer || null,
-      clickedAt: new Date(parsed.clickedAt),
-      attempts: Number.isSafeInteger(parsed.attempts) ? parsed.attempts : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function redisFieldValue(fields: unknown[], field: string) {
-  for (let index = 0; index < fields.length - 1; index += 2) {
-    if (String(fields[index]) === field) return String(fields[index + 1]);
-  }
-  return '';
-}
-
-async function ensureRedisGroup() {
-  if (!REDIS_QUEUE_ENABLED) return;
-  redisGroupReady ??= redisSendCommand(
-    ['XGROUP', 'CREATE', REDIS_STREAM_KEY, REDIS_STREAM_GROUP, '0', 'MKSTREAM'],
-    { throwOnError: true },
-  )
-    .then(() => undefined)
-    .catch((error: unknown) => {
-      if (String(error).includes('BUSYGROUP')) return;
-      redisGroupReady = undefined;
-      throw error;
-    });
-  await redisGroupReady;
 }
 
 function headersRecord(headers: Headers) {
@@ -185,9 +97,10 @@ function headersRecord(headers: Headers) {
   return result;
 }
 
-function requestForClick(
-  item: Pick<QueuedClick, 'requestUrl' | 'requestHeaders'>,
-) {
+function requestForClick(item: {
+  requestUrl: string;
+  requestHeaders: Record<string, string>;
+}) {
   try {
     return new Request(item.requestUrl, {
       headers: item.requestHeaders,
@@ -199,7 +112,9 @@ function requestForClick(
   }
 }
 
-function requestForQueueItem(item: ClickEventQueueModel) {
+function requestForQueueItem(
+  item: Pick<ClickEventQueueModel, 'requestUrl' | 'requestHeaders'>,
+) {
   return requestForClick({
     requestUrl: item.requestUrl,
     requestHeaders: item.requestHeaders,
@@ -217,50 +132,14 @@ function metadataRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-async function mapConcurrent<T, R>(
-  items: T[],
-  concurrency: number,
-  task: (item: T, index: number) => Promise<R>,
+async function metadataForQueueItem(
+  item: Pick<
+    ClickEventQueueModel,
+    'requestUrl' | 'requestHeaders' | 'ipAddress' | 'pluginStates' | 'metadata'
+  >,
+  settings: SiteSettings,
 ) {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-      while (next < items.length) {
-        const index = next;
-        next += 1;
-        results[index] = await task(items[index], index);
-      }
-    }),
-  );
-  return results;
-}
-
-async function metadataForClick(item: QueuedClick, settings: SiteSettings) {
-  const request = requestForClick(item);
-  try {
-    return {
-      ...clientHintMetadata(request),
-      ...(await collectClickMetadata({
-        request,
-        ip: item.ipAddress ?? '',
-        states: item.pluginStates,
-        settings,
-      })),
-      ...metadataRecord(item.metadata),
-    };
-  } catch (error) {
-    console.error('An error occurred while collecting click metadata.', error);
-    return {
-      ...clientHintMetadata(request),
-      ...metadataRecord(item.metadata),
-    };
-  }
-}
-
-async function metadataForQueueItem(item: ClickEventQueueModel) {
   const request = requestForQueueItem(item);
-  const settings = await getSettings();
   try {
     return {
       ...clientHintMetadata(request),
@@ -281,359 +160,370 @@ async function metadataForQueueItem(item: ClickEventQueueModel) {
   }
 }
 
-function latestClickTimes(items: QueuedClick[]) {
-  const times = new Map<number, Date>();
-  for (const item of items) {
-    const current = times.get(item.linkId);
-    if (!current || item.clickedAt > current) {
-      times.set(item.linkId, item.clickedAt);
-    }
-  }
-  return times;
-}
-
-async function existingLinkIds(linkIds: number[]) {
-  if (linkIds.length === 0) return new Set<number>();
-  const rows = (await ShortLinkModel.findAll({
-    attributes: ['id'],
-    where: { id: { [Op.in]: [...new Set(linkIds)] } },
-    raw: true,
-  })) as unknown as Array<{ id: number }>;
-  return new Set(rows.map((row) => Number(row.id)));
-}
-
-async function updateLastClickedAt(
-  items: QueuedClick[],
-  transaction: Transaction,
-) {
-  const grouped = [...latestClickTimes(items).entries()];
-  if (grouped.length === 0) return;
-
-  const sequelize = getDatabase();
-  const values = grouped.map(([linkId, lastClickedAt]) =>
-    [Number(linkId), `${sequelize.escape(lastClickedAt)}::timestamptz`].join(
-      ',',
-    ),
-  );
-
-  await sequelize.query(
-    `
-      UPDATE short_links AS target
-      SET
-        last_clicked_at = CASE
-          WHEN target.last_clicked_at IS NULL
-            OR target.last_clicked_at < source.last_clicked_at
-          THEN source.last_clicked_at
-          ELSE target.last_clicked_at
-        END
-      FROM (
-        VALUES ${values.map((value) => `(${value})`).join(',')}
-      ) AS source(id, last_clicked_at)
-      WHERE target.id = source.id
-    `,
-    { transaction },
-  );
-}
-
-async function flushMemoryBatch(batch: QueuedClick[]) {
-  await ensureDatabase();
-  const linkIds = await existingLinkIds(batch.map((item) => item.linkId));
-  const items = batch.filter((item) => linkIds.has(item.linkId));
-  if (items.length === 0) return;
-
-  const settings = await getSettings();
-  const rows: Omit<ClickAnalyticsRow, 'eventId'>[] = await mapConcurrent(
-    items,
-    METADATA_CONCURRENCY,
-    async (item) => ({
-      linkId: item.linkId,
-      createdAt: item.clickedAt,
-      ipAddress: item.ipAddress,
-      userAgent: item.userAgent,
-      referer: item.referer,
-      metadata: await metadataForClick(item, settings),
-    }),
-  );
-
-  const transaction = await getDatabase().transaction();
-  try {
-    const createdClicks = await ClickEventModel.bulkCreate(rows, {
-      validate: false,
-      transaction,
-      returning: true,
-    });
-    const analyticsRows = rows.map((row, index) => ({
-      ...row,
-      eventId: Number(createdClicks[index]?.id ?? 0),
-    }));
-    await updateLastClickedAt(items, transaction);
-    await transaction.commit();
-    await writeClickAnalytics(analyticsRows);
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
-  }
-}
-
-async function processQueueItem(item: ClickEventQueueModel) {
-  await recordClick(item.linkId, {
-    queueId: item.id,
-    ip: item.ipAddress,
-    userAgent: item.userAgent,
-    referer: item.referer,
-    metadata: await metadataForQueueItem(item),
-  });
-  await item.destroy();
-}
-
-async function scheduleNextPendingAttempt() {
-  const next = await ClickEventQueueModel.findOne({
-    order: [
-      ['nextAttemptAt', 'ASC'],
-      ['id', 'ASC'],
-    ],
-  });
-  if (!next) return;
-
-  scheduleDrain(Math.max(0, next.nextAttemptAt.getTime() - Date.now()));
-}
-
-async function processDueDatabaseQueue(deadline = Infinity) {
-  while (Date.now() < Math.min(deadline, drainDeadline)) {
-    const items = await ClickEventQueueModel.findAll({
-      where: {
-        nextAttemptAt: { [Op.lte]: new Date() },
-      },
-      order: [['id', 'ASC']],
-      limit: DB_QUEUE_BATCH_SIZE,
-    });
-    if (items.length === 0) {
-      await scheduleNextPendingAttempt();
-      return;
-    }
-
-    for (const item of items) {
-      if (Date.now() >= Math.min(deadline, drainDeadline)) return;
-
-      try {
-        await processQueueItem(item);
-      } catch (error) {
-        const attempts = item.attempts + 1;
-        const delay = retryDelayMs(attempts);
-        await item.update({
-          attempts,
-          lastError: errorMessage(error).slice(0, 2_000),
-          nextAttemptAt: new Date(Date.now() + delay),
-        });
-        scheduleDrain(delay);
-      }
-    }
-
-    if (items.length < DB_QUEUE_BATCH_SIZE) return;
-  }
-}
-
-function requeueFailedBatch(batch: QueuedClick[]) {
-  const attempts = Math.max(...batch.map((item) => item.attempts)) + 1;
-  const delay = retryDelayMs(attempts);
-  for (const item of batch) item.attempts = attempts;
-  memoryQueue = [...batch, ...memoryQueue];
-  scheduleDrain(delay);
-}
-
-async function processMemoryQueue(deadline = Infinity) {
-  while (
-    memoryQueue.length > 0 &&
-    Date.now() < Math.min(deadline, drainDeadline)
-  ) {
-    const batch = memoryQueue.splice(0, MEMORY_BATCH_SIZE);
-    try {
-      await flushMemoryBatch(batch);
-    } catch (error) {
-      console.error('An error occurred while flushing click events.', error);
-      requeueFailedBatch(batch);
-      return;
-    }
-  }
-}
-
-async function enqueueRedisClick(item: QueuedClick) {
-  const result = await redisSendCommand([
-    'XADD',
-    REDIS_STREAM_KEY,
-    'MAXLEN',
-    '~',
-    String(REDIS_STREAM_MAXLEN),
-    '*',
-    'payload',
-    serializeClick(item),
-  ]);
-  if (result) {
-    scheduleDrain(0);
-    return;
-  }
-
-  console.error('Could not enqueue click in Redis; using memory queue.');
-  memoryQueue.push(item);
-  scheduleDrain(0);
-}
-
-async function readRedisClickBatch() {
-  await ensureRedisGroup();
-  const result = (await redisSendCommand([
-    'XREADGROUP',
-    'GROUP',
-    REDIS_STREAM_GROUP,
-    REDIS_STREAM_CONSUMER,
-    'COUNT',
-    String(MEMORY_BATCH_SIZE),
-    'STREAMS',
-    REDIS_STREAM_KEY,
-    '>',
-  ])) as unknown;
-  if (!Array.isArray(result)) return [];
-
-  const stream = result[0];
-  if (!Array.isArray(stream) || !Array.isArray(stream[1])) return [];
-  return stream[1].flatMap(
-    (message): Array<{ id: string; item: QueuedClick }> => {
-      if (!Array.isArray(message) || !Array.isArray(message[1])) return [];
-      const id = String(message[0]);
-      const payload = redisFieldValue(message[1], 'payload');
-      const item = payload ? parseQueuedClick(payload) : null;
-      return item ? [{ id, item }] : [];
-    },
-  );
-}
-
-async function ackRedisClicks(ids: string[]) {
-  if (ids.length === 0) return;
-  await redisSendCommand([
-    'XACK',
-    REDIS_STREAM_KEY,
-    REDIS_STREAM_GROUP,
-    ...ids,
-  ]);
-}
-
-async function processRedisQueue(deadline = Infinity) {
-  if (!REDIS_QUEUE_ENABLED) return;
-
-  while (Date.now() < Math.min(deadline, drainDeadline)) {
-    const entries = await readRedisClickBatch();
-    if (entries.length === 0) return;
-
-    await flushMemoryBatch(entries.map((entry) => entry.item));
-    await ackRedisClicks(entries.map((entry) => entry.id));
-  }
-}
-
-async function processDueQueue(deadline = Infinity) {
-  await ensureDatabase();
-  await processMemoryQueue(deadline);
-  if (memoryQueue.length > 0) return;
-  await processRedisQueue(deadline);
-  await processDueDatabaseQueue(deadline);
-}
-
-function scheduleDrain(delayMs = FLUSH_DELAY_MS) {
-  if (shuttingDown || drainTimer) return;
-
-  drainTimer = setTimeout(() => {
-    drainTimer = undefined;
-    draining = processDueQueue()
-      .catch((error: unknown) => {
-        console.error(
-          'An error occurred while processing the click queue.',
-          error,
-        );
-        scheduleDrain(retryDelayMs(1));
-      })
-      .finally(() => {
-        draining = undefined;
-        if (memoryQueue.length > 0) scheduleDrain(0);
-      });
-  }, delayMs);
-  drainTimer.unref?.();
-}
-
-function delay(ms: number) {
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    timer.unref?.();
-  });
-}
-
-export function enqueueClick(input: {
+export async function enqueueClick(input: {
   linkId: number;
   request: Request;
   getClientAddress: () => string;
   settings: SiteSettings;
   metadata?: Record<string, unknown>;
-}) {
-  const ip = getClientIp(
-    input.request,
-    input.getClientAddress,
-    input.settings.network.trustProxyHeaders,
-    input.settings.network.proxyIpHeaders,
-  );
-  const item: QueuedClick = {
-    linkId: input.linkId,
-    requestUrl: input.request.url,
-    requestHeaders: headersRecord(input.request.headers),
-    pluginStates: input.settings.plugins,
-    metadata: metadataRecord(input.metadata),
-    ipAddress: ip || null,
-    userAgent: input.request.headers.get('user-agent')?.slice(0, 1_000) ?? null,
-    referer: input.request.headers.get('referer')?.slice(0, 2_000) ?? null,
-    clickedAt: new Date(),
-    attempts: 0,
+}): Promise<'accepted' | 'not_found' | 'maxClicks'> {
+  await ensureDatabase();
+  const accept = async (transaction?: Transaction) => {
+    // The conditional UPDATE takes the row lock and rechecks the quota after waiting.
+    const [reserved] = await ShortLinkModel.update(
+      { redirectCount: literal('redirect_count + 1') },
+      {
+        where: {
+          id: input.linkId,
+          [Op.or]: [
+            { maxClicks: { [Op.lte]: 0 } },
+            literal('redirect_count < max_clicks'),
+          ],
+        },
+        transaction,
+      },
+    );
+    if (!reserved) {
+      const link = await ShortLinkModel.findByPk(input.linkId, {
+        attributes: ['id'],
+        transaction,
+      });
+      return link ? ('maxClicks' as const) : ('not_found' as const);
+    }
+    if (input.settings.links.trackClicks) {
+      const ip = getClientIp(
+        input.request,
+        input.getClientAddress,
+        input.settings.network.trustProxyHeaders,
+        input.settings.network.proxyIpHeaders,
+      );
+      await ClickEventQueueModel.create(
+        {
+          linkId: input.linkId,
+          requestUrl: input.request.url,
+          requestHeaders: headersRecord(input.request.headers),
+          pluginStates: input.settings.plugins,
+          metadata: metadataRecord(input.metadata),
+          ipAddress: ip || null,
+          userAgent:
+            input.request.headers.get('user-agent')?.slice(0, 1_000) ?? null,
+          referer:
+            input.request.headers.get('referer')?.slice(0, 2_000) ?? null,
+          lastError: null,
+        },
+        { transaction },
+      );
+    }
+    return 'accepted' as const;
   };
+  // Without analytics there is only one write, already atomic in PostgreSQL.
+  const result = input.settings.links.trackClicks
+    ? await getDatabase().transaction(accept)
+    : await accept();
+  if (result === 'accepted') scheduleDrain(FLUSH_DELAY_MS);
+  return result;
+}
 
-  if (REDIS_QUEUE_ENABLED) {
-    void enqueueRedisClick(item);
-    return;
+async function processQueueBatch(items: ClickEventQueueModel[]) {
+  const settings = await getSettings();
+  const metadata = new Map<string, Record<string, unknown>>();
+  // Collect external metadata before taking locks, with bounded network concurrency.
+  for (let offset = 0; offset < items.length; offset += METADATA_CONCURRENCY) {
+    await Promise.all(
+      items.slice(offset, offset + METADATA_CONCURRENCY).map(async (item) => {
+        metadata.set(
+          String(item.id),
+          await metadataForQueueItem(item, settings),
+        );
+      }),
+    );
   }
+  const parentIds = [...new Set(items.map((item) => item.linkId))];
+  const result = await getDatabase().transaction(async (transaction) => {
+    // Parent first, sorted: same order as link/account deletion. Busy parents are
+    // left to the next pass instead of making every worker wait on the same link.
+    const links = await ShortLinkModel.findAll({
+      attributes: ['id'],
+      where: { id: parentIds },
+      order: [['id', 'ASC']],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+      skipLocked: true,
+    });
+    if (links.length === 0)
+      return {
+        count: 0,
+        skippedLinkIds: parentIds,
+      };
+    const lockedIds = new Set(links.map((link) => link.id));
+    const skippedLinkIds = parentIds.filter((id) => !lockedIds.has(id));
+    const pending = await ClickEventQueueModel.findAll({
+      where: {
+        id: items.map((item) => item.id),
+        linkId: links.map((link) => link.id),
+      },
+      order: [['id', 'ASC']],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+      skipLocked: true,
+    });
+    if (pending.length === 0)
+      return {
+        count: 0,
+        skippedLinkIds: parentIds,
+      };
+    const ids = pending.map((item) => item.id);
+    await ClickEventModel.bulkCreate(
+      pending.map((item) => ({
+        queueId: item.id,
+        linkId: item.linkId,
+        createdAt: item.createdAt,
+        ipAddress: item.ipAddress,
+        userAgent: item.userAgent,
+        referer: item.referer,
+        metadata:
+          metadata.get(String(item.id)) ?? metadataRecord(item.metadata),
+      })),
+      {
+        transaction,
+        updateOnDuplicate: ['queueId'],
+        conflictAttributes: ['queueId'],
+        returning: false,
+      },
+    );
+    await getDatabase().query(
+      `
+      UPDATE short_links AS link
+      SET last_clicked_at = GREATEST(link.last_clicked_at, batch.clicked_at)
+      FROM (
+        SELECT link_id, max(created_at) AS clicked_at
+        FROM click_events WHERE queue_id = ANY(CAST($ids AS bigint[])) GROUP BY link_id
+      ) AS batch
+      WHERE link.id = batch.link_id
+    `,
+      { bind: { ids }, transaction },
+    );
+    await ClickEventQueueModel.destroy({ where: { id: ids }, transaction });
+    return { count: pending.length, skippedLinkIds };
+  });
+  return { count: result.count, skippedLinkIds: result.skippedLinkIds };
+}
 
-  memoryQueue.push(item);
-
-  if (memoryQueue.length > MEMORY_QUEUE_LIMIT) {
-    const now = Date.now();
-    if (now - overflowWarningAt > 10_000) {
-      overflowWarningAt = now;
-      console.warn(
-        `Click queue contains ${memoryQueue.length} items; consider scaling workers or raising database throughput.`,
+async function processLegacyRedisQueue() {
+  if (!LEGACY_REDIS_QUEUE) return;
+  redisGroupReady ??= redisSendCommand(
+    ['XGROUP', 'CREATE', REDIS_STREAM_KEY, REDIS_STREAM_GROUP, '0', 'MKSTREAM'],
+    { throwOnError: true },
+  )
+    .then(() => undefined)
+    .catch((error: unknown) => {
+      if (String(error).includes('BUSYGROUP')) return;
+      redisGroupReady = undefined;
+      throw error;
+    });
+  await redisGroupReady;
+  const claimed = await redisSendCommand(
+    [
+      'XAUTOCLAIM',
+      REDIS_STREAM_KEY,
+      REDIS_STREAM_GROUP,
+      REDIS_STREAM_CONSUMER,
+      '60000',
+      reclaimCursor,
+      'COUNT',
+      String(DB_QUEUE_BATCH_SIZE),
+    ],
+    { throwOnError: true },
+  );
+  let messages: unknown[] = [];
+  if (Array.isArray(claimed)) {
+    reclaimCursor = String(claimed[0]);
+    if (Array.isArray(claimed[1])) messages = claimed[1];
+  }
+  if (messages.length === 0) {
+    const next = await redisSendCommand(
+      [
+        'XREADGROUP',
+        'GROUP',
+        REDIS_STREAM_GROUP,
+        REDIS_STREAM_CONSUMER,
+        'COUNT',
+        String(DB_QUEUE_BATCH_SIZE),
+        'STREAMS',
+        REDIS_STREAM_KEY,
+        '>',
+      ],
+      { throwOnError: true },
+    );
+    if (
+      Array.isArray(next) &&
+      Array.isArray(next[0]) &&
+      Array.isArray(next[0][1])
+    )
+      messages = next[0][1];
+  }
+  const settings = messages.length > 0 ? await getSettings() : null;
+  for (const message of messages) {
+    if (!Array.isArray(message) || !Array.isArray(message[1])) continue;
+    const id = String(message[0]);
+    try {
+      const fields: unknown[] = message[1];
+      const payloadIndex = fields.findIndex(
+        (field, index) => index % 2 === 0 && String(field) === 'payload',
+      );
+      if (payloadIndex < 0)
+        throw new Error(`Legacy click ${id} has no payload.`);
+      const value = JSON.parse(String(fields[payloadIndex + 1])) as Record<
+        string,
+        unknown
+      >;
+      const linkId = Number(value.linkId);
+      const createdAt = new Date(String(value.clickedAt));
+      if (
+        !Number.isSafeInteger(linkId) ||
+        linkId <= 0 ||
+        Number.isNaN(createdAt.getTime())
+      ) {
+        throw new Error(`Legacy click ${id} has invalid link or timestamp.`);
+      }
+      const sourceId = `${REDIS_STREAM_KEY}:${id}`;
+      const metadata = await metadataForQueueItem(
+        {
+          requestUrl:
+            typeof value.requestUrl === 'string'
+              ? value.requestUrl
+              : 'http://localhost/',
+          requestHeaders: metadataRecord(value.requestHeaders) as Record<
+            string,
+            string
+          >,
+          ipAddress:
+            typeof value.ipAddress === 'string' ? value.ipAddress : null,
+          pluginStates: metadataRecord(value.pluginStates),
+          metadata: metadataRecord(value.metadata),
+        },
+        settings!,
+      );
+      await getDatabase().transaction(async (transaction) => {
+        const link = await ShortLinkModel.findByPk(linkId, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        if (!link) return null;
+        if (await ClickEventModel.findOne({ where: { sourceId }, transaction }))
+          return null;
+        await ClickEventModel.create(
+          {
+            sourceId,
+            linkId,
+            createdAt,
+            ipAddress:
+              typeof value.ipAddress === 'string' ? value.ipAddress : null,
+            userAgent:
+              typeof value.userAgent === 'string' ? value.userAgent : null,
+            referer: typeof value.referer === 'string' ? value.referer : null,
+            metadata,
+          },
+          { transaction },
+        );
+        await link.increment('redirectCount', { transaction });
+        if (!link.lastClickedAt || link.lastClickedAt < createdAt) {
+          await link.update({ lastClickedAt: createdAt }, { transaction });
+        }
+      });
+      await redisSendCommand(
+        ['XACK', REDIS_STREAM_KEY, REDIS_STREAM_GROUP, id],
+        { throwOnError: true },
+      );
+    } catch (error) {
+      console.error(
+        `Could not import legacy click ${id}; retained for retry.`,
+        error,
       );
     }
   }
+}
 
-  scheduleDrain(memoryQueue.length >= MEMORY_BATCH_SIZE ? 0 : FLUSH_DELAY_MS);
+export async function processClickQueue(deadline = Infinity) {
+  await ensureDatabase();
+  const skippedLinkIds = new Set<number>();
+  while (Date.now() < deadline) {
+    const items = await ClickEventQueueModel.findAll({
+      where: {
+        nextAttemptAt: { [Op.lte]: new Date() },
+        ...(skippedLinkIds.size > 0
+          ? { linkId: { [Op.notIn]: [...skippedLinkIds] } }
+          : {}),
+      },
+      order: [
+        ['nextAttemptAt', 'ASC'],
+        ['id', 'ASC'],
+      ],
+      limit: DB_QUEUE_BATCH_SIZE,
+    });
+    if (items.length === 0) break;
+    if (Date.now() >= deadline) return;
+    try {
+      const result = await processQueueBatch(items);
+      for (const id of result.skippedLinkIds) skippedLinkIds.add(id);
+    } catch (batchError) {
+      // Isolate a malformed event so it cannot indefinitely block healthy siblings.
+      // The ordinary path still commits the entire batch in one transaction.
+      for (const item of items) {
+        if (Date.now() >= deadline) return;
+        try {
+          if (items.length === 1) throw batchError;
+          const result = await processQueueBatch([item]);
+          for (const id of result.skippedLinkIds) skippedLinkIds.add(id);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          await ClickEventQueueModel.update(
+            {
+              attempts: literal('attempts + 1'),
+              lastError: message.slice(0, 2_000),
+              nextAttemptAt: new Date(
+                Date.now() + retryDelayMs(item.attempts + 1),
+              ),
+            },
+            { where: { id: item.id } },
+          );
+        }
+      }
+    }
+  }
+  if (Date.now() < deadline) await processLegacyRedisQueue();
+}
+
+function scheduleDrain(delayMs = 1_000) {
+  if (building || shuttingDown || drainTimer || draining) return;
+  drainTimer = setTimeout(() => {
+    drainTimer = undefined;
+    draining = processClickQueue()
+      .catch((error: unknown) => {
+        console.error('Could not process the durable click queue.', error);
+      })
+      .finally(() => {
+        draining = undefined;
+        scheduleDrain();
+      });
+  }, delayMs);
+  drainTimer.unref?.();
 }
 
 registerServerShutdownTask(async () => {
   shuttingDown = true;
+  if (drainTimer) clearTimeout(drainTimer);
   const deadline = Date.now() + SHUTDOWN_DRAIN_MS;
-  drainDeadline = deadline;
-
-  if (drainTimer) {
-    clearTimeout(drainTimer);
-    drainTimer = undefined;
-  }
-
-  if (draining) {
-    await Promise.race([draining, delay(Math.max(0, deadline - Date.now()))]);
-  }
-
-  try {
-    if (!draining && Date.now() < deadline) {
-      await processDueQueue(deadline);
-    }
-  } catch (error) {
-    console.error(
-      'Could not finish processing the click queue before shutdown.',
-      error,
-    );
+  // Unprocessed rows survive shutdown and are picked up by the next worker.
+  if (!draining && Date.now() < deadline) {
+    await processClickQueue(deadline).catch((error: unknown) => {
+      console.error(
+        'Could not finish processing the durable click queue.',
+        error,
+      );
+    });
   }
 });
 
-scheduleDrain(1_000);
+scheduleDrain();

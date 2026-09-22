@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({
   request,
 }) => {
   if (locals.user) redirect(303, '/account');
-  const settings = await getSettings();
+  const settings = locals.settings;
   const permissions = await effectivePermissionsForEvent({
     locals,
     request,

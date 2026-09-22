@@ -25,6 +25,7 @@ export class ShortLinkModel extends Model<
   declare lastClickedAt: Date | null;
   declare expiresAt: Date | null;
   declare maxClicks: CreationOptional<number>;
+  declare redirectCount: CreationOptional<number>;
   declare passwordHash: string | null;
   declare passwordSalt: string | null;
   declare redirectRules: CreationOptional<Record<string, unknown>[]>;
@@ -97,6 +98,11 @@ export function initShortLinkModel(sequelize: Sequelize) {
       expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
+      },
+      redirectCount: {
+        type: DataTypes.BIGINT,
+        allowNull: false,
+        defaultValue: 0,
       },
       maxClicks: {
         type: DataTypes.INTEGER,

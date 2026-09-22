@@ -783,6 +783,8 @@ const ko = {
     },
   },
   messages: {
+    settingsChanged:
+      '다른 요청이 설정을 변경했습니다. 새로고침 후 다시 저장해주세요.',
     createDisabledTitle: '지금은 링크를 만들 수 없습니다.',
     createDisabledDetail: '현재 사이트에서는 새 링크 생성을 받지 않습니다.',
     createPrivateDeniedTitle: '현재 접속 환경에서는 링크를 만들 수 없습니다.',
@@ -943,6 +945,8 @@ const ko = {
     passwordChangeFailed: '비밀번호를 변경하지 못했습니다.',
     passwordDeleted: '비밀번호를 삭제했습니다.',
     passwordDeleteFailed: '비밀번호를 삭제하지 못했습니다.',
+    lastLoginMethodRemovalDenied:
+      '마지막 로그인 수단은 삭제할 수 없습니다. 다른 로그인 수단을 먼저 추가하세요.',
     passwordDeleteAlternativeRequired:
       '비밀번호를 삭제하려면 먼저 Passkey를 등록하거나 외부 로그인 계정을 연결해야 합니다.',
     otherSessionsLoggedOut:

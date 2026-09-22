@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { QueryTypes } from 'sequelize';
+import { ensureDatabase, getDatabase } from '$lib/server/database';
 import { authenticateApiToken } from '$lib/server/api-tokens';
 import type { PluginDefinition } from '$lib/plugin-contracts';
 import type { SiteLocale } from '$lib/config';
@@ -23,11 +25,8 @@ type Bucket = {
 type Match = {
   rule: RateLimitRule;
   key: string;
-  bucket: Bucket;
-  remaining: number;
 };
 
-const buckets = new Map<string, Bucket>();
 const patternRegexCache = new Map<string, RegExp>();
 const rawRegexCache = new Map<string, RegExp>();
 let lastCleanupAt = 0;
@@ -181,12 +180,14 @@ function ruleCouldNeedApiPrincipal(input: {
   });
 }
 
-function cleanupBuckets(now: number) {
+async function cleanupBuckets(now: number) {
   if (now - lastCleanupAt < 60_000) return;
+  await getDatabase().query(`
+    DELETE FROM auth_request_limits
+    WHERE kind = 'plugin-rate-limit'
+      AND updated_at < clock_timestamp() - interval '7 days'
+  `);
   lastCleanupAt = now;
-  for (const [key, bucket] of buckets) {
-    if (bucket.resetAt <= now) buckets.delete(key);
-  }
 }
 
 function matchedRules(input: {
@@ -197,7 +198,6 @@ function matchedRules(input: {
   apiTokenHash: string;
   isAdminApiToken: boolean;
   ip: string;
-  now: number;
 }) {
   const matches: Match[] = [];
 
@@ -205,8 +205,8 @@ function matchedRules(input: {
     if (!rule.enabled) continue;
     if (!ruleMatches({ ...input, rule })) continue;
 
-    const identity = rule.scope
-      .map((part) =>
+    const identity = JSON.stringify(
+      rule.scope.map((part) =>
         scopeValue({
           part,
           event: input.event,
@@ -214,22 +214,10 @@ function matchedRules(input: {
           apiTokenHash: input.apiTokenHash,
           ip: input.ip,
         }),
-      )
-      .join('|');
-    const key = `${rule.id}:${hashValue(identity)}`;
-    const windowMs = rule.windowSeconds * 1000;
-    const existing = buckets.get(key);
-    const bucket =
-      existing && existing.resetAt > input.now
-        ? existing
-        : { count: 0, resetAt: input.now + windowMs };
-    buckets.set(key, bucket);
-    matches.push({
-      rule,
-      key,
-      bucket,
-      remaining: Math.max(0, rule.limit - bucket.count - 1),
-    });
+      ),
+    );
+    const key = hashValue(JSON.stringify([rule.id, identity]));
+    matches.push({ rule, key });
   }
 
   return matches;
@@ -237,7 +225,7 @@ function matchedRules(input: {
 
 function rateLimitResponse(input: {
   message: string;
-  match: Match;
+  match: Match & { bucket: Bucket };
   now: number;
 }) {
   const retryAfterSeconds = Math.max(
@@ -269,8 +257,6 @@ function rateLimitResponse(input: {
 const server: Partial<PluginDefinition> = {
   async handleRequest({ event, state, user, isAdmin, ip }) {
     const config = normalizeRateLimitConfig(state.config);
-    const now = Date.now();
-    cleanupBuckets(now);
 
     const token = bearerToken(event.request);
     const apiTokenHash = token ? hashValue(token) : '';
@@ -295,21 +281,53 @@ const server: Partial<PluginDefinition> = {
       apiTokenHash,
       isAdminApiToken: apiPrincipal?.isAdmin === true,
       ip,
-      now,
     });
-    const blocked = matches.find(
-      (match) => match.bucket.count + 1 > match.rule.limit,
-    );
-    if (blocked) {
-      return rateLimitResponse({
-        message: localizedResponseMessage(config, event.locals.locale),
-        match: blocked,
-        now,
+    if (matches.length === 0) return null;
+    await ensureDatabase();
+    await cleanupBuckets(Date.now());
+    try {
+      // Lock overlapping rules in a stable order; rejection rolls back all counters.
+      await getDatabase().transaction(async (transaction) => {
+        for (const match of matches.sort((left, right) =>
+          left.key.localeCompare(right.key),
+        )) {
+          const [bucket] = await getDatabase().query<Bucket>(
+            `
+            INSERT INTO auth_request_limits
+              (kind, identifier_hash, date_key, count, updated_at)
+            VALUES ('plugin-rate-limit', $key, '', 1, clock_timestamp())
+            ON CONFLICT (kind, identifier_hash, date_key) DO UPDATE SET
+              count = CASE
+                WHEN auth_request_limits.updated_at + $windowSeconds * interval '1 second' <= clock_timestamp()
+                  THEN 1
+                ELSE auth_request_limits.count + 1
+              END,
+              updated_at = CASE
+                WHEN auth_request_limits.updated_at + $windowSeconds * interval '1 second' <= clock_timestamp()
+                  THEN clock_timestamp()
+                ELSE auth_request_limits.updated_at
+              END
+            RETURNING count,
+              EXTRACT(EPOCH FROM (updated_at + $windowSeconds * interval '1 second')) * 1000 AS "resetAt"
+          `,
+            {
+              bind: { key: match.key, windowSeconds: match.rule.windowSeconds },
+              type: QueryTypes.SELECT,
+              transaction,
+            },
+          );
+          if (bucket.count > match.rule.limit) {
+            throw rateLimitResponse({
+              message: localizedResponseMessage(config, event.locals.locale),
+              match: { ...match, bucket },
+              now: Date.now(),
+            });
+          }
+        }
       });
-    }
-
-    for (const match of matches) {
-      match.bucket.count += 1;
+    } catch (error) {
+      if (error instanceof Response) return error;
+      throw error;
     }
 
     return null;

@@ -47,19 +47,14 @@ const plugin: PluginDefinition = {
         'admin.oauthMetadataSource': 'OAuth metadata source',
         'admin.oauthMetadataManual': '수동 endpoint',
         'admin.oauthMetadataUrlSource': 'Metadata URL',
-        'admin.oauthMetadataProfileLink': 'Profile link discovery',
         'admin.oauthMetadataUrl': 'OAuth metadata URL',
         'admin.oauthMetadataUrlPlaceholder':
           'https://example.com/.well-known/oauth-authorization-server',
         'admin.authorizationEndpoint': 'Authorization endpoint',
         'admin.tokenEndpoint': 'Token endpoint',
         'admin.tokenEndpointHint':
-          'Scopes가 비어 있으면 IndieAuth 로그인 전용 흐름으로 authorization endpoint에 code exchange를 보냅니다.',
+          'Authorization code는 scopes 설정과 관계없이 token endpoint에서 교환합니다.',
         'admin.userInfoEndpoint': 'UserInfo endpoint',
-        'admin.metadataLinkRel': 'Metadata link rel',
-        'admin.metadataLinkRelPlaceholder': 'metadata-rel',
-        'admin.authorizationEndpointRel': 'Authorization endpoint link rel',
-        'admin.tokenEndpointRel': 'Token endpoint link rel',
         'admin.clientId': 'Client ID',
         'admin.clientIdHint': 'OAuth/OIDC client_id입니다.',
         'admin.clientSecret': 'Client Secret',
@@ -72,10 +67,10 @@ const plugin: PluginDefinition = {
           'none으로 저장하면 기존 Client Secret은 삭제됩니다.',
         'admin.scopes': 'Scopes',
         'admin.scopesHint':
-          'Generic OAuth2/IndieAuth에서 access token이 필요 없으면 비워두세요.',
+          '프로바이더가 요구하는 scope를 입력하세요. 비워두면 scope parameter를 보내지 않습니다.',
         'admin.allowedEmailDomains': '허용 이메일 도메인',
         'admin.authorizationHintParameter': 'Authorization hint parameter',
-        'admin.authorizationHintParameterPlaceholder': 'me',
+        'admin.authorizationHintParameterPlaceholder': 'login_hint',
         'admin.authorizationRequestQuery': '추가 authorization 쿼리스트링',
         'admin.authorizationRequestQueryHelp':
           '브라우저를 authorization endpoint로 보낼 때 추가할 query parameter입니다. key=value 형식으로 줄마다 하나씩 입력하거나 &로 구분하세요.',
@@ -89,13 +84,12 @@ const plugin: PluginDefinition = {
         'admin.extraRequestHeadersHelp':
           '서버가 discovery, token, UserInfo 요청을 보낼 때 추가할 HTTP 헤더입니다. Header | Value 형식으로 줄마다 하나씩 입력하세요.',
         'admin.loginInputName': '로그인 입력 필드 이름',
-        'admin.loginInputNamePlaceholder': 'me',
+        'admin.loginInputNamePlaceholder': 'login_hint',
         'admin.loginInputLabel': '로그인 입력 라벨',
         'admin.loginInputPlaceholder': '로그인 입력 placeholder',
         'admin.loginInputDefault': '로그인 입력 기본값',
         'admin.loginInputHelp': '로그인 입력 도움말',
         'admin.loginInputRequired': '로그인 입력 필수',
-        'admin.loginInputUrlCanonicalization': '입력값을 http(s) URL로 정규화',
         'admin.subjectPath': 'Subject JSON path',
         'admin.emailPath': 'Email JSON path',
         'admin.emailVerifiedPath': 'Email verified JSON path',
@@ -116,10 +110,6 @@ const plugin: PluginDefinition = {
         'admin.emailTrustDisabledConfirm': '검증 없이 저장',
         'admin.emailTrustDisabledConsent':
           '이 프로바이더의 이메일 주소를 사이트가 항상 신뢰한다는 점을 이해했습니다.',
-        'admin.subjectVerification': 'Subject 검증',
-        'admin.subjectVerificationNone': '검증 안 함',
-        'admin.subjectVerificationAuthorizationEndpoint':
-          'Subject URL이 같은 authorization endpoint를 선언해야 함',
         'admin.validateAndSave': '검증 후 저장',
         'admin.delete': '삭제',
         'admin.deleteProviderTitle': '{name} 프로바이더를 삭제할까요?',
@@ -208,20 +198,17 @@ const plugin: PluginDefinition = {
         'auth.providerReauthentication': '{nameWithJosa} 인증',
         'auth.identifierDefaultLabel': '{name}',
         'auth.loginInputRequired': '로그인 입력값이 필요합니다.',
-        'auth.loginInputUrlInvalid':
-          '로그인 입력값은 올바른 http(s) URL이어야 합니다.',
         'auth.oauthMetadataInvalid': 'OAuth metadata 응답이 올바르지 않습니다.',
-        'auth.oauthDiscoveryFailed': 'OAuth metadata discovery에 실패했습니다.',
         'auth.oauthAuthorizationEndpointMissing':
           'OAuth authorization endpoint를 찾을 수 없습니다.',
+        'auth.oauthTokenEndpointMissing':
+          'OAuth token endpoint를 찾을 수 없습니다.',
         'auth.oauthCodeMissing':
           'OAuth callback에 authorization code가 없습니다.',
         'auth.stateMismatch': 'state 값이 일치하지 않습니다.',
         'auth.oauthFlowMissing': 'OAuth 로그인 상태가 올바르지 않습니다.',
         'auth.oauthTokenResponseInvalid':
           'OAuth token 응답이 올바르지 않습니다.',
-        'auth.subjectVerificationFailed':
-          '반환된 subject가 같은 authorization endpoint를 선언하지 않습니다.',
         'server.hexColorFormat': '{label}은 #RRGGBB 형식이어야 합니다.',
         'server.loginButtonColorLabel': '로그인 버튼 색상',
         'server.loginButtonTextColorLabel': '로그인 버튼 텍스트 색상',
@@ -239,12 +226,11 @@ const plugin: PluginDefinition = {
           'Authorization endpoint는 http(s) URL이어야 합니다.',
         'server.authorizationEndpointRequired':
           'Authorization endpoint가 필요합니다.',
+        'server.tokenEndpointRequired': 'Token endpoint가 필요합니다.',
         'server.tokenEndpointInvalid':
           'Token endpoint는 http(s) URL이어야 합니다.',
         'server.userInfoEndpointInvalid':
           'UserInfo endpoint는 http(s) URL이어야 합니다.',
-        'server.loginInputRequiredForProfileLink':
-          'Profile link discovery에는 로그인 입력 필드 이름 또는 기본값이 필요합니다.',
         'server.subjectPathRequired': 'Subject JSON path가 필요합니다.',
         'server.subjectPathInvalid':
           'Subject JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
@@ -319,19 +305,14 @@ const plugin: PluginDefinition = {
         'admin.oauthMetadataSource': 'OAuth metadata source',
         'admin.oauthMetadataManual': 'Manual endpoints',
         'admin.oauthMetadataUrlSource': 'Metadata URL',
-        'admin.oauthMetadataProfileLink': 'Profile link discovery',
         'admin.oauthMetadataUrl': 'OAuth metadata URL',
         'admin.oauthMetadataUrlPlaceholder':
           'https://example.com/.well-known/oauth-authorization-server',
         'admin.authorizationEndpoint': 'Authorization endpoint',
         'admin.tokenEndpoint': 'Token endpoint',
         'admin.tokenEndpointHint':
-          'When scopes are empty, code exchange is sent to the authorization endpoint for IndieAuth login-only flows.',
+          'Authorization codes are always exchanged at the token endpoint, including when scopes are empty.',
         'admin.userInfoEndpoint': 'UserInfo endpoint',
-        'admin.metadataLinkRel': 'Metadata link rel',
-        'admin.metadataLinkRelPlaceholder': 'metadata-rel',
-        'admin.authorizationEndpointRel': 'Authorization endpoint link rel',
-        'admin.tokenEndpointRel': 'Token endpoint link rel',
         'admin.clientId': 'Client ID',
         'admin.clientIdHint': 'OAuth/OIDC client_id.',
         'admin.clientSecret': 'Client Secret',
@@ -344,10 +325,10 @@ const plugin: PluginDefinition = {
           'Saving as none removes the current Client Secret.',
         'admin.scopes': 'Scopes',
         'admin.scopesHint':
-          'Leave empty for Generic OAuth2/IndieAuth login-only flows that do not need an access token.',
+          'Enter the scopes required by the provider. Leave empty to omit the scope parameter.',
         'admin.allowedEmailDomains': 'Allowed email domains',
         'admin.authorizationHintParameter': 'Authorization hint parameter',
-        'admin.authorizationHintParameterPlaceholder': 'me',
+        'admin.authorizationHintParameterPlaceholder': 'login_hint',
         'admin.authorizationRequestQuery': 'Extra authorization query string',
         'admin.authorizationRequestQueryHelp':
           'Query parameters appended when redirecting the browser to the authorization endpoint. Enter one key=value per line or separate items with &.',
@@ -361,14 +342,12 @@ const plugin: PluginDefinition = {
         'admin.extraRequestHeadersHelp':
           'HTTP headers added when the server sends discovery, token, and UserInfo requests. Enter one Header | Value pair per line.',
         'admin.loginInputName': 'Login input field name',
-        'admin.loginInputNamePlaceholder': 'me',
+        'admin.loginInputNamePlaceholder': 'login_hint',
         'admin.loginInputLabel': 'Login input label',
         'admin.loginInputPlaceholder': 'Login input placeholder',
         'admin.loginInputDefault': 'Login input default value',
         'admin.loginInputHelp': 'Login input help',
         'admin.loginInputRequired': 'Require login input',
-        'admin.loginInputUrlCanonicalization':
-          'Canonicalize input as an http(s) URL',
         'admin.subjectPath': 'Subject JSON path',
         'admin.emailPath': 'Email JSON path',
         'admin.emailVerifiedPath': 'Email verified JSON path',
@@ -389,10 +368,6 @@ const plugin: PluginDefinition = {
         'admin.emailTrustDisabledConfirm': 'Save without verification',
         'admin.emailTrustDisabledConsent':
           'I understand that this site will always trust email addresses from this provider.',
-        'admin.subjectVerification': 'Subject verification',
-        'admin.subjectVerificationNone': 'No verification',
-        'admin.subjectVerificationAuthorizationEndpoint':
-          'Subject URL must declare the same authorization endpoint',
         'admin.validateAndSave': 'Validate and save',
         'admin.delete': 'Delete',
         'admin.deleteProviderTitle': 'Delete {name} provider?',
@@ -480,18 +455,15 @@ const plugin: PluginDefinition = {
         'auth.providerReauthentication': 'Authenticate with {name}',
         'auth.identifierDefaultLabel': '{name}',
         'auth.loginInputRequired': 'Login input is required.',
-        'auth.loginInputUrlInvalid': 'Login input must be a valid http(s) URL.',
         'auth.oauthMetadataInvalid': 'OAuth metadata response is invalid.',
-        'auth.oauthDiscoveryFailed': 'OAuth metadata discovery failed.',
         'auth.oauthAuthorizationEndpointMissing':
           'OAuth authorization endpoint could not be found.',
+        'auth.oauthTokenEndpointMissing': 'OAuth token endpoint is missing.',
         'auth.oauthCodeMissing':
           'The OAuth callback does not include an authorization code.',
         'auth.stateMismatch': 'The state value does not match.',
         'auth.oauthFlowMissing': 'OAuth login state is invalid.',
         'auth.oauthTokenResponseInvalid': 'OAuth token response is invalid.',
-        'auth.subjectVerificationFailed':
-          'The returned subject does not declare the same authorization endpoint.',
         'server.hexColorFormat': '{label} must use #RRGGBB format.',
         'server.loginButtonColorLabel': 'login button color',
         'server.loginButtonTextColorLabel': 'login button text color',
@@ -509,11 +481,10 @@ const plugin: PluginDefinition = {
           'Authorization endpoint must be an http(s) URL.',
         'server.authorizationEndpointRequired':
           'Authorization endpoint is required.',
+        'server.tokenEndpointRequired': 'Token endpoint is required.',
         'server.tokenEndpointInvalid': 'Token endpoint must be an http(s) URL.',
         'server.userInfoEndpointInvalid':
           'UserInfo endpoint must be an http(s) URL.',
-        'server.loginInputRequiredForProfileLink':
-          'Profile link discovery requires a login input field name or default value.',
         'server.subjectPathRequired': 'Subject JSON path is required.',
         'server.subjectPathInvalid':
           'Subject JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',

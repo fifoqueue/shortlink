@@ -33,23 +33,34 @@ const migration: DatabaseMigration = {
   shouldRun: needsAutomaticMembershipColumns,
 
   async up(sequelize) {
-    if (await tableExists(sequelize, 'permission_groups')) {
-      await sequelize.query(`
+    await sequelize.transaction(async (transaction) => {
+      if (await tableExists(sequelize, 'permission_groups', transaction)) {
+        await sequelize.query(
+          `
         ALTER TABLE permission_groups
         ADD COLUMN IF NOT EXISTS auto_assign jsonb NOT NULL DEFAULT '{}'::jsonb
-      `);
-    }
+      `,
+          { transaction },
+        );
+      }
 
-    if (await tableExists(sequelize, 'permission_group_users')) {
-      await sequelize.query(`
+      if (await tableExists(sequelize, 'permission_group_users', transaction)) {
+        await sequelize.query(
+          `
         ALTER TABLE permission_group_users
         ADD COLUMN IF NOT EXISTS assignment_source varchar(20) NOT NULL DEFAULT 'manual'
-      `);
-      await sequelize.query(`
+      `,
+          { transaction },
+        );
+        await sequelize.query(
+          `
         CREATE INDEX IF NOT EXISTS permission_group_users_assignment_source_idx
         ON permission_group_users (assignment_source)
-      `);
-    }
+      `,
+          { transaction },
+        );
+      }
+    });
   },
 };
 

@@ -1,16 +1,15 @@
-import { literal, Op, type WhereOptions } from 'sequelize';
-import {
-  createHash,
-  randomBytes,
-  scryptSync,
-  timingSafeEqual,
-} from 'node:crypto';
+import { literal, Op, type Transaction, type WhereOptions } from 'sequelize';
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 import type { SiteSettings } from '$lib/config';
 import {
   ClickEventModel,
   ClickEventQueueModel,
   ShortLinkModel,
   UserModel,
+  UserIdentityModel,
+  UserPasskeyCredentialModel,
+  USER_ADMIN_LOCK_KEY,
   ensureDatabase,
   getDatabase,
 } from './database';
@@ -19,8 +18,13 @@ import { sendPasswordResetEmail, sendVerificationEmail } from './email';
 import { paginationMeta, pageOffset } from './pagination';
 import { syncAutomaticPermissionGroupMembershipsForUser } from './permissions';
 import { validatePassword, type PasswordPolicy } from './password-policy';
+import { linkIdentity, type LoginMethodAvailability } from './user-identities';
 
 const KEY_LENGTH = 64;
+const deriveKey = promisify<string, string, number, Buffer>(scrypt);
+declare const passwordHashBrand: unique symbol;
+type PasswordHash = string & { readonly [passwordHashBrand]: true };
+export { USER_ADMIN_LOCK_KEY } from './database';
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -40,17 +44,19 @@ function deletedPasswordHash() {
   return `deleted:${randomBytes(32).toString('base64url')}`;
 }
 
-export function hashPassword(password: string) {
+export async function hashPassword(password: string): Promise<PasswordHash> {
   const salt = randomBytes(16).toString('base64url');
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString('base64url');
-  return `scrypt:${salt}:${hash}`;
+  const hash = (await deriveKey(password, salt, KEY_LENGTH)).toString(
+    'base64url',
+  );
+  return `scrypt:${salt}:${hash}` as PasswordHash;
 }
 
-export function verifyPassword(password: string, encoded: string) {
+export async function verifyPassword(password: string, encoded: string) {
   const [algorithm, salt, stored] = encoded.split(':');
   if (algorithm !== 'scrypt' || !salt || !stored) return false;
   const expected = Buffer.from(stored, 'base64url');
-  const actual = scryptSync(password, salt, expected.length);
+  const actual = await deriveKey(password, salt, expected.length);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
@@ -68,9 +74,9 @@ export function hashPasswordResetToken(token: string) {
   return hashEmailVerificationToken(token);
 }
 
-export async function countUsers() {
-  await ensureDatabase();
-  return UserModel.count();
+export async function countUsers(transaction?: Transaction) {
+  if (!transaction) await ensureDatabase();
+  return UserModel.count({ transaction });
 }
 
 export async function listUsers() {
@@ -189,42 +195,61 @@ export async function findEnabledUserByEmail(email: string | null) {
   });
 }
 
-export async function createUser(input: {
-  email: string;
-  name: string;
-  password: string;
-  isAdmin: boolean;
-  enabled?: boolean;
-  emailVerifiedAt?: Date | null;
-  emailVerificationTokenHash?: string | null;
-  emailVerificationExpiresAt?: Date | null;
-  passwordPolicy?: PasswordPolicy;
-}) {
-  await ensureDatabase();
+export async function createUser(
+  input: {
+    email: string;
+    name: string;
+    password: string;
+    isAdmin: boolean;
+    enabled?: boolean;
+    emailVerifiedAt?: Date | null;
+    emailVerificationTokenHash?: string | null;
+    emailVerificationExpiresAt?: Date | null;
+    passwordPolicy?: PasswordPolicy;
+  },
+  transaction?: Transaction,
+  preparedPasswordHash?: PasswordHash,
+): Promise<UserModel> {
   const email = normalizeEmail(input.email);
   if (!email || !email.includes('@'))
     throw new Error(serverMessage('validEmailRequired'));
-  const existing = await UserModel.findOne({ where: { email } });
-  if (existing) throw new Error(serverMessage('emailInUse'));
+  if (!transaction) await ensureDatabase();
   validatePassword(input.password, input.passwordPolicy);
-  const user = await UserModel.create({
-    email,
-    pendingEmail: null,
-    name: input.name.trim().slice(0, 120) || email,
-    passwordHash: hashPassword(input.password),
-    isAdmin: input.isAdmin,
-    enabled: input.enabled !== false,
-    emailVerifiedAt: input.emailVerifiedAt ?? null,
-    emailVerificationTokenHash: input.emailVerificationTokenHash ?? null,
-    emailVerificationExpiresAt: input.emailVerificationExpiresAt ?? null,
-  });
-  await syncAutomaticPermissionGroupMembershipsForUser(user.id);
+  const passwordHash =
+    preparedPasswordHash ?? (await hashPassword(input.password));
+  if (!transaction) {
+    return getDatabase().transaction((transaction) =>
+      createUser(input, transaction, passwordHash),
+    );
+  }
+  await getDatabase().query(
+    `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+    { transaction },
+  );
+  const existing = await UserModel.findOne({ where: { email }, transaction });
+  if (existing) throw new Error(serverMessage('emailInUse'));
+  const user = await UserModel.create(
+    {
+      email,
+      pendingEmail: null,
+      name: input.name.trim().slice(0, 120) || email,
+      passwordHash,
+      isAdmin: input.isAdmin,
+      enabled: input.enabled !== false,
+      emailVerifiedAt: input.emailVerifiedAt ?? null,
+      emailVerificationTokenHash: input.emailVerificationTokenHash ?? null,
+      emailVerificationExpiresAt: input.emailVerificationExpiresAt ?? null,
+    },
+    { transaction },
+  );
+  await syncAutomaticPermissionGroupMembershipsForUser(user.id, transaction);
   return user;
 }
 
 export async function ensureUserEmailAvailable(
   email: string,
   exceptId: number,
+  transaction?: Transaction,
 ) {
   const normalized = normalizeEmail(email);
   if (!normalized || !normalized.includes('@')) {
@@ -232,6 +257,7 @@ export async function ensureUserEmailAvailable(
   }
   const existing = await UserModel.findOne({
     where: { email: normalized, id: { [Op.ne]: exceptId } },
+    transaction,
   });
   if (existing) throw new Error(serverMessage('emailInUse'));
   return normalized;
@@ -250,31 +276,62 @@ export async function upsertSsoUser(input: {
     throw new Error(serverMessage('ssoEmailMissing'));
   }
 
-  const name = input.name.trim().slice(0, 120) || email;
-  const existing = await UserModel.findOne({ where: { email } });
-  if (existing) {
-    if (!existing.enabled) throw new Error(serverMessage('userDisabled'));
-    const updates: Partial<UserModel> = {
-      name,
-    };
-    if (input.emailVerifiedAt && !existing.emailVerifiedAt) {
-      updates.emailVerifiedAt = input.emailVerifiedAt;
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    const name = input.name.trim().slice(0, 120) || email;
+    const existing = await UserModel.findOne({
+      where: { email },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (existing) {
+      if (!existing.enabled) throw new Error(serverMessage('userDisabled'));
+      const updates: Partial<UserModel> = {
+        name,
+      };
+      if (input.emailVerifiedAt && !existing.emailVerifiedAt) {
+        updates.emailVerifiedAt = input.emailVerifiedAt;
+      }
+      await existing.update(updates, { transaction });
+      await linkIdentity(
+        {
+          userId: existing.id,
+          provider: input.provider,
+          subject: input.subject,
+          email,
+        },
+        transaction,
+      );
+      return existing;
     }
-    await existing.update(updates);
-    return existing;
-  }
 
-  const user = await UserModel.create({
-    email,
-    pendingEmail: null,
-    name,
-    passwordHash: ssoPasswordHash(input.provider, input.subject),
-    isAdmin: false,
-    enabled: true,
-    emailVerifiedAt: input.emailVerifiedAt ?? null,
+    const user = await UserModel.create(
+      {
+        email,
+        pendingEmail: null,
+        name,
+        passwordHash: ssoPasswordHash(input.provider, input.subject),
+        isAdmin: false,
+        enabled: true,
+        emailVerifiedAt: input.emailVerifiedAt ?? null,
+      },
+      { transaction },
+    );
+    await linkIdentity(
+      {
+        userId: user.id,
+        provider: input.provider,
+        subject: input.subject,
+        email,
+      },
+      transaction,
+    );
+    await syncAutomaticPermissionGroupMembershipsForUser(user.id, transaction);
+    return user;
   });
-  await syncAutomaticPermissionGroupMembershipsForUser(user.id);
-  return user;
 }
 
 export async function createPendingSsoUser(input: {
@@ -303,35 +360,62 @@ export async function createPendingSsoUser(input: {
     emailVerificationExpiresAt: expiresAt,
   };
 
-  const existing = await UserModel.findOne({ where: { email } });
-  let user = existing;
-  let created = false;
-
-  if (user) {
-    if (user.enabled) {
-      throw new Error(serverMessage('ssoExistingAccountLinkRequired'));
-    }
-    if (user.passwordHash !== passwordHash) {
-      throw new Error(serverMessage('userDisabled'));
-    }
-    await user.update({
-      name,
-      pendingEmail: null,
-      ...verification,
-    });
-  } else {
-    user = await UserModel.create({
-      email,
-      pendingEmail: null,
-      name,
-      passwordHash,
-      isAdmin: false,
-      enabled: false,
-      emailVerifiedAt: null,
-      ...verification,
-    });
-    created = true;
-  }
+  const { user, created } = await getDatabase().transaction(
+    async (transaction) => {
+      await getDatabase().query(
+        `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+        { transaction },
+      );
+      const existing = await UserModel.findOne({
+        where: { email },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (existing) {
+        if (existing.enabled)
+          throw new Error(serverMessage('ssoExistingAccountLinkRequired'));
+        if (existing.passwordHash !== passwordHash)
+          throw new Error(serverMessage('userDisabled'));
+        await existing.update(
+          { name, pendingEmail: null, ...verification },
+          { transaction },
+        );
+        await linkIdentity(
+          {
+            userId: existing.id,
+            provider: input.provider,
+            subject: input.subject,
+            email,
+          },
+          transaction,
+        );
+        return { user: existing, created: false };
+      }
+      const user = await UserModel.create(
+        {
+          email,
+          pendingEmail: null,
+          name,
+          passwordHash,
+          isAdmin: false,
+          enabled: false,
+          emailVerifiedAt: null,
+          ...verification,
+        },
+        { transaction },
+      );
+      await linkIdentity(
+        {
+          userId: user.id,
+          provider: input.provider,
+          subject: input.subject,
+          email,
+        },
+        transaction,
+      );
+      return { user, created: true };
+    },
+  );
 
   try {
     await sendVerificationEmail({
@@ -341,13 +425,27 @@ export async function createPendingSsoUser(input: {
       verificationUrl: verificationUrl(input.origin, token),
     });
   } catch (cause) {
+    const where = {
+      id: user.id,
+      enabled: false,
+      emailVerificationTokenHash: verification.emailVerificationTokenHash,
+    };
     if (created) {
-      await user.destroy();
-    } else {
-      await user.update({
-        emailVerificationTokenHash: null,
-        emailVerificationExpiresAt: null,
+      await getDatabase().transaction(async (transaction) => {
+        await getDatabase().query(
+          `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+          { transaction },
+        );
+        await UserModel.destroy({ where, transaction });
       });
+    } else {
+      await UserModel.update(
+        {
+          emailVerificationTokenHash: null,
+          emailVerificationExpiresAt: null,
+        },
+        { where },
+      );
     }
     throw cause;
   }
@@ -360,32 +458,41 @@ export async function authenticateUser(email: string, password: string) {
   const user = await UserModel.findOne({
     where: { email: normalizeEmail(email), enabled: true },
   });
-  if (!user || !verifyPassword(password, user.passwordHash)) return null;
+  if (!user || !(await verifyPassword(password, user.passwordHash)))
+    return null;
   return user;
 }
 
-export async function ensureCanDeleteUser(id: number) {
-  await ensureDatabase();
-  const user = await UserModel.findByPk(id);
+export async function ensureCanDeleteUser(
+  id: number,
+  transaction?: Transaction,
+) {
+  if (!transaction) await ensureDatabase();
+  const user = await UserModel.findByPk(id, { transaction });
   if (!user) throw new Error(serverMessage('userNotFound'));
-  if (!user.isAdmin) return;
+  if (!user.isAdmin || !user.enabled) return;
 
   const adminCount = await UserModel.count({
     where: { isAdmin: true, enabled: true },
+    transaction,
   });
   if (adminCount <= 1) {
     throw new Error(serverMessage('onlyAdminDeleteDenied'));
   }
 }
 
-export async function ensureCanLoseAdmin(id: number) {
-  await ensureDatabase();
-  const user = await UserModel.findByPk(id);
+export async function ensureCanLoseAdmin(
+  id: number,
+  transaction?: Transaction,
+) {
+  if (!transaction) await ensureDatabase();
+  const user = await UserModel.findByPk(id, { transaction });
   if (!user) throw new Error(serverMessage('userNotFound'));
-  if (!user.isAdmin) return;
+  if (!user.isAdmin || !user.enabled) return;
 
   const adminCount = await UserModel.count({
     where: { isAdmin: true, enabled: true },
+    transaction,
   });
   if (adminCount <= 1) {
     throw new Error(serverMessage('onlyAdminDemoteDenied'));
@@ -402,32 +509,47 @@ export async function updateUser(input: {
   passwordPolicy?: PasswordPolicy;
 }) {
   await ensureDatabase();
-  const user = await UserModel.findByPk(input.id);
-  if (!user) throw new Error(serverMessage('userNotFound'));
-  const email = await ensureUserEmailAvailable(input.email, user.id);
-  const emailChanged = email !== user.email;
-  if ((user.isAdmin && !input.isAdmin) || (user.isAdmin && !input.enabled)) {
-    await ensureCanLoseAdmin(user.id);
-  }
-  const next: Partial<UserModel> = {
-    email,
-    pendingEmail: null,
-    name: input.name.trim().slice(0, 120) || email,
-    isAdmin: input.isAdmin,
-    enabled: input.enabled,
-    emailVerificationTokenHash: null,
-    emailVerificationExpiresAt: null,
-  };
+  let passwordHash: PasswordHash | undefined;
   if (input.password !== undefined && input.password !== '') {
     validatePassword(input.password, input.passwordPolicy);
-    next.passwordHash = hashPassword(input.password);
-    next.passwordResetTokenHash = null;
-    next.passwordResetExpiresAt = null;
+    passwordHash = await hashPassword(input.password);
   }
-  await user.update(next);
-  if (emailChanged)
-    await syncAutomaticPermissionGroupMembershipsForUser(user.id);
-  return user;
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    const user = await UserModel.findByPk(input.id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!user) throw new Error(serverMessage('userNotFound'));
+    const email = await ensureUserEmailAvailable(
+      input.email,
+      user.id,
+      transaction,
+    );
+    if ((user.isAdmin && !input.isAdmin) || (user.isAdmin && !input.enabled)) {
+      await ensureCanLoseAdmin(user.id, transaction);
+    }
+    const next: Partial<UserModel> = {
+      email,
+      pendingEmail: null,
+      name: input.name.trim().slice(0, 120) || email,
+      isAdmin: input.isAdmin,
+      enabled: input.enabled,
+      emailVerificationTokenHash: null,
+      emailVerificationExpiresAt: null,
+    };
+    if (passwordHash !== undefined) {
+      next.passwordHash = passwordHash;
+      next.passwordResetTokenHash = null;
+      next.passwordResetExpiresAt = null;
+    }
+    await user.update(next, { transaction });
+    await syncAutomaticPermissionGroupMembershipsForUser(user.id, transaction);
+    return user;
+  });
 }
 
 export async function updateOwnProfile(input: {
@@ -438,55 +560,63 @@ export async function updateOwnProfile(input: {
   origin: string;
 }) {
   await ensureDatabase();
-  const user = await UserModel.findByPk(input.id);
-  if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
-  const email = await ensureUserEmailAvailable(input.email, user.id);
-  const name = input.name.trim().slice(0, 120) || email;
-
-  if (email === user.email) {
-    await user.update({ name });
-    return {
-      user,
-      emailVerificationRequired: false,
-      pendingEmail: user.pendingEmail,
-    };
-  }
-
   const token = createEmailVerificationToken();
-  const expiresAt = new Date(
-    Date.now() +
-      input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
-  );
-
-  await user.update({
-    name,
-    pendingEmail: email,
-    emailVerificationTokenHash: hashEmailVerificationToken(token),
-    emailVerificationExpiresAt: expiresAt,
+  const tokenHash = hashEmailVerificationToken(token);
+  const result = await getDatabase().transaction(async (transaction) => {
+    const user = await UserModel.findByPk(input.id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
+    const email = await ensureUserEmailAvailable(
+      input.email,
+      user.id,
+      transaction,
+    );
+    const name = input.name.trim().slice(0, 120) || email;
+    if (email === user.email) {
+      await user.update({ name }, { transaction });
+      return {
+        user,
+        emailVerificationRequired: false,
+        pendingEmail: user.pendingEmail,
+      };
+    }
+    await user.update(
+      {
+        name,
+        pendingEmail: email,
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationExpiresAt: new Date(
+          Date.now() +
+            input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
+        ),
+      },
+      { transaction },
+    );
+    return { user, emailVerificationRequired: true, pendingEmail: email };
   });
-
+  if (!result.emailVerificationRequired) return result;
   try {
     await sendVerificationEmail({
       settings: input.settings,
-      email,
-      name,
+      email: result.pendingEmail!,
+      name: result.user.name,
       verificationUrl: verificationUrl(input.origin, token),
       purpose: 'email-change',
     });
   } catch (cause) {
-    await user.update({
-      pendingEmail: null,
-      emailVerificationTokenHash: null,
-      emailVerificationExpiresAt: null,
-    });
+    await UserModel.update(
+      {
+        pendingEmail: null,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+      },
+      { where: { id: result.user.id, emailVerificationTokenHash: tokenHash } },
+    );
     throw cause;
   }
-
-  return {
-    user,
-    emailVerificationRequired: true,
-    pendingEmail: email,
-  };
+  return result;
 }
 
 export async function changeOwnPassword(input: {
@@ -496,45 +626,76 @@ export async function changeOwnPassword(input: {
   passwordPolicy?: PasswordPolicy;
 }) {
   await ensureDatabase();
-  const user = await UserModel.findByPk(input.id);
-  if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
-  const hasLocalPassword = user.passwordHash.startsWith('scrypt:');
-  if (
-    hasLocalPassword &&
-    !verifyPassword(input.currentPassword, user.passwordHash)
-  ) {
-    throw new Error(serverMessage('currentPasswordMismatch'));
-  }
-  validatePassword(input.nextPassword, input.passwordPolicy);
-  await user.update({
-    passwordHash: hashPassword(input.nextPassword),
-    passwordResetTokenHash: null,
-    passwordResetExpiresAt: null,
+  return getDatabase().transaction(async (transaction) => {
+    const user = await UserModel.findByPk(input.id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
+    const hasLocalPassword = user.passwordHash.startsWith('scrypt:');
+    if (
+      hasLocalPassword &&
+      !(await verifyPassword(input.currentPassword, user.passwordHash))
+    ) {
+      throw new Error(serverMessage('currentPasswordMismatch'));
+    }
+    validatePassword(input.nextPassword, input.passwordPolicy);
+    await user.update(
+      {
+        passwordHash: await hashPassword(input.nextPassword),
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+      },
+      { transaction },
+    );
+    return user;
   });
-  return user;
 }
-
 export async function deleteOwnPassword(input: {
   id: number;
   currentPassword: string;
+  loginMethods: LoginMethodAvailability;
 }) {
   await ensureDatabase();
-  const user = await UserModel.findByPk(input.id);
-  if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
-  if (!user.passwordHash.startsWith('scrypt:')) {
-    throw new Error(serverMessage('localPasswordMissing'));
-  }
-  if (!verifyPassword(input.currentPassword, user.passwordHash)) {
-    throw new Error(serverMessage('currentPasswordMismatch'));
-  }
-  await user.update({
-    passwordHash: deletedPasswordHash(),
-    passwordResetTokenHash: null,
-    passwordResetExpiresAt: null,
+  return getDatabase().transaction(async (transaction) => {
+    const user = await UserModel.findByPk(input.id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
+    if (!user.passwordHash.startsWith('scrypt:')) {
+      throw new Error(serverMessage('localPasswordMissing'));
+    }
+    if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
+      throw new Error(serverMessage('currentPasswordMismatch'));
+    }
+    const passkeyAvailable =
+      input.loginMethods.passkey &&
+      (await UserPasskeyCredentialModel.count({
+        where: { userId: user.id },
+        transaction,
+      })) > 0;
+    const identityAvailable =
+      (await UserIdentityModel.count({
+        where: {
+          userId: user.id,
+          provider: { [Op.in]: [...input.loginMethods.identityProviders] },
+        },
+        transaction,
+      })) > 0;
+    if (!passkeyAvailable && !identityAvailable)
+      throw new Error(serverMessage('passwordDeleteAlternativeRequired'));
+    await user.update(
+      {
+        passwordHash: deletedPasswordHash(),
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+      },
+      { transaction },
+    );
+    return user;
   });
-  return user;
 }
-
 export async function resendSignupVerificationEmail(input: {
   settings: SiteSettings;
   origin: string;
@@ -550,17 +711,17 @@ export async function resendSignupVerificationEmail(input: {
   if (!user || user.enabled || user.emailVerifiedAt) return false;
 
   const token = createEmailVerificationToken();
-  const previous = {
-    emailVerificationTokenHash: user.emailVerificationTokenHash,
-    emailVerificationExpiresAt: user.emailVerificationExpiresAt,
-  };
-  await user.update({
-    emailVerificationTokenHash: hashEmailVerificationToken(token),
-    emailVerificationExpiresAt: new Date(
-      Date.now() +
-        input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
-    ),
-  });
+  const [updated] = await UserModel.update(
+    {
+      emailVerificationTokenHash: hashEmailVerificationToken(token),
+      emailVerificationExpiresAt: new Date(
+        Date.now() +
+          input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
+      ),
+    },
+    { where: { id: user.id, enabled: false, emailVerifiedAt: null } },
+  );
+  if (!updated) return false;
 
   try {
     await sendVerificationEmail({
@@ -570,7 +731,18 @@ export async function resendSignupVerificationEmail(input: {
       verificationUrl: verificationUrl(input.origin, token),
     });
   } catch (cause) {
-    await user.update(previous);
+    await UserModel.update(
+      {
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+      },
+      {
+        where: {
+          id: user.id,
+          emailVerificationTokenHash: hashEmailVerificationToken(token),
+        },
+      },
+    );
     throw cause;
   }
 
@@ -598,17 +770,17 @@ export async function requestUserPasswordReset(input: {
   if (!user || !user.passwordHash.startsWith('scrypt:')) return false;
 
   const token = createPasswordResetToken();
-  const previous = {
-    passwordResetTokenHash: user.passwordResetTokenHash,
-    passwordResetExpiresAt: user.passwordResetExpiresAt,
-  };
-  await user.update({
-    passwordResetTokenHash: hashPasswordResetToken(token),
-    passwordResetExpiresAt: new Date(
-      Date.now() +
-        input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
-    ),
-  });
+  const [updated] = await UserModel.update(
+    {
+      passwordResetTokenHash: hashPasswordResetToken(token),
+      passwordResetExpiresAt: new Date(
+        Date.now() +
+          input.settings.auth.emailVerification.tokenTtlHours * 60 * 60_000,
+      ),
+    },
+    { where: { id: user.id, enabled: true, passwordHash: user.passwordHash } },
+  );
+  if (!updated) return false;
 
   try {
     await sendPasswordResetEmail({
@@ -618,7 +790,18 @@ export async function requestUserPasswordReset(input: {
       resetUrl: passwordResetUrl(input.origin, token),
     });
   } catch (cause) {
-    await user.update(previous);
+    await UserModel.update(
+      {
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+      },
+      {
+        where: {
+          id: user.id,
+          passwordResetTokenHash: hashPasswordResetToken(token),
+        },
+      },
+    );
     throw cause;
   }
 
@@ -631,86 +814,135 @@ export async function resetUserPasswordWithToken(input: {
   passwordPolicy?: PasswordPolicy;
 }) {
   await ensureDatabase();
-  const tokenHash = hashPasswordResetToken(input.token.trim());
-  const user = await UserModel.findOne({
-    where: {
-      passwordResetTokenHash: tokenHash,
-      passwordResetExpiresAt: { [Op.gt]: new Date() },
-      enabled: true,
-    },
+  return getDatabase().transaction(async (transaction) => {
+    const tokenHash = hashPasswordResetToken(input.token.trim());
+    const user = await UserModel.findOne({
+      where: {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: { [Op.gt]: new Date() },
+        enabled: true,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (
+      !user ||
+      !user.passwordResetExpiresAt ||
+      user.passwordResetExpiresAt.getTime() <= Date.now()
+    )
+      return null;
+    validatePassword(input.password, input.passwordPolicy);
+    await user.update(
+      {
+        passwordHash: await hashPassword(input.password),
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+        sessionVersion: user.sessionVersion + 1,
+      },
+      { transaction },
+    );
+    return user;
   });
-  if (!user) return null;
-  validatePassword(input.password, input.passwordPolicy);
-  await user.update({
-    passwordHash: hashPassword(input.password),
-    passwordResetTokenHash: null,
-    passwordResetExpiresAt: null,
-    sessionVersion: user.sessionVersion + 1,
-  });
-  return user;
 }
-
 export async function verifyUserEmailToken(token: string) {
   await ensureDatabase();
-  const tokenHash = hashEmailVerificationToken(token.trim());
-  const user = await UserModel.findOne({
-    where: {
-      emailVerificationTokenHash: tokenHash,
-      emailVerificationExpiresAt: { [Op.gt]: new Date() },
-    },
-  });
-  if (!user) return null;
+  return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    const tokenHash = hashEmailVerificationToken(token.trim());
+    const user = await UserModel.findOne({
+      where: {
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationExpiresAt: { [Op.gt]: new Date() },
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (
+      !user ||
+      !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt.getTime() <= Date.now()
+    )
+      return null;
 
-  const pendingEmail = normalizeEmail(user.pendingEmail ?? '');
-  if (pendingEmail) {
-    try {
-      await ensureUserEmailAvailable(pendingEmail, user.id);
-    } catch {
-      await user.update({
-        pendingEmail: null,
+    const pendingEmail = normalizeEmail(user.pendingEmail ?? '');
+    if (pendingEmail) {
+      try {
+        await ensureUserEmailAvailable(pendingEmail, user.id, transaction);
+      } catch {
+        await user.update(
+          {
+            pendingEmail: null,
+            emailVerificationTokenHash: null,
+            emailVerificationExpiresAt: null,
+          },
+          { transaction },
+        );
+        return null;
+      }
+      await user.update(
+        {
+          email: pendingEmail,
+          pendingEmail: null,
+          emailVerifiedAt: new Date(),
+          emailVerificationTokenHash: null,
+          emailVerificationExpiresAt: null,
+        },
+        { transaction },
+      );
+      await syncAutomaticPermissionGroupMembershipsForUser(
+        user.id,
+        transaction,
+      );
+      return { user, purpose: 'email-change' as const };
+    }
+
+    await user.update(
+      {
+        enabled: true,
+        emailVerifiedAt: new Date(),
         emailVerificationTokenHash: null,
         emailVerificationExpiresAt: null,
-      });
-      return null;
-    }
-    await user.update({
-      email: pendingEmail,
-      pendingEmail: null,
-      emailVerifiedAt: new Date(),
-      emailVerificationTokenHash: null,
-      emailVerificationExpiresAt: null,
-    });
-    await syncAutomaticPermissionGroupMembershipsForUser(user.id);
-    return { user, purpose: 'email-change' as const };
-  }
-
-  await user.update({
-    enabled: true,
-    emailVerifiedAt: new Date(),
-    emailVerificationTokenHash: null,
-    emailVerificationExpiresAt: null,
+      },
+      { transaction },
+    );
+    await syncAutomaticPermissionGroupMembershipsForUser(user.id, transaction);
+    return { user, purpose: 'signup' as const };
   });
-  await syncAutomaticPermissionGroupMembershipsForUser(user.id);
-  return { user, purpose: 'signup' as const };
 }
-
 export async function rotateUserSessionVersion(id: number) {
   await ensureDatabase();
-  const user = await UserModel.findByPk(id);
-  if (!user || !user.enabled) throw new Error(serverMessage('userNotFound'));
-  await user.update({ sessionVersion: user.sessionVersion + 1 });
+  const [, users] = await UserModel.update(
+    { sessionVersion: literal('session_version + 1') },
+    { where: { id, enabled: true }, returning: true },
+  );
+  const user = users[0];
+  if (!user) throw new Error(serverMessage('userNotFound'));
   return user;
 }
 
 export async function deleteUser(id: number) {
   await ensureDatabase();
-  await ensureCanDeleteUser(id);
   return getDatabase().transaction(async (transaction) => {
+    await getDatabase().query(
+      `SELECT pg_advisory_xact_lock(${USER_ADMIN_LOCK_KEY})`,
+      { transaction },
+    );
+    const user = await UserModel.findByPk(id, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!user) throw new Error(serverMessage('userNotFound'));
+    await ensureCanDeleteUser(id, transaction);
     const links = await ShortLinkModel.findAll({
       attributes: ['id'],
       where: { creatorUserId: id },
       raw: true,
       transaction,
+      lock: transaction.LOCK.UPDATE,
+      order: [['id', 'ASC']],
     });
     const linkIds = links.map((link) => link.id);
     if (linkIds.length > 0) {

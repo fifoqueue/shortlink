@@ -25,6 +25,9 @@ export {
   UserTotpSecretModel,
 } from './models';
 
+// ponytail: serialize account/permission writes globally; use finer domain locks if write throughput requires it.
+export const USER_ADMIN_LOCK_KEY = 1936221804;
+
 const globalDatabase = globalThis as typeof globalThis & {
   __shortlinkSequelize?: Sequelize;
   __shortlinkDatabaseReady?: Promise<void>;
@@ -163,10 +166,27 @@ function syncAlterEnabled() {
 }
 
 async function syncDatabase(sequelize: Sequelize) {
-  await sequelize.authenticate();
-  await runDatabaseMigrations(sequelize);
-  await sequelize.sync({ alter: syncAlterEnabled() });
-  await runDatabaseMigrations(sequelize);
+  // Keep the startup lock on a dedicated connection: migrations may use every
+  // pooled connection, and CONCURRENTLY indexes cannot share a DDL transaction.
+  // A transaction lock also works through transaction-pooling PgBouncer.
+  const coordinator = createSequelize();
+  try {
+    await coordinator.transaction(async (transaction) => {
+      await coordinator.query(
+        'SET LOCAL idle_in_transaction_session_timeout = 0',
+        { transaction },
+      );
+      await coordinator.query('SELECT pg_advisory_xact_lock(1936485995, 1)', {
+        transaction,
+      });
+      await sequelize.authenticate();
+      await runDatabaseMigrations(sequelize);
+      await sequelize.sync({ alter: syncAlterEnabled() });
+      await runDatabaseMigrations(sequelize);
+    });
+  } finally {
+    await coordinator.close();
+  }
 }
 
 export async function ensureDatabase() {

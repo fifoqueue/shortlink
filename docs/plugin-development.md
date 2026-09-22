@@ -666,14 +666,14 @@ async handleAdminSubpageAction({ item, action, form, state, strings }) {
 
 ### 사용자/계정 integration 훅
 
-`loadAccountData`와 `handleAccountAction`은 `/account`에서 사용되는 계정 integration 데이터와 action을 제공한다.
+`loadAccountData`와 `handleAccountAction`은 `/account`에서 사용되는 계정 integration 데이터와 action을 제공한다. 두 훅의 `permissions.auth.providers`에는 현재 요청에서 사용할 수 있는 인증 제공자 목록이 전달된다. 계정 연결을 해제할 때는 이 목록을 기준으로 남은 로그인 수단을 검사한다.
 
 ```ts
 async loadAccountData({ user, state, strings }) {
   return { connected: true };
 }
 
-async handleAccountAction({ user, action, form, state, strings }) {
+async handleAccountAction({ user, action, form, state, strings, permissions }) {
   return { ok: true, message: pluginText(strings, 'server.handled') };
 }
 ```
@@ -1078,6 +1078,10 @@ export default auth;
 ```
 
 `provider`와 `subject`는 안정적인 식별자여야 한다. OIDC 같은 외부 인증에서는 callback state에 nonce, returnTo, account-link 대상 user id를 넣고 callback에서 반드시 검증한다.
+
+내장 `oidc-sso`는 OIDC discovery와 OAuth2 authorization code 흐름을 지원한다. OAuth2 endpoint는 직접 지정하거나 OAuth 서버의 metadata URL에서 읽는다. Authorization endpoint와 token endpoint가 모두 필요하며, scope가 비어 있어도 code는 token endpoint에서 교환한다. 성공한 token 응답에는 `access_token`이 있어야 한다. UserInfo endpoint와 subject/email/name JSON path 매핑은 계속 사용할 수 있고 subject 기본 경로는 `sub`다.
+
+사용자 프로필 페이지의 HTML/Link 헤더에서 endpoint를 찾는 설정, subject URL의 authorization endpoint 검증, 로그인 입력 URL 정규화 옵션은 제거되었다. 기존 해당 설정값은 정규화 과정에서 제외된다. 프로필 링크 discovery를 사용하던 프로바이더는 관리자에서 명시적인 authorization/token endpoint 또는 metadata URL을 설정해야 한다.
 
 런타임 trusted 플러그인은 별도 `auth.ts` 파일을 쓰지 않는다. `server.mjs` factory 반환 객체의 `auth` 필드에 같은 의미의 인증 훅을 제공한다. 런타임 untrusted 플러그인은 인증 훅을 제공할 수 없다.
 

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
@@ -22,7 +23,11 @@ import type {
   RuntimePluginUiDescriptor,
   PluginState,
 } from '$lib/plugin-contracts';
-import { localizeServerMessage, uiText } from '$lib/i18n/ui-text';
+import {
+  localizeServerMessage,
+  serverMessage,
+  uiText,
+} from '$lib/i18n/ui-text';
 import type { SiteLocale } from '$lib/config';
 
 async function activationStatus(
@@ -114,7 +119,7 @@ export const load: PageServerLoad = async ({
     getClientAddress,
   });
   requireAdminPluginAccess(permissions, definition);
-  const settings = await getSettings();
+  const settings = locals.settings;
   const storedState = settings.plugins[definition.meta.id];
   const state = {
     ...storedState,
@@ -198,6 +203,7 @@ export const actions: Actions = {
     requireAdminPluginAccess(permissions, definition);
     const settings = await getSettings({ mutable: true });
     const current = settings.plugins[definition.meta.id];
+    const previous = structuredClone(current);
     const form = await request.formData();
     try {
       const next = await applyPluginStateChange({
@@ -221,8 +227,12 @@ export const actions: Actions = {
           }),
         },
       });
-      settings.plugins[definition.meta.id] = next;
-      await updateSettings(settings);
+      await updateSettings((latest) => {
+        if (!isDeepStrictEqual(latest.plugins[definition.meta.id], previous)) {
+          throw new Error(serverMessage('settingsChanged'));
+        }
+        latest.plugins[definition.meta.id] = next;
+      });
       return { ok: true, message: text.pluginSettingsSaved };
     } catch (cause) {
       return fail(400, {
@@ -253,6 +263,7 @@ export const actions: Actions = {
     requireAdminPluginAccess(permissions, definition);
     const settings = await getSettings({ mutable: true });
     const state = settings.plugins[definition.meta.id];
+    const previous = structuredClone(state);
     if (!state.enabled) {
       return fail(403, {
         message: text.pluginDisabledAction,
@@ -295,18 +306,27 @@ export const actions: Actions = {
         fallbackLocale,
         strings,
       });
-      settings.plugins[definition.meta.id] = await applyPluginStateChange({
-        definition,
-        current: state,
-        url,
-        locale: locals.locale,
-        fallbackLocale,
-        next: {
-          enabled: result.enabled ?? state.enabled,
-          config: result.config ?? state.config,
-        },
-      });
-      await updateSettings(settings);
+      if (result.config !== undefined || result.enabled !== undefined) {
+        const next = await applyPluginStateChange({
+          definition,
+          current: previous,
+          url,
+          locale: locals.locale,
+          fallbackLocale,
+          next: {
+            enabled: result.enabled ?? previous.enabled,
+            config: result.config ?? previous.config,
+          },
+        });
+        await updateSettings((latest) => {
+          if (
+            !isDeepStrictEqual(latest.plugins[definition.meta.id], previous)
+          ) {
+            throw new Error(serverMessage('settingsChanged'));
+          }
+          latest.plugins[definition.meta.id] = next;
+        });
+      }
       return {
         ok: result.ok ?? true,
         message: result.message ?? text.pluginActionHandled,

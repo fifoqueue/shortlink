@@ -1,3 +1,4 @@
+import '$lib/server/click-analytics';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import {
   localeCookieName,
@@ -16,11 +17,7 @@ import {
   shouldApplyClientHintResponseHeaders,
 } from '$lib/server/client-hints';
 import { getClientIp } from '$lib/server/client-ip';
-import {
-  getSettings,
-  invalidateSettingsCache,
-  setPluginStateNormalizer,
-} from '$lib/server/settings';
+import { getSettings, setPluginStateNormalizer } from '$lib/server/settings';
 import {
   createCsrfToken,
   createWebActionToken,
@@ -135,9 +132,7 @@ function defaultDomainRedirect(
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-  if (await refreshRuntimePlugins()) {
-    invalidateSettingsCache({ redis: true, publish: true });
-  }
+  await refreshRuntimePlugins();
   const settings = await getSettings();
   const origin = requestOrigin(event.url, event.request.headers);
   const locale = localeFromMetadata({

@@ -33,7 +33,10 @@ export const POST: RequestHandler = async ({
   const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
   if (!locals.user) throw error(401, text.messages.loginRequired);
 
-  const challenge = consumeTimedChallenge(cookies, PASSKEY_REGISTER_COOKIE);
+  const challenge = await consumeTimedChallenge(
+    cookies,
+    PASSKEY_REGISTER_COOKIE,
+  );
   if (!challenge?.challenge || challenge.userId !== locals.user.id) {
     throw error(400, text.messages.passkeyRegistrationExpired);
   }

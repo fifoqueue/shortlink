@@ -113,13 +113,21 @@ export const load: PageServerLoad = async ({
     shouldRenderOpenGraphPreview(request.headers.get('user-agent')) &&
     hasExplicitOpenGraphMetadata(link)
   ) {
-    if (settings.links.trackClicks) {
-      enqueueClick({
-        linkId: link.id,
-        request,
-        getClientAddress,
-        settings,
-      });
+    const accepted = await enqueueClick({
+      linkId: link.id,
+      request,
+      getClientAddress,
+      settings,
+    });
+    if (accepted === 'not_found') error(404, text.messages.linkNotFound);
+    if (accepted === 'maxClicks') {
+      return {
+        mode: 'blocked' as const,
+        reason: accepted,
+        title: blockedLinkTitle(accepted, locals.locale),
+        link: publicLink,
+        settings: publicSettings,
+      };
     }
 
     return {
@@ -148,18 +156,26 @@ export const load: PageServerLoad = async ({
     metadata: redirectRuleMetadata,
   });
 
-  if (settings.links.trackClicks) {
-    enqueueClick({
-      linkId: link.id,
-      request,
-      getClientAddress,
-      settings,
-      metadata: redirectRuleClickMetadata({
-        ruleCount: link.routing.redirectRules.length,
-        destinationUrl: redirectResult.url,
-        matchedRule: redirectResult.matchedRule,
-      }),
-    });
+  const accepted = await enqueueClick({
+    linkId: link.id,
+    request,
+    getClientAddress,
+    settings,
+    metadata: redirectRuleClickMetadata({
+      ruleCount: link.routing.redirectRules.length,
+      destinationUrl: redirectResult.url,
+      matchedRule: redirectResult.matchedRule,
+    }),
+  });
+  if (accepted === 'not_found') error(404, text.messages.linkNotFound);
+  if (accepted === 'maxClicks') {
+    return {
+      mode: 'blocked' as const,
+      reason: accepted,
+      title: blockedLinkTitle(accepted, locals.locale),
+      link: publicLink,
+      settings: publicSettings,
+    };
   }
 
   redirect(settings.links.redirectStatus, redirectResult.url);

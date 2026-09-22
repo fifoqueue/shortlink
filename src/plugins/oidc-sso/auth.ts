@@ -64,10 +64,8 @@ interface FlowState {
   expectedSubject?: string;
   expiresAt: number;
   oauth?: {
-    authorizationEndpoint: string;
     tokenEndpoint: string;
     userInfoEndpoint: string;
-    subjectHint: string;
   };
 }
 
@@ -271,105 +269,6 @@ function assertRequiredEmailDomainAllowed(
   }
 }
 
-function parseLinkHeader(value: string | undefined, baseUrl: string) {
-  const links: Array<{ rel: string; href: string }> = [];
-  let part = '';
-  let quoted = false;
-  const parts: string[] = [];
-  for (const char of value ?? '') {
-    if (char === '"') quoted = !quoted;
-    if (char === ',' && !quoted) {
-      parts.push(part);
-      part = '';
-    } else {
-      part += char;
-    }
-  }
-  if (part) parts.push(part);
-
-  for (const item of parts) {
-    const href = /^\s*<([^>]+)>/.exec(item)?.[1];
-    if (!href) continue;
-    const rel = /;\s*rel\s*=\s*(?:"([^"]+)"|([^;\s]+))/i.exec(item);
-    const relValue = (rel?.[1] ?? rel?.[2] ?? '').toLowerCase();
-    for (const token of relValue.split(/\s+/).filter(Boolean)) {
-      links.push({
-        rel: token,
-        href: new URL(href, baseUrl).toString(),
-      });
-    }
-  }
-  return links;
-}
-
-function htmlAttributeValue(tag: string, name: string) {
-  const pattern = new RegExp(
-    `\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
-    'i',
-  );
-  const match = pattern.exec(tag);
-  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
-}
-
-function parseHtmlLinks(html: string, baseUrl: string) {
-  const links: Array<{ rel: string; href: string }> = [];
-  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
-    const tag = match[0];
-    const href = htmlAttributeValue(tag, 'href');
-    if (!href) continue;
-    const rel = htmlAttributeValue(tag, 'rel').toLowerCase();
-    for (const token of rel.split(/\s+/).filter(Boolean)) {
-      links.push({
-        rel: token,
-        href: new URL(href, baseUrl).toString(),
-      });
-    }
-  }
-  return links;
-}
-
-function firstRel(links: Array<{ rel: string; href: string }>, rel: string) {
-  return links.find((link) => link.rel === rel)?.href ?? '';
-}
-
-function canonicalHttpUrl(value: string, context?: PluginLocaleContext) {
-  const input = value.trim();
-  if (!input) throw new Error(t(context, 'auth.loginInputRequired'));
-  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(input)
-    ? input
-    : `https://${input}`;
-  let url: URL;
-  try {
-    url = new URL(candidate);
-  } catch {
-    throw new Error(t(context, 'auth.loginInputUrlInvalid'));
-  }
-  if (
-    !['https:', 'http:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.port ||
-    url.hash ||
-    !url.hostname ||
-    /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname) ||
-    url.hostname.includes(':') ||
-    url.pathname.split('/').some((part) => part === '.' || part === '..')
-  ) {
-    throw new Error(t(context, 'auth.loginInputUrlInvalid'));
-  }
-  url.hostname = url.hostname.toLowerCase();
-  if (!url.pathname) url.pathname = '/';
-  return url.toString();
-}
-
-function sameUrl(left: string, right: string) {
-  try {
-    return new URL(left).toString() === new URL(right).toString();
-  } catch {
-    return left === right;
-  }
-}
-
 function userInputValue(
   provider: OidcProvider,
   requestParams: URLSearchParams | undefined,
@@ -382,9 +281,7 @@ function userInputValue(
     throw new Error(t(context, 'auth.loginInputRequired'));
   }
   if (!value.trim()) return '';
-  return provider.loginInputUrlCanonicalization
-    ? canonicalHttpUrl(value, context)
-    : value.trim();
+  return value.trim();
 }
 
 async function providerRequest(
@@ -461,55 +358,8 @@ async function fetchOAuthMetadata(
   }
 }
 
-async function discoverProfileLinkedEndpoints(
-  provider: OidcProvider,
-  profileUrl: string,
-  context?: PluginLocaleContext,
-) {
-  const profile = await providerRequest(provider, profileUrl, {
-    headers: {
-      accept:
-        'text/html,application/xhtml+xml,application/json;q=0.8,*/*;q=0.5',
-    },
-    context,
-  });
-  if (profile.status < 200 || profile.status >= 300) {
-    throw new Error(t(context, 'auth.oauthDiscoveryFailed'));
-  }
-  const baseUrl = profile.url;
-  const headerLinks = parseLinkHeader(profile.headers.link, baseUrl);
-  const htmlLinks = /\bhtml\b/i.test(profile.headers['content-type'] ?? '')
-    ? parseHtmlLinks(profile.body, baseUrl)
-    : [];
-  const links = [...headerLinks, ...htmlLinks];
-  const metadataUrl = provider.metadataLinkRel
-    ? firstRel(links, provider.metadataLinkRel.toLowerCase())
-    : '';
-  if (metadataUrl) {
-    const endpoints = await fetchOAuthMetadata(provider, metadataUrl, context);
-    return {
-      ...endpoints,
-      authorizationEndpoint:
-        endpoints.authorizationEndpoint || provider.authorizationEndpoint,
-      tokenEndpoint: endpoints.tokenEndpoint || provider.tokenEndpoint,
-      userInfoEndpoint: endpoints.userInfoEndpoint || provider.userInfoEndpoint,
-    };
-  }
-  return {
-    issuer: '',
-    authorizationEndpoint: provider.authorizationEndpointRel
-      ? firstRel(links, provider.authorizationEndpointRel.toLowerCase())
-      : '',
-    tokenEndpoint: provider.tokenEndpointRel
-      ? firstRel(links, provider.tokenEndpointRel.toLowerCase())
-      : '',
-    userInfoEndpoint: provider.userInfoEndpoint,
-  };
-}
-
 async function resolveOAuthEndpoints(
   provider: OidcProvider,
-  subjectHint: string,
   context?: PluginLocaleContext,
 ): Promise<OAuthEndpoints> {
   let endpoints: OAuthEndpoints;
@@ -517,14 +367,6 @@ async function resolveOAuthEndpoints(
     endpoints = await fetchOAuthMetadata(
       provider,
       provider.oauthMetadataUrl,
-      context,
-    );
-  } else if (provider.oauthMetadataSource === 'profile-link') {
-    const profileUrl = subjectHint || provider.loginInputDefault;
-    if (!profileUrl) throw new Error(t(context, 'auth.loginInputRequired'));
-    endpoints = await discoverProfileLinkedEndpoints(
-      provider,
-      profileUrl,
       context,
     );
   } else {
@@ -544,6 +386,9 @@ async function resolveOAuthEndpoints(
   };
   if (!endpoints.authorizationEndpoint) {
     throw new Error(t(context, 'auth.oauthAuthorizationEndpointMissing'));
+  }
+  if (!endpoints.tokenEndpoint) {
+    throw new Error(t(context, 'auth.oauthTokenEndpointMissing'));
   }
   return endpoints;
 }
@@ -724,11 +569,7 @@ async function createGenericOAuthAuthorizationUrl(input: {
   const subjectHint =
     input.expectedSubject ??
     userInputValue(input.provider, input.requestParams, input.context);
-  const endpoints = await resolveOAuthEndpoints(
-    input.provider,
-    subjectHint,
-    input.context,
-  );
+  const endpoints = await resolveOAuthEndpoints(input.provider, input.context);
   const verifier = oidc.randomPKCECodeVerifier();
   const challenge = await oidc.calculatePKCECodeChallenge(verifier);
   const state = oidc.randomState();
@@ -745,10 +586,8 @@ async function createGenericOAuthAuthorizationUrl(input: {
     expectedSubject: input.expectedSubject,
     expiresAt: Date.now() + FLOW_TTL_SECONDS * 1000,
     oauth: {
-      authorizationEndpoint: endpoints.authorizationEndpoint,
-      tokenEndpoint: endpoints.tokenEndpoint || endpoints.authorizationEndpoint,
+      tokenEndpoint: endpoints.tokenEndpoint,
       userInfoEndpoint: endpoints.userInfoEndpoint,
-      subjectHint,
     },
   };
   input.cookies.set(
@@ -861,26 +700,6 @@ async function fetchOAuthUserInfo(
   }
 }
 
-async function verifySubjectAuthorizationEndpoint(
-  provider: OidcProvider,
-  subject: string,
-  expectedAuthorizationEndpoint: string,
-  context?: PluginLocaleContext,
-) {
-  const normalized = canonicalHttpUrl(subject, context);
-  const discovered = await discoverProfileLinkedEndpoints(
-    provider,
-    normalized,
-    context,
-  );
-  if (
-    !sameUrl(discovered.authorizationEndpoint, expectedAuthorizationEndpoint)
-  ) {
-    throw new Error(t(context, 'auth.subjectVerificationFailed'));
-  }
-  return normalized;
-}
-
 async function resolveGenericOAuthCallbackClaims(
   flow: FlowState,
   currentUrl: URL,
@@ -902,10 +721,9 @@ async function resolveGenericOAuthCallbackClaims(
   }
   const oauthFlow = flow.oauth;
   if (!oauthFlow) throw new Error(t(context, 'auth.oauthFlowMissing'));
-  const exchangeEndpoint = provider.scopes.trim()
-    ? oauthFlow.tokenEndpoint || oauthFlow.authorizationEndpoint
-    : oauthFlow.authorizationEndpoint;
-  const response = await providerRequest(provider, exchangeEndpoint, {
+  if (!oauthFlow.tokenEndpoint)
+    throw new Error(t(context, 'auth.oauthTokenEndpointMissing'));
+  const response = await providerRequest(provider, oauthFlow.tokenEndpoint, {
     method: 'POST',
     headers: tokenRequestHeaders(provider),
     body: tokenRequestBody(provider, flow, currentUrl, context),
@@ -930,7 +748,9 @@ async function resolveGenericOAuthCallbackClaims(
     throw new Error(t(context, 'auth.oauthTokenResponseInvalid'));
   }
 
-  const accessToken = stringFromJson(tokenResponse, 'access_token') ?? '';
+  const accessToken = stringFromJson(tokenResponse, 'access_token');
+  if (!accessToken)
+    throw new Error(t(context, 'auth.oauthTokenResponseInvalid'));
   const userInfo = await fetchOAuthUserInfo(
     provider,
     oauthFlow.userInfoEndpoint,
@@ -938,16 +758,8 @@ async function resolveGenericOAuthCallbackClaims(
     context,
   );
   const claims = { ...tokenResponse, ...userInfo };
-  let subject = stringFromJson(claims, provider.subjectPath);
+  const subject = stringFromJson(claims, provider.subjectPath);
   if (!subject) throw new Error(t(context, 'auth.subjectMissing'));
-  if (provider.subjectVerification === 'authorization-endpoint') {
-    subject = await verifySubjectAuthorizationEndpoint(
-      provider,
-      subject,
-      oauthFlow.authorizationEndpoint,
-      context,
-    );
-  }
 
   const email = stringFromJson(claims, provider.emailPath);
   assertKnownEmailDomainAllowed(provider, email, context);
@@ -1157,13 +969,13 @@ async function completeLogin(
     await storedUser.update({
       name: name.trim().slice(0, 120) || storedUser.email,
     });
+    await linkIdentity({
+      userId: storedUser.id,
+      provider: providerName,
+      subject,
+      email,
+    });
   }
-  await linkIdentity({
-    userId: storedUser.id,
-    provider: providerName,
-    subject,
-    email,
-  });
   createUserSessionFromModel(cookies, storedUser, providerName, subject);
   return flow.returnTo;
 }
@@ -1371,17 +1183,7 @@ export async function testProvider(
   context?: PluginLocaleContext,
 ) {
   if (provider.flow === 'oauth') {
-    if (
-      provider.oauthMetadataSource === 'profile-link' &&
-      !provider.loginInputDefault
-    ) {
-      return provider.name;
-    }
-    const endpoints = await resolveOAuthEndpoints(
-      provider,
-      provider.loginInputDefault,
-      context,
-    );
+    const endpoints = await resolveOAuthEndpoints(provider, context);
     return endpoints.authorizationEndpoint;
   }
   const configuration = await getConfiguration(provider, context);
@@ -1521,19 +1323,13 @@ async function startLocalSsoEmailVerification(input: {
 }) {
   const settings = await getSettings();
   try {
-    const user = await createPendingSsoUser({
+    await createPendingSsoUser({
       settings,
       origin: input.currentUrl.origin,
       email: input.email,
       name: input.name,
       provider: input.providerName,
       subject: input.subject,
-    });
-    await linkIdentity({
-      userId: user.id,
-      provider: input.providerName,
-      subject: input.subject,
-      email: input.email,
     });
   } catch (cause) {
     throwLocalizedServerError(cause, input.context);

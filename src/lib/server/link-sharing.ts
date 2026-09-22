@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { Op, type WhereOptions } from 'sequelize';
+import { Op, type Transaction, type WhereOptions } from 'sequelize';
 import {
   linkEditFieldKeys,
   linkedLinkEditFieldPairs,
@@ -10,6 +10,7 @@ import { serverMessage } from '$lib/i18n/ui-text';
 import type { LinkOwner } from './link-owner';
 import {
   ensureDatabase,
+  getDatabase,
   LinkAccessGrantModel,
   LinkAccessShareModel,
   ShortLinkModel,
@@ -158,10 +159,13 @@ function publicGrantAccess(grant: LinkAccessGrantModel) {
   return publicAccessFromValues(grant);
 }
 
-async function uniqueShareToken() {
+async function uniqueShareToken(transaction: Transaction) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const token = generateShareToken();
-    const existing = await LinkAccessShareModel.findOne({ where: { token } });
+    const existing = await LinkAccessShareModel.findOne({
+      where: { token },
+      transaction,
+    });
     if (!existing) return token;
   }
   throw new Error(serverMessage('shortCodeGenerateFailed'));
@@ -252,10 +256,12 @@ export async function linkShareSummariesByLinkId(
 export async function activeShareAccessForLinkId(
   linkId: number,
   userId: number,
+  transaction?: Transaction,
 ) {
-  await ensureDatabase();
+  if (!transaction) await ensureDatabase();
   const grant = await LinkAccessGrantModel.findOne({
     attributes: ['expiresAt', 'canViewStats', 'editableFields'],
+    transaction,
     where: {
       linkId,
       userId,
@@ -334,63 +340,96 @@ export async function saveLinkShare(input: {
   editableFields: unknown;
 }) {
   await ensureDatabase();
-  const editableFields = normalizeEditableFields(input.editableFields);
-  if (!input.canViewStats && editableFields.length === 0) {
-    throw new Error(serverMessage('shareNeedsPermission'));
-  }
-
-  const existing = await LinkAccessShareModel.findOne({
-    where: { linkId: input.linkId },
-  });
-  const values = {
-    expiresAt: normalizeShareExpiresAt(input.expiresAt),
-    canViewStats: input.canViewStats,
-    editableFields,
-    updatedAt: new Date(),
-  };
-
-  if (existing) {
-    await existing.update({
-      ...values,
-      ...(!isActiveShare(existing) || !existing.token.startsWith('slk_')
-        ? { token: await uniqueShareToken() }
-        : {}),
+  return getDatabase().transaction(async (transaction) => {
+    await ShortLinkModel.findByPk(input.linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
-    return existing;
-  }
+    const editableFields = normalizeEditableFields(input.editableFields);
+    if (!input.canViewStats && editableFields.length === 0) {
+      throw new Error(serverMessage('shareNeedsPermission'));
+    }
 
-  return LinkAccessShareModel.create({
-    linkId: input.linkId,
-    token: await uniqueShareToken(),
-    createdByUserId: input.createdByUserId ?? null,
-    ...values,
+    const existing = await LinkAccessShareModel.findOne({
+      where: { linkId: input.linkId },
+      transaction,
+    });
+    const values = {
+      expiresAt: normalizeShareExpiresAt(input.expiresAt),
+      canViewStats: input.canViewStats,
+      editableFields,
+      updatedAt: new Date(),
+    };
+
+    if (existing) {
+      await existing.update(
+        {
+          ...values,
+          ...(!isActiveShare(existing) || !existing.token.startsWith('slk_')
+            ? { token: await uniqueShareToken(transaction) }
+            : {}),
+        },
+        { transaction },
+      );
+      return existing;
+    }
+
+    return LinkAccessShareModel.create(
+      {
+        linkId: input.linkId,
+        token: await uniqueShareToken(transaction),
+        createdByUserId: input.createdByUserId ?? null,
+        ...values,
+      },
+      { transaction },
+    );
   });
 }
 
 export async function rotateLinkShareToken(linkId: number) {
   await ensureDatabase();
-  const share = await LinkAccessShareModel.findOne({
-    where: { linkId },
+  return getDatabase().transaction(async (transaction) => {
+    await ShortLinkModel.findByPk(linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const share = await LinkAccessShareModel.findOne({
+      where: { linkId },
+      transaction,
+    });
+    if (!share) return null;
+    await share.update(
+      {
+        token: await uniqueShareToken(transaction),
+        updatedAt: new Date(),
+      },
+      { transaction },
+    );
+    return share;
   });
-  if (!share) return null;
-  await share.update({
-    token: await uniqueShareToken(),
-    updatedAt: new Date(),
-  });
-  return share;
 }
 
 export async function cancelLinkShare(linkId: number) {
   await ensureDatabase();
-  const share = await LinkAccessShareModel.findOne({
-    where: { linkId },
+  return getDatabase().transaction(async (transaction) => {
+    await ShortLinkModel.findByPk(linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const share = await LinkAccessShareModel.findOne({
+      where: { linkId },
+      transaction,
+    });
+    if (!share) return null;
+    await share.update(
+      {
+        expiresAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { transaction },
+    );
+    return share;
   });
-  if (!share) return null;
-  await share.update({
-    expiresAt: new Date(),
-    updatedAt: new Date(),
-  });
-  return share;
 }
 
 export async function acceptLinkShareInvite(input: {
@@ -400,59 +439,74 @@ export async function acceptLinkShareInvite(input: {
   userId: number;
 }): Promise<AcceptLinkShareResult> {
   await ensureDatabase();
-  const share = await LinkAccessShareModel.findOne({
+  const candidate = await LinkAccessShareModel.findOne({
     where: { token: input.token },
   });
-  if (!share) return { status: 'not_found' };
+  if (!candidate) return { status: 'not_found' };
 
-  const link = await ShortLinkModel.findByPk(share.linkId);
-  if (
-    !link ||
-    (input.code !== undefined && link.code !== input.code) ||
-    (input.domain !== undefined && link.domain !== input.domain)
-  ) {
-    return { status: 'not_found' };
-  }
-
-  if (!isActiveShare(share)) return { status: 'expired', link };
-
-  if (link.creatorUserId === input.userId) {
-    return { status: 'owner', link, access: publicShareAccess(share) };
-  }
-
-  const existingGrant = await LinkAccessGrantModel.findOne({
-    where: { linkId: link.id, userId: input.userId },
-  });
-  const grantValues = {
-    shareId: share.id,
-    linkId: link.id,
-    userId: input.userId,
-    expiresAt: share.expiresAt,
-    canViewStats: share.canViewStats,
-    editableFields: normalizeEditableFields(share.editableFields),
-  };
-
-  if (existingGrant) {
-    if (!isActiveGrant(existingGrant)) {
-      await existingGrant.update({
-        ...grantValues,
-        acceptedAt: new Date(),
-      });
+  return getDatabase().transaction(async (transaction) => {
+    const link = await ShortLinkModel.findByPk(candidate.linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const share = await LinkAccessShareModel.findOne({
+      where: { token: input.token },
+      transaction,
+    });
+    if (!share) return { status: 'not_found' };
+    if (
+      !link ||
+      (input.code !== undefined && link.code !== input.code) ||
+      (input.domain !== undefined && link.domain !== input.domain)
+    ) {
+      return { status: 'not_found' };
     }
-  } else {
-    await LinkAccessGrantModel.create(grantValues);
-  }
 
-  const grant =
-    existingGrant ??
-    (await LinkAccessGrantModel.findOne({
+    if (!isActiveShare(share)) return { status: 'expired', link };
+
+    if (link.creatorUserId === input.userId) {
+      return { status: 'owner', link, access: publicShareAccess(share) };
+    }
+
+    const existingGrant = await LinkAccessGrantModel.findOne({
       where: { linkId: link.id, userId: input.userId },
-    }));
-  return {
-    status: 'accepted',
-    link,
-    access: grant ? publicGrantAccess(grant) : publicShareAccess(share),
-  };
+      transaction,
+    });
+    const grantValues = {
+      shareId: share.id,
+      linkId: link.id,
+      userId: input.userId,
+      expiresAt: share.expiresAt,
+      canViewStats: share.canViewStats,
+      editableFields: normalizeEditableFields(share.editableFields),
+    };
+
+    if (existingGrant) {
+      if (!isActiveGrant(existingGrant)) {
+        await existingGrant.update(
+          {
+            ...grantValues,
+            acceptedAt: new Date(),
+          },
+          { transaction },
+        );
+      }
+    } else {
+      await LinkAccessGrantModel.create(grantValues, { transaction });
+    }
+
+    const grant =
+      existingGrant ??
+      (await LinkAccessGrantModel.findOne({
+        where: { linkId: link.id, userId: input.userId },
+        transaction,
+      }));
+    return {
+      status: 'accepted',
+      link,
+      access: grant ? publicGrantAccess(grant) : publicShareAccess(share),
+    };
+  });
 }
 
 export async function saveLinkShareGrant(input: {
@@ -463,22 +517,32 @@ export async function saveLinkShareGrant(input: {
   editableFields: unknown;
 }) {
   await ensureDatabase();
-  const editableFields = normalizeEditableFields(input.editableFields);
-  if (!input.canViewStats && editableFields.length === 0) {
-    throw new Error(serverMessage('shareNeedsPermission'));
-  }
+  return getDatabase().transaction(async (transaction) => {
+    await ShortLinkModel.findByPk(input.linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const editableFields = normalizeEditableFields(input.editableFields);
+    if (!input.canViewStats && editableFields.length === 0) {
+      throw new Error(serverMessage('shareNeedsPermission'));
+    }
 
-  const grant = await LinkAccessGrantModel.findOne({
-    where: { id: input.grantId, linkId: input.linkId },
-  });
-  if (!grant) return null;
+    const grant = await LinkAccessGrantModel.findOne({
+      where: { id: input.grantId, linkId: input.linkId },
+      transaction,
+    });
+    if (!grant) return null;
 
-  await grant.update({
-    expiresAt: normalizeShareExpiresAt(input.expiresAt),
-    canViewStats: input.canViewStats,
-    editableFields,
+    await grant.update(
+      {
+        expiresAt: normalizeShareExpiresAt(input.expiresAt),
+        canViewStats: input.canViewStats,
+        editableFields,
+      },
+      { transaction },
+    );
+    return grant;
   });
-  return grant;
 }
 
 export async function revokeLinkShareGrant(input: {
@@ -486,8 +550,15 @@ export async function revokeLinkShareGrant(input: {
   grantId: number;
 }) {
   await ensureDatabase();
-  return LinkAccessGrantModel.destroy({
-    where: { id: input.grantId, linkId: input.linkId },
+  return getDatabase().transaction(async (transaction) => {
+    await ShortLinkModel.findByPk(input.linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    return LinkAccessGrantModel.destroy({
+      where: { id: input.grantId, linkId: input.linkId },
+      transaction,
+    });
   });
 }
 
@@ -496,17 +567,24 @@ export async function revokeLinkShareGrants(input: {
   grantIds: number[];
 }) {
   await ensureDatabase();
-  const grantIds = [
-    ...new Set(
-      input.grantIds.filter((id) => Number.isSafeInteger(id) && id > 0),
-    ),
-  ];
-  if (grantIds.length === 0) return 0;
+  return getDatabase().transaction(async (transaction) => {
+    await ShortLinkModel.findByPk(input.linkId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const grantIds = [
+      ...new Set(
+        input.grantIds.filter((id) => Number.isSafeInteger(id) && id > 0),
+      ),
+    ];
+    if (grantIds.length === 0) return 0;
 
-  return LinkAccessGrantModel.destroy({
-    where: {
-      id: { [Op.in]: grantIds },
-      linkId: input.linkId,
-    },
+    return LinkAccessGrantModel.destroy({
+      transaction,
+      where: {
+        id: { [Op.in]: grantIds },
+        linkId: input.linkId,
+      },
+    });
   });
 }

@@ -36,6 +36,7 @@ import { getSettings, stringValue } from '$lib/server/settings';
 import {
   authProviderKey,
   effectivePermissions,
+  effectivePermissionsForEvent,
   listUserPermissionGroups,
 } from '$lib/server/permissions';
 import { getClientIp } from '$lib/server/client-ip';
@@ -58,7 +59,7 @@ import {
   totpEnabledForUser,
   totpOtpAuthUrl,
   userHasLocalPassword,
-  verifyTotpCode,
+  totpCounterForCode,
   verifyUserTotp,
 } from '$lib/server/local-auth-security';
 import { authenticationOptions, randomChallenge } from '$lib/server/webauthn';
@@ -168,7 +169,7 @@ export const load: PageServerLoad = async ({
   url,
 }) => {
   const user = requirePageUser(locals, '/account');
-  const settings = await getSettings();
+  const settings = locals.settings;
   const permissions = await effectivePermissions({
     settings,
     user,
@@ -287,7 +288,7 @@ async function requireSecurityManagement(input: {
   provider: 'totp' | 'passkey';
 }) {
   const user = requirePageUser(input.locals, '/account');
-  const settings = await getSettings();
+  const settings = input.locals.settings;
   const text = uiText(input.locals.locale, settings.i18n.defaultLocale);
   const [storedUser, permissions] = await Promise.all([
     getUserById(user.id),
@@ -409,32 +410,22 @@ export const actions: Actions = {
           settings.network.proxyIpHeaders,
         ),
       });
-      const [passkeys, externalLoginAvailable] = await Promise.all([
-        listUserPasskeys(user.id),
-        linkedExternalLoginAvailable({
-          settings,
-          userId: user.id,
-          locale: locals.locale,
-          fallbackLocale: settings.i18n.defaultLocale,
-          allowedProviders: permissions.auth.providers,
-        }),
-      ]);
-      const passwordAvailable = userHasLocalPassword(storedUser);
-      if (
-        !localPasswordDeleteAvailable({
-          passwordAvailable,
-          passkeyAvailable: localPasskeyAllowed(permissions),
-          passkeyCount: passkeys.length,
-          externalLoginAvailable,
-        })
-      ) {
-        return fail(403, {
-          message: text.messages.passwordDeleteAlternativeRequired,
-        });
-      }
+      const methods = getAuthLoginMethods(
+        settings.plugins,
+        locals.locale,
+        settings.i18n.defaultLocale,
+        permissions.auth.providers,
+      );
       await deleteOwnPassword({
         id: user.id,
         currentPassword: stringValue(form, 'currentPassword'),
+        loginMethods: {
+          password: methods.some((method) => method.type === 'password'),
+          passkey: localPasskeyAllowed(permissions),
+          identityProviders: methods
+            .filter((method) => method.type === 'redirect')
+            .map((method) => authProviderKey(method.pluginId, method.id)),
+        },
       });
       return { ok: true, message: text.messages.passwordDeleted };
     } catch (cause) {
@@ -533,7 +524,7 @@ export const actions: Actions = {
     let verified = false;
 
     if (method === 'password' && passwordAvailable) {
-      verified = verifyPassword(
+      verified = await verifyPassword(
         stringValue(form, 'securityPassword'),
         storedUser.passwordHash,
       );
@@ -680,11 +671,14 @@ export const actions: Actions = {
     if (
       !challenge?.secret ||
       challenge.userId !== user.id ||
-      !verifyTotpCode(challenge.secret, stringValue(form, 'totpCode'))
+      totpCounterForCode(challenge.secret, stringValue(form, 'totpCode')) ===
+        null
     ) {
       return fail(400, { message: text.messages.totpCodeInvalid });
     }
-    consumeTimedChallenge(cookies, TOTP_SETUP_COOKIE);
+    if (!(await consumeTimedChallenge(cookies, TOTP_SETUP_COOKIE))) {
+      return fail(400, { message: text.messages.totpCodeInvalid });
+    }
     await saveUserTotpSecret(user.id, challenge.secret);
     return { ok: true, message: text.messages.totpEnabled };
   },
@@ -718,19 +712,48 @@ export const actions: Actions = {
     }
   },
 
-  revokePasskey: async ({ request, locals, cookies }) => {
+  revokePasskey: async (event) => {
+    const { request, locals, cookies } = event;
     const user = requirePageUser(locals, '/account');
     const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
     if (!securityUnlocked(cookies, user.id)) {
       return fail(403, { message: text.messages.securityUnlockRequired });
     }
-    const form = await request.formData();
-    const removed = await removeUserPasskey(
-      user.id,
-      Number(stringValue(form, 'id', '0')),
+    const permissions = await effectivePermissionsForEvent(event);
+    const methods = getAuthLoginMethods(
+      locals.settings.plugins,
+      locals.locale,
+      locals.settings.i18n.defaultLocale,
+      permissions.auth.providers,
     );
-    if (!removed) return fail(404, { message: text.messages.passkeyNotFound });
-    return { ok: true, message: text.messages.passkeyRemoved };
+    const form = await request.formData();
+    try {
+      const removed = await removeUserPasskey(
+        user.id,
+        Number(stringValue(form, 'id', '0')),
+        {
+          password: methods.some((method) => method.type === 'password'),
+          passkey: localPasskeyAllowed(permissions),
+          identityProviders: methods
+            .filter((method) => method.type === 'redirect')
+            .map((method) => authProviderKey(method.pluginId, method.id)),
+        },
+      );
+      if (!removed)
+        return fail(404, { message: text.messages.passkeyNotFound });
+      return { ok: true, message: text.messages.passkeyRemoved };
+    } catch (cause) {
+      return fail(400, {
+        message:
+          cause instanceof Error
+            ? localizeServerMessage(
+                locals.locale,
+                cause.message,
+                locals.settings.i18n.defaultLocale,
+              )
+            : text.messages.securityUpdateFailed,
+      });
+    }
   },
 
   createToken: async ({ request, locals }) => {
@@ -785,7 +808,8 @@ export const actions: Actions = {
     redirect(303, '/');
   },
 
-  pluginAction: async ({ request, locals, url }) => {
+  pluginAction: async (event) => {
+    const { request, locals, url } = event;
     const user = requirePageUser(locals, '/account');
     const form = await request.formData();
     const pluginId = String(form.get('pluginId') ?? '');
@@ -802,6 +826,7 @@ export const actions: Actions = {
     try {
       const result = await definition.handleAccountAction({
         user,
+        permissions: await effectivePermissionsForEvent(event),
         action,
         form,
         state,

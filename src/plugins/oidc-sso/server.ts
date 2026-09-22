@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { parseBoolean, stringValue } from '$lib/server/settings';
+import { getSettings, parseBoolean, stringValue } from '$lib/server/settings';
 import type {
   PluginConfig,
   PluginDefinition,
@@ -19,7 +19,9 @@ import {
   listUserIdentities,
   unlinkIdentity,
 } from '$lib/server/user-identities';
-import { canUseAuthProvider } from '$lib/server/permissions';
+import { authProviderKey, canUseAuthProvider } from '$lib/server/permissions';
+import { localPasskeyAllowed } from '$lib/server/local-auth-security';
+import { getAuthLoginMethods } from '../auth-registry';
 import { parseHeaderRecord } from '$lib/delimited';
 import { testProvider } from './auth';
 import {
@@ -31,7 +33,6 @@ import {
   providerSlug,
   type EmailTrustMode,
   type OAuthMetadataSource,
-  type OAuthSubjectVerification,
   type OidcProvider,
   type SsoProviderFlow,
 } from './config';
@@ -117,18 +118,9 @@ function providerFromForm(
     current?.oauthMetadataSource ?? 'manual',
   );
   const oauthMetadataSource: OAuthMetadataSource =
-    oauthMetadataSourceInput === 'metadata-url' ||
-    oauthMetadataSourceInput === 'profile-link'
+    oauthMetadataSourceInput === 'metadata-url'
       ? oauthMetadataSourceInput
       : 'manual';
-  const subjectVerification: OAuthSubjectVerification =
-    stringValue(
-      form,
-      'subjectVerification',
-      current?.subjectVerification ?? 'none',
-    ) === 'authorization-endpoint'
-      ? 'authorization-endpoint'
-      : 'none';
   const emailTrustModeInput = stringValue(
     form,
     'emailTrustMode',
@@ -197,21 +189,6 @@ function providerFromForm(
       'userInfoEndpoint',
       current?.userInfoEndpoint ?? '',
     ),
-    metadataLinkRel: stringValue(
-      form,
-      'metadataLinkRel',
-      current?.metadataLinkRel ?? '',
-    ),
-    authorizationEndpointRel: stringValue(
-      form,
-      'authorizationEndpointRel',
-      current?.authorizationEndpointRel ?? '',
-    ),
-    tokenEndpointRel: stringValue(
-      form,
-      'tokenEndpointRel',
-      current?.tokenEndpointRel ?? '',
-    ),
     clientId: stringValue(form, 'clientId', current?.clientId ?? ''),
     clientSecret:
       selectedAuthMethod === 'none'
@@ -265,10 +242,6 @@ function providerFromForm(
       current?.loginInputDefault ?? '',
     ),
     loginInputRequired: parseBoolean(form, 'loginInputRequired'),
-    loginInputUrlCanonicalization: parseBoolean(
-      form,
-      'loginInputUrlCanonicalization',
-    ),
     authorizationHintParameter: stringValue(
       form,
       'authorizationHintParameter',
@@ -286,7 +259,6 @@ function providerFromForm(
       ) || 'email_verified',
     namePath:
       stringValue(form, 'namePath', current?.namePath ?? 'name') || 'name',
-    subjectVerification,
     emailTrustMode,
     allowedEmailDomains: parseList(
       stringValue(
@@ -383,18 +355,14 @@ function requireProvider(provider: OidcProvider, strings: PluginLocaleStrings) {
     ) {
       throw new Error(t(strings, 'server.authorizationEndpointRequired'));
     }
+    if (provider.oauthMetadataSource === 'manual' && !provider.tokenEndpoint) {
+      throw new Error(t(strings, 'server.tokenEndpointRequired'));
+    }
     if (
       provider.oauthMetadataSource === 'metadata-url' &&
       !provider.oauthMetadataUrl
     ) {
       throw new Error(t(strings, 'server.oauthMetadataUrlRequired'));
-    }
-    if (
-      provider.oauthMetadataSource === 'profile-link' &&
-      !provider.loginInputName &&
-      !provider.loginInputDefault
-    ) {
-      throw new Error(t(strings, 'server.loginInputRequiredForProfileLink'));
     }
     if (!provider.subjectPath) {
       throw new Error(t(strings, 'server.subjectPathRequired'));
@@ -641,6 +609,7 @@ const serverPlugin = {
     if (action === 'unlink') {
       const removed = await unlinkIdentity({
         userId,
+        adminOverride: true,
         provider: stringValue(form, 'provider'),
         identityId: Number(stringValue(form, 'identityId', '0')),
       });
@@ -682,13 +651,35 @@ const serverPlugin = {
     };
   },
 
-  async handleAccountAction({ user, action, form, strings }) {
+  async handleAccountAction({
+    user,
+    action,
+    form,
+    strings,
+    permissions,
+    locale,
+    fallbackLocale,
+  }) {
     if (action === 'unlink') {
       const providerId = stringValue(form, 'providerId');
+      const settings = await getSettings();
+      const methods = getAuthLoginMethods(
+        settings.plugins,
+        locale,
+        fallbackLocale,
+        permissions.auth.providers,
+      );
       const removed = await unlinkIdentity({
         userId: user.id,
         provider: `oidc-sso:${providerId}`,
         identityId: Number(stringValue(form, 'identityId', '0')),
+        loginMethods: {
+          password: methods.some((method) => method.type === 'password'),
+          passkey: localPasskeyAllowed(permissions),
+          identityProviders: methods
+            .filter((method) => method.type === 'redirect')
+            .map((method) => authProviderKey(method.pluginId, method.id)),
+        },
       });
       if (!removed) throw new Error(t(strings, 'server.connectionNotFound'));
       return { message: t(strings, 'server.connectionUnlinked') };

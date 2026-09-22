@@ -223,12 +223,17 @@ export async function refreshRuntimePlugins(input: { force?: boolean } = {}) {
       (definition) => definition.meta.id,
     ),
   });
-  if (!changed && pluginDefinitions.length !== staticPluginDefinitions.length) {
+  const runtimeDefinitions = getRuntimePluginDefinitions();
+  if (
+    !changed &&
+    pluginDefinitions.length ===
+      staticPluginDefinitions.length + runtimeDefinitions.length
+  ) {
     return false;
   }
   const next = sortPluginDefinitions([
     ...staticPluginDefinitions,
-    ...getRuntimePluginDefinitions(),
+    ...runtimeDefinitions,
   ]);
   assertUniqueRuntimePluginIds(next);
   pluginDefinitions = next;

@@ -145,31 +145,20 @@ export function parseCidr(value: string): NormalizedCidr {
   };
 }
 
-function ipAddressForMatch(value: string) {
+export function ipAddressForMatch(value: string) {
   const normalized = value.trim().toLowerCase();
   const family = isIP(normalized);
   if (family === 4) {
     const address = parseIpv4ToBigInt(normalized);
-    return address === null ? null : { family, address };
+    return address === null
+      ? null
+      : { family, hex: hexAddress(address, family) };
   }
   if (family === 6) {
     const address = parseIpv6ToBigInt(normalized);
-    return address === null ? null : { family, address };
+    return address === null
+      ? null
+      : { family, hex: hexAddress(address, family) };
   }
   return null;
-}
-
-export function ipMatchesCidr(ip: string, rule: string) {
-  const address = ipAddressForMatch(ip);
-  if (!address) return false;
-  let cidr: NormalizedCidr;
-  try {
-    cidr = parseCidr(rule);
-  } catch {
-    return false;
-  }
-  if (address.family !== cidr.family) return false;
-  const start = BigInt(`0x${cidr.startHex}`);
-  const end = BigInt(`0x${cidr.endHex}`);
-  return address.address >= start && address.address <= end;
 }

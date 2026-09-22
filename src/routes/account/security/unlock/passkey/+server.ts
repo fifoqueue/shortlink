@@ -27,7 +27,7 @@ export const POST: RequestHandler = async ({
   const text = uiText(locals.locale, locals.settings.i18n.defaultLocale);
   if (!locals.user) throw error(401, text.messages.loginRequired);
 
-  const challenge = consumeTimedChallenge(
+  const challenge = await consumeTimedChallenge(
     cookies,
     PASSKEY_SECURITY_UNLOCK_COOKIE,
   );
@@ -56,15 +56,9 @@ export const POST: RequestHandler = async ({
     origin: url.origin,
     rpId: url.hostname,
   });
-  if (
-    verified.counter > 0 &&
-    passkey.counter > 0 &&
-    verified.counter <= passkey.counter
-  ) {
+  if (!(await updatePasskeyUse(passkey.credentialId, verified.counter))) {
     throw error(401, text.messages.invalidLogin);
   }
-
-  await updatePasskeyUse(passkey.credentialId, verified.counter);
   setSecurityUnlock(cookies, locals.user.id);
   return json({ ok: true, message: text.messages.securityUnlocked });
 };
