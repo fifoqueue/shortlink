@@ -322,13 +322,6 @@
                 >{provider.allowedEmailDomains.join('\n')}</textarea
               >
             </label>
-            <label class="wide">
-              {t('admin.authorizationRequestQuery')}
-              <small>{t('admin.authorizationRequestQueryHelp')}</small>
-              <textarea name="authorizationRequestQuery" rows="3"
-                >{provider.authorizationRequestQuery}</textarea
-              >
-            </label>
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
               <label class="wide">
                 {t('admin.tokenRequestBody')}
@@ -338,20 +331,6 @@
                 >
               </label>
             {/if}
-            <label class="wide">
-              {t('admin.extraRequestQuery')}
-              <small>{t('admin.extraRequestQueryHelp')}</small>
-              <textarea name="extraRequestQuery" rows="3"
-                >{provider.extraRequestQuery}</textarea
-              >
-            </label>
-            <label class="wide">
-              {t('admin.extraRequestHeaders')}
-              <small>{t('admin.extraRequestHeadersHelp')}</small>
-              <textarea name="extraRequestHeaders" rows="3"
-                >{provider.extraRequestHeaders}</textarea
-              >
-            </label>
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
               <label>
                 {t('admin.loginInputName')}
@@ -627,11 +606,6 @@
             {t('admin.allowedEmailDomains')}
             <textarea name="allowedEmailDomains" rows="3"></textarea>
           </label>
-          <label class="wide">
-            {t('admin.authorizationRequestQuery')}
-            <small>{t('admin.authorizationRequestQueryHelp')}</small>
-            <textarea name="authorizationRequestQuery" rows="3"></textarea>
-          </label>
           {#if newProviderFlow === 'oauth'}
             <label class="wide">
               {t('admin.tokenRequestBody')}
@@ -639,16 +613,6 @@
               <textarea name="tokenRequestBody" rows="3"></textarea>
             </label>
           {/if}
-          <label class="wide">
-            {t('admin.extraRequestQuery')}
-            <small>{t('admin.extraRequestQueryHelp')}</small>
-            <textarea name="extraRequestQuery" rows="3"></textarea>
-          </label>
-          <label class="wide">
-            {t('admin.extraRequestHeaders')}
-            <small>{t('admin.extraRequestHeadersHelp')}</small>
-            <textarea name="extraRequestHeaders" rows="3"></textarea>
-          </label>
           {#if newProviderFlow === 'oauth'}
             <label>
               {t('admin.loginInputName')}

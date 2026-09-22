@@ -2,7 +2,6 @@ import type { Cookies } from '@sveltejs/kit';
 import { Buffer } from 'node:buffer';
 import { josa } from 'es-hangul';
 import * as oidc from 'openid-client';
-import { parseHeaderRecord } from '$lib/delimited';
 import type {
   AuthenticatedUser,
   AuthPluginModule,
@@ -40,8 +39,7 @@ import {
   findProvider,
   getJsonPathValue,
   normalizeOidcConfig,
-  parseExtraRequestQuery,
-  type ExtraRequestQueryError,
+  parseTokenRequestBody,
   type OidcProvider,
 } from './config';
 
@@ -149,73 +147,12 @@ function getClientAuthentication(
     : oidc.ClientSecretBasic(clientSecret);
 }
 
-function extraQueryError(
-  context: PluginLocaleContext | undefined,
-  type: ExtraRequestQueryError,
-  line: number,
-) {
-  return type === 'keyRequired'
-    ? new Error(t(context, 'server.extraRequestQueryKeyRequired', { line }))
-    : new Error(t(context, 'server.extraRequestQueryInvalid', { line }));
-}
-
-function extraRequestQuery(
-  provider: OidcProvider,
-  context?: PluginLocaleContext,
-) {
-  return parseExtraRequestQuery(provider.extraRequestQuery, (type, line) =>
-    extraQueryError(context, type, line),
-  );
-}
-
-function extraRequestHeaders(
-  provider: OidcProvider,
-  context?: PluginLocaleContext,
-) {
-  return parseHeaderRecord(
-    provider.extraRequestHeaders,
-    t(context, 'server.extraRequestHeadersDescription'),
-  );
-}
-
-function providerOutboundFetch(
-  provider: OidcProvider,
-  context?: PluginLocaleContext,
-) {
-  const query = extraRequestQuery(provider, context);
-  const headersToAdd = extraRequestHeaders(provider, context);
-  const customFetch: oidc.CustomFetch = async (resource, options) => {
-    const settings = await getSettings();
-    const target = new URL(resource.toString());
-    query.forEach((value, key) => {
-      target.searchParams.append(key, value);
-    });
-
-    const headers = new Headers();
-    if (options?.headers) {
-      new Headers(options.headers).forEach((value, key) => {
-        headers.set(key, value);
-      });
-    }
-    Object.entries(headersToAdd).forEach(([key, value]) => {
-      headers.set(key, value);
-    });
-
-    return outboundFetch(target, {
-      ...options,
-      headers,
-      settings,
-      purpose: 'oidc',
-    });
-  };
-  return customFetch;
-}
-
-function appendQuery(target: URL, query: URLSearchParams) {
-  query.forEach((value, key) => {
-    target.searchParams.append(key, value);
+const providerOutboundFetch: oidc.CustomFetch = async (resource, options) =>
+  outboundFetch(resource, {
+    ...options,
+    settings: await getSettings(),
+    purpose: 'oidc',
   });
-}
 
 function parseFormEncodedOrJson(body: string, contentType = '') {
   if (/\bjson\b/i.test(contentType) || body.trim().startsWith('{')) {
@@ -285,28 +222,18 @@ function userInputValue(
 }
 
 async function providerRequest(
-  provider: OidcProvider,
   url: string,
   input?: {
     method?: 'GET' | 'POST';
     headers?: HeadersInit;
     body?: URLSearchParams;
-    context?: PluginLocaleContext;
   },
 ) {
   const settings = await getSettings();
-  const target = new URL(url);
-  appendQuery(target, extraRequestQuery(provider, input?.context));
-  const headers = new Headers(input?.headers);
-  Object.entries(extraRequestHeaders(provider, input?.context)).forEach(
-    ([key, value]) => {
-      headers.set(key, value);
-    },
-  );
   return outboundRequest({
-    url: target.toString(),
+    url,
     method: input?.method ?? 'GET',
-    headers,
+    headers: input?.headers,
     body: input?.body,
     settings,
     purpose: 'oidc',
@@ -333,13 +260,11 @@ function oauthMetadataEndpoints(
 }
 
 async function fetchOAuthMetadata(
-  provider: OidcProvider,
   metadataUrl: string,
   context?: PluginLocaleContext,
 ) {
-  const response = await providerRequest(provider, metadataUrl, {
+  const response = await providerRequest(metadataUrl, {
     headers: { accept: 'application/json' },
-    context,
   });
   if (response.status < 200 || response.status >= 300) {
     throw new Error(
@@ -364,11 +289,7 @@ async function resolveOAuthEndpoints(
 ): Promise<OAuthEndpoints> {
   let endpoints: OAuthEndpoints;
   if (provider.oauthMetadataSource === 'metadata-url') {
-    endpoints = await fetchOAuthMetadata(
-      provider,
-      provider.oauthMetadataUrl,
-      context,
-    );
+    endpoints = await fetchOAuthMetadata(provider.oauthMetadataUrl, context);
   } else {
     endpoints = {
       issuer: provider.issuerUrl,
@@ -406,8 +327,6 @@ async function getConfiguration(
     clientId,
     provider.clientSecret,
     provider.clientAuthMethod,
-    provider.extraRequestQuery,
-    provider.extraRequestHeaders,
   ]);
   if (!configurationCache.has(cacheKey)) {
     const request = oidc
@@ -417,7 +336,7 @@ async function getConfiguration(
         undefined,
         getClientAuthentication(provider, context),
         {
-          [oidc.customFetch]: providerOutboundFetch(provider, context),
+          [oidc.customFetch]: providerOutboundFetch,
         },
       )
       .catch((cause) => {
@@ -546,12 +465,6 @@ async function createAuthorizationUrl(
     state,
     nonce,
   });
-  appendQuery(
-    authorizationUrl,
-    parseExtraRequestQuery(provider.authorizationRequestQuery, (type, line) =>
-      extraQueryError(context, type, line),
-    ),
-  );
   return authorizationUrl;
 }
 
@@ -612,13 +525,6 @@ async function createGenericOAuthAuthorizationUrl(input: {
       subjectHint,
     );
   }
-  appendQuery(
-    target,
-    parseExtraRequestQuery(
-      input.provider.authorizationRequestQuery,
-      (type, line) => extraQueryError(input.context, type, line),
-    ),
-  );
   return target;
 }
 
@@ -647,8 +553,10 @@ function tokenRequestBody(
     redirect_uri: flow.redirectUri ?? '',
     code_verifier: flow.verifier,
   });
-  parseExtraRequestQuery(provider.tokenRequestBody, (type, line) =>
-    extraQueryError(context, type, line),
+  parseTokenRequestBody(provider.tokenRequestBody, (type, line) =>
+    type === 'keyRequired'
+      ? new Error(t(context, 'server.tokenRequestBodyKeyRequired', { line }))
+      : new Error(t(context, 'server.tokenRequestBodyInvalid', { line })),
   ).forEach((value, key) => {
     body.append(key, value);
   });
@@ -675,19 +583,13 @@ function tokenRequestHeaders(provider: OidcProvider) {
   return headers;
 }
 
-async function fetchOAuthUserInfo(
-  provider: OidcProvider,
-  endpoint: string,
-  accessToken: string,
-  context?: PluginLocaleContext,
-) {
+async function fetchOAuthUserInfo(endpoint: string, accessToken: string) {
   if (!endpoint || !accessToken) return {};
-  const response = await providerRequest(provider, endpoint, {
+  const response = await providerRequest(endpoint, {
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${accessToken}`,
     },
-    context,
   });
   if (response.status < 200 || response.status >= 300) return {};
   try {
@@ -723,11 +625,10 @@ async function resolveGenericOAuthCallbackClaims(
   if (!oauthFlow) throw new Error(t(context, 'auth.oauthFlowMissing'));
   if (!oauthFlow.tokenEndpoint)
     throw new Error(t(context, 'auth.oauthTokenEndpointMissing'));
-  const response = await providerRequest(provider, oauthFlow.tokenEndpoint, {
+  const response = await providerRequest(oauthFlow.tokenEndpoint, {
     method: 'POST',
     headers: tokenRequestHeaders(provider),
     body: tokenRequestBody(provider, flow, currentUrl, context),
-    context,
   });
   if (response.status < 200 || response.status >= 300) {
     throw new Error(
@@ -752,10 +653,8 @@ async function resolveGenericOAuthCallbackClaims(
   if (!accessToken)
     throw new Error(t(context, 'auth.oauthTokenResponseInvalid'));
   const userInfo = await fetchOAuthUserInfo(
-    provider,
     oauthFlow.userInfoEndpoint,
     accessToken,
-    context,
   );
   const claims = { ...tokenResponse, ...userInfo };
   const subject = stringFromJson(claims, provider.subjectPath);

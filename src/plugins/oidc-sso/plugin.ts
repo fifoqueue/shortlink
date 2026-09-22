@@ -71,18 +71,9 @@ const plugin: PluginDefinition = {
         'admin.allowedEmailDomains': '허용 이메일 도메인',
         'admin.authorizationHintParameter': 'Authorization hint parameter',
         'admin.authorizationHintParameterPlaceholder': 'login_hint',
-        'admin.authorizationRequestQuery': '추가 authorization 쿼리스트링',
-        'admin.authorizationRequestQueryHelp':
-          '브라우저를 authorization endpoint로 보낼 때 추가할 query parameter입니다. key=value 형식으로 줄마다 하나씩 입력하거나 &로 구분하세요.',
         'admin.tokenRequestBody': '추가 token 요청 body',
         'admin.tokenRequestBodyHelp':
           'Generic OAuth2 token exchange POST body에 추가할 form parameter입니다. key=value 형식으로 줄마다 하나씩 입력하거나 &로 구분하세요.',
-        'admin.extraRequestQuery': '추가 요청 쿼리스트링',
-        'admin.extraRequestQueryHelp':
-          '서버가 discovery, token, UserInfo 요청을 보낼 때 URL에 추가할 query parameter입니다. key=value 형식으로 줄마다 하나씩 입력하거나 &로 구분하세요.',
-        'admin.extraRequestHeaders': '추가 요청 헤더',
-        'admin.extraRequestHeadersHelp':
-          '서버가 discovery, token, UserInfo 요청을 보낼 때 추가할 HTTP 헤더입니다. Header | Value 형식으로 줄마다 하나씩 입력하세요.',
         'admin.loginInputName': '로그인 입력 필드 이름',
         'admin.loginInputNamePlaceholder': 'login_hint',
         'admin.loginInputLabel': '로그인 입력 라벨',
@@ -240,19 +231,10 @@ const plugin: PluginDefinition = {
           'Email verified JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
         'server.namePathInvalid':
           'Name JSON path가 올바르지 않습니다. dot/bracket 표기만 사용할 수 있으며 prototype, constructor, __proto__는 사용할 수 없습니다.',
-        'server.authorizationRequestQueryInvalid':
-          '추가 authorization 쿼리스트링 {line}번째 항목이 올바르지 않습니다.',
-        'server.authorizationRequestQueryKeyRequired':
-          '추가 authorization 쿼리스트링 {line}번째 항목의 key가 비어 있습니다.',
         'server.tokenRequestBodyInvalid':
           '추가 token 요청 body {line}번째 항목이 올바르지 않습니다.',
         'server.tokenRequestBodyKeyRequired':
           '추가 token 요청 body {line}번째 항목의 key가 비어 있습니다.',
-        'server.extraRequestQueryInvalid':
-          '추가 요청 쿼리스트링 {line}번째 항목이 올바르지 않습니다.',
-        'server.extraRequestQueryKeyRequired':
-          '추가 요청 쿼리스트링 {line}번째 항목의 key가 비어 있습니다.',
-        'server.extraRequestHeadersDescription': 'OIDC 추가 요청 헤더',
         'server.passwordLoginRequiresProvider':
           '비밀번호 로그인을 끄려면 SSO 프로바이더가 하나 이상 필요합니다.',
         'server.loginPolicySaved': '로그인 정책을 저장했습니다.',
@@ -329,18 +311,9 @@ const plugin: PluginDefinition = {
         'admin.allowedEmailDomains': 'Allowed email domains',
         'admin.authorizationHintParameter': 'Authorization hint parameter',
         'admin.authorizationHintParameterPlaceholder': 'login_hint',
-        'admin.authorizationRequestQuery': 'Extra authorization query string',
-        'admin.authorizationRequestQueryHelp':
-          'Query parameters appended when redirecting the browser to the authorization endpoint. Enter one key=value per line or separate items with &.',
         'admin.tokenRequestBody': 'Extra token request body',
         'admin.tokenRequestBodyHelp':
           'Form parameters added to the Generic OAuth2 token exchange POST body. Enter one key=value per line or separate items with &.',
-        'admin.extraRequestQuery': 'Extra request query string',
-        'admin.extraRequestQueryHelp':
-          'Query parameters appended when the server sends discovery, token, and UserInfo requests. Enter one key=value per line or separate items with &.',
-        'admin.extraRequestHeaders': 'Extra request headers',
-        'admin.extraRequestHeadersHelp':
-          'HTTP headers added when the server sends discovery, token, and UserInfo requests. Enter one Header | Value pair per line.',
         'admin.loginInputName': 'Login input field name',
         'admin.loginInputNamePlaceholder': 'login_hint',
         'admin.loginInputLabel': 'Login input label',
@@ -494,19 +467,10 @@ const plugin: PluginDefinition = {
           'Email verified JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',
         'server.namePathInvalid':
           'Name JSON path is invalid. Use dot/bracket notation only. prototype, constructor, and __proto__ are blocked.',
-        'server.authorizationRequestQueryInvalid':
-          'Extra authorization query item on line {line} is invalid.',
-        'server.authorizationRequestQueryKeyRequired':
-          'Extra authorization query item on line {line} has an empty key.',
         'server.tokenRequestBodyInvalid':
           'Extra token request body item on line {line} is invalid.',
         'server.tokenRequestBodyKeyRequired':
           'Extra token request body item on line {line} has an empty key.',
-        'server.extraRequestQueryInvalid':
-          'Extra request query item on line {line} is invalid.',
-        'server.extraRequestQueryKeyRequired':
-          'Extra request query item on line {line} has an empty key.',
-        'server.extraRequestHeadersDescription': 'OIDC extra request headers',
         'server.passwordLoginRequiresProvider':
           'At least one SSO provider is required to disable password login.',
         'server.loginPolicySaved': 'Login policy saved.',

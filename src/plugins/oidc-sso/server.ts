@@ -22,13 +22,12 @@ import {
 import { authProviderKey, canUseAuthProvider } from '$lib/server/permissions';
 import { localPasskeyAllowed } from '$lib/server/local-auth-security';
 import { getAuthLoginMethods } from '../auth-registry';
-import { parseHeaderRecord } from '$lib/delimited';
 import { testProvider } from './auth';
 import {
   defaultOidcScopes,
   isValidJsonPath,
   normalizeOidcConfig,
-  parseExtraRequestQuery,
+  parseTokenRequestBody,
   parseList,
   providerSlug,
   type EmailTrustMode,
@@ -196,25 +195,10 @@ function providerFromForm(
         : clientSecret || current?.clientSecret || '',
     clientAuthMethod: selectedAuthMethod,
     scopes: flow === 'oauth' ? scopeInput : scopeInput || defaultOidcScopes,
-    authorizationRequestQuery: stringValue(
-      form,
-      'authorizationRequestQuery',
-      current?.authorizationRequestQuery ?? '',
-    ).slice(0, 5000),
     tokenRequestBody: stringValue(
       form,
       'tokenRequestBody',
       current?.tokenRequestBody ?? '',
-    ).slice(0, 5000),
-    extraRequestQuery: stringValue(
-      form,
-      'extraRequestQuery',
-      current?.extraRequestQuery ?? '',
-    ).slice(0, 5000),
-    extraRequestHeaders: stringValue(
-      form,
-      'extraRequestHeaders',
-      current?.extraRequestHeaders ?? '',
     ).slice(0, 5000),
     loginInputName: stringValue(
       form,
@@ -270,29 +254,11 @@ function providerFromForm(
   };
 }
 
-function validateExtraRequests(
+function validateTokenRequestBody(
   provider: OidcProvider,
   strings: PluginLocaleStrings,
 ) {
-  parseExtraRequestQuery(provider.extraRequestQuery, (type, line) =>
-    type === 'keyRequired'
-      ? new Error(t(strings, 'server.extraRequestQueryKeyRequired', { line }))
-      : new Error(t(strings, 'server.extraRequestQueryInvalid', { line })),
-  );
-  parseHeaderRecord(
-    provider.extraRequestHeaders,
-    t(strings, 'server.extraRequestHeadersDescription'),
-  );
-  parseExtraRequestQuery(provider.authorizationRequestQuery, (type, line) =>
-    type === 'keyRequired'
-      ? new Error(
-          t(strings, 'server.authorizationRequestQueryKeyRequired', { line }),
-        )
-      : new Error(
-          t(strings, 'server.authorizationRequestQueryInvalid', { line }),
-        ),
-  );
-  parseExtraRequestQuery(provider.tokenRequestBody, (type, line) =>
+  parseTokenRequestBody(provider.tokenRequestBody, (type, line) =>
     type === 'keyRequired'
       ? new Error(t(strings, 'server.tokenRequestBodyKeyRequired', { line }))
       : new Error(t(strings, 'server.tokenRequestBodyInvalid', { line })),
@@ -376,7 +342,7 @@ function requireProvider(provider: OidcProvider, strings: PluginLocaleStrings) {
     strings,
   );
   validatePath(provider.namePath, 'server.namePathInvalid', strings);
-  validateExtraRequests(provider, strings);
+  validateTokenRequestBody(provider, strings);
 }
 
 function savePolicy(

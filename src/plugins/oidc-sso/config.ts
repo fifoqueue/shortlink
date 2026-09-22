@@ -22,10 +22,7 @@ export interface OidcProvider {
   clientSecret: string;
   clientAuthMethod: 'client_secret_basic' | 'client_secret_post' | 'none';
   scopes: string;
-  authorizationRequestQuery: string;
   tokenRequestBody: string;
-  extraRequestQuery: string;
-  extraRequestHeaders: string;
   loginInputName: string;
   loginInputLabel: string;
   loginInputPlaceholder: string;
@@ -48,7 +45,7 @@ export interface OidcPluginConfig extends Record<string, unknown> {
 
 export const defaultOidcScopes = 'openid profile email';
 
-export type ExtraRequestQueryError = 'invalid' | 'keyRequired';
+export type TokenRequestBodyError = 'invalid' | 'keyRequired';
 
 type JsonPathSegment =
   { type: 'key'; key: string } | { type: 'index'; index: number };
@@ -119,10 +116,7 @@ function provider(value: unknown): OidcProvider | null {
         : flow === 'oauth'
           ? ''
           : defaultOidcScopes,
-    authorizationRequestQuery: stringValue(raw.authorizationRequestQuery),
     tokenRequestBody: stringValue(raw.tokenRequestBody),
-    extraRequestQuery: stringValue(raw.extraRequestQuery),
-    extraRequestHeaders: stringValue(raw.extraRequestHeaders),
     loginInputName: stringValue(raw.loginInputName),
     loginInputLabel: stringValue(raw.loginInputLabel),
     loginInputPlaceholder: stringValue(raw.loginInputPlaceholder),
@@ -325,12 +319,12 @@ export function getJsonPathValue(value: unknown, path: string) {
   return current;
 }
 
-export function parseExtraRequestQuery(
+export function parseTokenRequestBody(
   value: string,
-  error: (type: ExtraRequestQueryError, line: number) => Error,
+  error: (type: TokenRequestBodyError, line: number) => Error,
 ) {
   const params = new URLSearchParams();
-  const fail = (type: ExtraRequestQueryError, line: number) => {
+  const fail = (type: TokenRequestBodyError, line: number) => {
     throw error(type, line);
   };
 
