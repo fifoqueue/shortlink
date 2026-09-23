@@ -1,10 +1,15 @@
 <script lang="ts">
+  import * as Dialog from '$lib/components/ui/dialog';
+  import * as Tabs from '$lib/components/ui/tabs';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { resolve } from '$app/paths';
   import CopyValue from '$lib/components/CopyValue.svelte';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
-  import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import SiteHeader from '$lib/components/SiteHeader.svelte';
+  import * as Card from '$lib/components/ui/card';
   import PluginSlotOutlet from '$lib/components/PluginSlotOutlet.svelte';
   import RuntimePluginFrame from '$lib/components/RuntimePluginFrame.svelte';
   import RuntimePluginSchemaForm from '$lib/components/RuntimePluginSchemaForm.svelte';
@@ -52,7 +57,6 @@
     description: string;
     priority: number;
     expiresAt: string | null;
-    assignmentSource: 'manual' | 'automatic';
   };
 
   type Passkey = {
@@ -155,16 +159,12 @@
   }
 
   function permissionGroupMeta(group: PermissionGroup) {
-    const source =
-      group.assignmentSource === 'automatic'
-        ? text.account.automaticPermissionGroup
-        : text.account.manualPermissionGroup;
-    if (!group.expiresAt) return source;
+    if (!group.expiresAt) return '';
     const date = new Date(group.expiresAt);
-    if (Number.isNaN(date.getTime())) return source;
-    return `${source} · ${formatText(text.account.permissionGroupExpires, {
+    if (Number.isNaN(date.getTime())) return '';
+    return formatText(text.account.permissionGroupExpires, {
       value: date.toLocaleString(data.locale),
-    })}`;
+    });
   }
 
   function tokenSelectionValue(token: Pick<Token, 'id'>) {
@@ -197,14 +197,6 @@
   function closeSecurityUnlock() {
     if (passkeyUnlockBusy) return;
     securityUnlockOpen = false;
-  }
-
-  function closeSecurityUnlockFromBackdrop(event: MouseEvent) {
-    if (event.target === event.currentTarget) closeSecurityUnlock();
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') closeSecurityUnlock();
   }
 
   const securityUnlockEnhance: SubmitFunction = () => {
@@ -325,14 +317,12 @@
   });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <svelte:head><title>{text.account.title} · {data.siteName}</title></svelte:head>
 
 <SiteThemeStyles customHead={data.customHead} />
 
-<main
-  class="site-theme"
+<div
+  class="account-page site-theme"
   data-theme-mode={data.theme.mode}
   data-theme-preset={data.theme.preset}
   style={siteThemeStyle(data.theme)}
@@ -343,604 +333,716 @@
     {/key}
   {/if}
 
-  <header>
-    <div>
-      <a href={resolve('/')}>← {text.common.home}</a>
-      <h1>{text.account.title}</h1>
-      <p>{formatText(text.account.description, { name: data.user.name })}</p>
-    </div>
-    <LocaleSelect locale={data.locale} compact />
-  </header>
-
-  <section>
-    <h2>{text.account.profile}</h2>
-    <form method="POST" action="?/profile" use:enhance={keepFormValues}>
-      <div class="grid form-grid balanced">
-        <label>
-          {text.auth.email}
-          <input
-            name="email"
-            type="email"
-            value={data.user.email ?? ''}
-            required
-          />
-          {#if data.pendingEmail}
-            <span>
-              {formatText(text.account.pendingEmail, {
-                email: data.pendingEmail,
-              })}
-            </span>
-          {/if}
-        </label>
-        <label>
-          {text.auth.name}
-          <input name="name" value={data.user.name} required />
-        </label>
-      </div>
-      <button type="submit">{text.common.save}</button>
-    </form>
-  </section>
-
-  <section>
-    <h2>{text.account.permissionGroups}</h2>
-    <p>{text.account.permissionGroupsDescription}</p>
-    <div class="permission-groups">
-      {#each data.permissionGroups as group (group.id)}
-        <article>
-          <div>
-            <strong>{group.name}</strong>
-            <span>{group.description || text.account.noGroupDescription}</span>
-            <span>{permissionGroupMeta(group)}</span>
-          </div>
-        </article>
-      {:else}
-        <p class="empty">{text.account.emptyPermissionGroups}</p>
-      {/each}
-    </div>
-  </section>
-
-  <section>
-    <h2>{text.account.password}</h2>
-    {#if data.security.passwordAvailable}
-      <form method="POST" action="?/password" use:enhance={keepFormValues}>
-        <div class="grid form-grid balanced">
-          <label>
-            {text.account.currentPassword}
-            <input
-              name="currentPassword"
-              type="password"
-              autocomplete="current-password"
-            />
-          </label>
-          <label>
-            {text.account.nextPassword}
-            <input
-              name="nextPassword"
-              type="password"
-              minlength={data.passwordMinLength}
-              autocomplete="new-password"
-              required
-            />
-            <span>{data.passwordPolicy}</span>
-          </label>
-        </div>
-        <button type="submit">{text.account.changePassword}</button>
-      </form>
-      <div class="password-delete">
+  <SiteHeader />
+  <div class="account-layout">
+    <nav class="account-nav" aria-label={text.account.title}>
+      <a href={resolve('/account#profile')}>{text.account.profile}</a>
+      <a href={resolve('/account#password')}>{text.account.password}</a>
+      <a href={resolve('/account#security')}>{text.account.security}</a>
+      <a href={resolve('/account#sessions')}>{text.account.sessions}</a>
+      <a href={resolve('/account#tokens')}>{text.account.apiTokens}</a>
+    </nav>
+    <main class="account-content">
+      <header>
         <div>
-          <strong>{text.account.deletePassword}</strong>
+          <h1>{text.account.title}</h1>
           <p>
-            {data.security.passwordDeleteAvailable
-              ? text.account.deletePasswordDescription
-              : text.account.deletePasswordUnavailable}
+            {formatText(text.account.description, { name: data.user.name })}
           </p>
         </div>
-        {#if data.security.passwordDeleteAvailable}
+      </header>
+
+      <section id="profile">
+        <Card.Root
+          class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+          ><Card.Content class="p-6">
+            <h2>{text.account.profile}</h2>
+            <form method="POST" action="?/profile" use:enhance={keepFormValues}>
+              <div class="grid form-grid balanced">
+                <label>
+                  {text.auth.email}
+                  <Input
+                    name="email"
+                    type="email"
+                    value={data.user.email ?? ''}
+                    required
+                  />
+                  {#if data.pendingEmail}
+                    <span>
+                      {formatText(text.account.pendingEmail, {
+                        email: data.pendingEmail,
+                      })}
+                    </span>
+                  {/if}
+                </label>
+                <label>
+                  {text.auth.name}
+                  <Input name="name" value={data.user.name} required />
+                </label>
+              </div>
+              <Button type="submit">{text.common.save}</Button>
+            </form>
+          </Card.Content></Card.Root
+        >
+      </section>
+
+      {#if data.permissionGroups.length > 0}
+        <section>
+          <Card.Root
+            class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+            ><Card.Content class="p-6">
+              <h2>{text.account.permissionGroups}</h2>
+
+              <div class="permission-groups">
+                {#each data.permissionGroups as group (group.id)}
+                  <article>
+                    <div>
+                      <strong>{group.name}</strong>
+                      <span
+                        >{group.description ||
+                          text.account.noGroupDescription}</span
+                      >
+                      {#if group.expiresAt}<span
+                          >{permissionGroupMeta(group)}</span
+                        >{/if}
+                    </div>
+                  </article>
+                {:else}
+                  <p class="empty">{text.account.emptyPermissionGroups}</p>
+                {/each}
+              </div>
+            </Card.Content></Card.Root
+          >
+        </section>
+      {/if}
+
+      <section id="password">
+        <Card.Root
+          class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+          ><Card.Content class="p-6">
+            <h2>{text.account.password}</h2>
+            {#if data.security.passwordAvailable}
+              <form
+                method="POST"
+                action="?/password"
+                use:enhance={keepFormValues}
+              >
+                <div class="grid form-grid balanced">
+                  <label>
+                    {text.account.currentPassword}
+                    <Input
+                      name="currentPassword"
+                      type="password"
+                      autocomplete="current-password"
+                    />
+                  </label>
+                  <label>
+                    {text.account.nextPassword}
+                    <Input
+                      name="nextPassword"
+                      type="password"
+                      minlength={data.passwordMinLength}
+                      autocomplete="new-password"
+                      required
+                    />
+                    <span>{data.passwordPolicy}</span>
+                  </label>
+                </div>
+                <Button type="submit">{text.account.changePassword}</Button>
+              </form>
+              <div class="password-delete">
+                <div>
+                  <strong>{text.account.deletePassword}</strong>
+                  <p>
+                    {data.security.passwordDeleteAvailable
+                      ? text.account.deletePasswordDescription
+                      : text.account.deletePasswordUnavailable}
+                  </p>
+                </div>
+                {#if data.security.passwordDeleteAvailable}
+                  <form
+                    method="POST"
+                    action="?/deletePassword"
+                    use:enhance={keepFormValues}
+                  >
+                    <label>
+                      {text.account.currentPassword}
+                      <Input
+                        name="currentPassword"
+                        type="password"
+                        autocomplete="current-password"
+                        required
+                      />
+                    </label>
+                    <DangerConfirmButton
+                      label={text.account.deletePassword}
+                      title={text.account.deletePasswordTitle}
+                      message={text.account.deletePasswordMessage}
+                      confirmLabel={text.account.deletePasswordConfirm}
+                      locale={data.locale}
+                    />
+                  </form>
+                {/if}
+              </div>
+            {:else if data.security.unlocked}
+              <form
+                method="POST"
+                action="?/password"
+                use:enhance={keepFormValues}
+              >
+                <p>{text.account.externalPasswordUnavailable}</p>
+                <label>
+                  {text.account.nextPassword}
+                  <Input
+                    name="nextPassword"
+                    type="password"
+                    minlength={data.passwordMinLength}
+                    autocomplete="new-password"
+                    required
+                  />
+                  <span>{data.passwordPolicy}</span>
+                </label>
+                <Button type="submit">{text.account.setPassword}</Button>
+              </form>
+            {:else}
+              <div class="security-locked">
+                <div>
+                  <strong>{text.account.securityLockedTitle}</strong>
+                  <p>{text.account.externalPasswordUnavailable}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  type="button"
+                  onclick={openSecurityUnlock}
+                >
+                  {text.account.unlockSecurity}
+                </Button>
+              </div>
+            {/if}
+          </Card.Content></Card.Root
+        >
+      </section>
+
+      <section id="security">
+        <Card.Root
+          class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+          ><Card.Content class="p-6">
+            <h2>{text.account.security}</h2>
+            <p>{text.account.securityDescription}</p>
+            {#if data.security.unlocked}
+              <Tabs.Root
+                value={activeSecurityTab}
+                onValueChange={(value) =>
+                  (activeSecurityTab = value as SecurityTab)}
+              >
+                <Tabs.List class="mt-5" aria-label={text.account.security}>
+                  <Tabs.Trigger value="totp">{text.account.totp}</Tabs.Trigger>
+                  <Tabs.Trigger value="passkey"
+                    >{text.account.passkeys}</Tabs.Trigger
+                  >
+                </Tabs.List>
+                <div class="security-panel">
+                  <Tabs.Content value="totp">
+                    <div>
+                      <strong>{text.account.totp}</strong>
+                      <span>{text.account.totpDescription}</span>
+                    </div>
+                    {#if data.security.totpAvailable}
+                      {#if data.security.totpEnabled}
+                        <p class="status-ok">{text.account.totpEnabledState}</p>
+                        <form method="POST" action="?/disableTotp" use:enhance>
+                          <Button type="submit"
+                            >{text.account.disableTotp}</Button
+                          >
+                        </form>
+                      {:else if form?.setupTotp}
+                        <div class="totp-setup">
+                          <img
+                            src={form.setupTotp.qrDataUrl}
+                            alt={text.common.qrCode}
+                          />
+                          <label>
+                            {text.account.totpSecret}
+                            <CopyValue
+                              value={form.setupTotp.secret}
+                              copied={copiedValue === 'totpSecret'}
+                              onclick={() =>
+                                copyIssuedToken(
+                                  form.setupTotp!.secret,
+                                  'totpSecret',
+                                )}
+                              locale={data.locale}
+                            />
+                          </label>
+                        </div>
+                        <form method="POST" action="?/enableTotp" use:enhance>
+                          <label>
+                            {text.account.totpCode}
+                            <Input
+                              name="totpCode"
+                              inputmode="numeric"
+                              autocomplete="one-time-code"
+                              required
+                            />
+                            <span>{text.account.totpSetupInstructions}</span>
+                          </label>
+                          <Button type="submit"
+                            >{text.account.enableTotp}</Button
+                          >
+                        </form>
+                      {:else}
+                        <form method="POST" action="?/startTotp" use:enhance>
+                          <Button type="submit">{text.account.setupTotp}</Button
+                          >
+                        </form>
+                      {/if}
+                    {:else}
+                      <p class="empty">{text.account.securityMethodDisabled}</p>
+                    {/if}
+                  </Tabs.Content>
+                  <Tabs.Content value="passkey">
+                    <div>
+                      <strong>{text.account.passkeys}</strong>
+                      <span>{text.account.passkeysDescription}</span>
+                    </div>
+                    {#if data.security.passkeyAvailable}
+                      {#if passkeyMessage}
+                        <p
+                          class:status-ok={passkeyOk}
+                          class:error-note={passkeyOk === false}
+                        >
+                          {passkeyMessage}
+                        </p>
+                      {/if}
+                      <form onsubmit={registerPasskey}>
+                        <label>
+                          {text.account.passkeyName}
+                          <Input
+                            bind:value={passkeyName}
+                            autocomplete="off"
+                            placeholder={text.account.passkeyNamePlaceholder}
+                          />
+                        </label>
+                        <Button type="submit" disabled={passkeyBusy}>
+                          {passkeyBusy
+                            ? text.common.preparing
+                            : text.account.addPasskey}
+                        </Button>
+                      </form>
+                      <div class="passkey-list">
+                        {#each data.security.passkeys as passkey (passkey.id)}
+                          <div class="passkey-row">
+                            <div>
+                              <strong>{passkey.name}</strong>
+                              <span>
+                                {text.account.created}
+                                {new Date(passkey.createdAt).toLocaleString()}
+                                {passkey.lastUsedAt
+                                  ? ` · ${text.account.lastUsed} ${new Date(passkey.lastUsedAt).toLocaleString()}`
+                                  : ''}
+                              </span>
+                            </div>
+                            <form
+                              method="POST"
+                              action="?/revokePasskey"
+                              use:enhance
+                            >
+                              <input
+                                type="hidden"
+                                name="id"
+                                value={passkey.id}
+                              />
+                              <Button type="submit"
+                                >{text.account.revoke}</Button
+                              >
+                            </form>
+                          </div>
+                        {:else}
+                          <p class="empty">{text.account.emptyPasskeys}</p>
+                        {/each}
+                      </div>
+                    {:else}
+                      <p class="empty">{text.account.securityMethodDisabled}</p>
+                    {/if}
+                  </Tabs.Content>
+                </div>
+              </Tabs.Root>
+            {:else}
+              <div class="security-locked">
+                <div>
+                  <strong>{text.account.securityLockedTitle}</strong>
+                  <p>
+                    {externalSecurityUnlockAvailable
+                      ? text.account.securityInitialSetupDescription
+                      : text.account.securityLockedDescription}
+                  </p>
+                </div>
+                {#if passkeyMessage}
+                  <p
+                    class:status-ok={passkeyOk}
+                    class:error-note={passkeyOk === false}
+                  >
+                    {passkeyMessage}
+                  </p>
+                {/if}
+                <Button
+                  variant="outline"
+                  type="button"
+                  onclick={openSecurityUnlock}
+                >
+                  {text.account.unlockSecurity}
+                </Button>
+              </div>
+            {/if}
+          </Card.Content></Card.Root
+        >
+      </section>
+
+      <Dialog.Root bind:open={securityUnlockOpen}>
+        <Dialog.Content
+          portalProps={{ disabled: true }}
+          showCloseButton={false}
+          class="max-h-[85dvh] overflow-y-auto sm:max-w-xl"
+          onInteractOutside={(event) => {
+            if (passkeyUnlockBusy) event.preventDefault();
+          }}
+          onEscapeKeydown={(event) => {
+            if (passkeyUnlockBusy) event.preventDefault();
+          }}
+        >
+          <div class="modal-heading">
+            <div>
+              <Dialog.Title>
+                {text.account.securityUnlockTitle}
+              </Dialog.Title>
+              <Dialog.Description>
+                {externalSecurityUnlockAvailable
+                  ? text.account.securityInitialSetupDescription
+                  : text.account.securityUnlockDescription}
+              </Dialog.Description>
+            </div>
+            <button
+              class="secondary-button"
+              type="button"
+              onclick={closeSecurityUnlock}
+            >
+              {text.common.close}
+            </button>
+          </div>
           <form
             method="POST"
-            action="?/deletePassword"
-            use:enhance={keepFormValues}
+            action="?/unlockSecurity"
+            use:enhance={securityUnlockEnhance}
           >
-            <label>
-              {text.account.currentPassword}
-              <input
-                name="currentPassword"
-                type="password"
-                autocomplete="current-password"
-                required
-              />
-            </label>
-            <DangerConfirmButton
-              label={text.account.deletePassword}
-              title={text.account.deletePasswordTitle}
-              message={text.account.deletePasswordMessage}
-              confirmLabel={text.account.deletePasswordConfirm}
+            <div class="unlock-methods">
+              {#if data.security.passwordAvailable}
+                <div class="unlock-method">
+                  <label>
+                    {text.account.securityPassword}
+                    <Input
+                      name="securityPassword"
+                      type="password"
+                      autocomplete="current-password"
+                    />
+                  </label>
+                  <Button name="securityMethod" value="password" type="submit">
+                    {text.account.unlockWithPassword}
+                  </Button>
+                </div>
+              {/if}
+              {#if data.security.totpEnabled}
+                <div class="unlock-method">
+                  <label>
+                    {text.account.securityTotpCode}
+                    <Input
+                      name="securityTotpCode"
+                      inputmode="numeric"
+                      autocomplete="one-time-code"
+                    />
+                  </label>
+                  <Button name="securityMethod" value="totp" type="submit">
+                    {text.account.unlockWithTotp}
+                  </Button>
+                </div>
+              {/if}
+              {#if data.security.passkeyCount > 0}
+                <div class="unlock-method compact">
+                  <p>{text.account.securityPasskeyDescription}</p>
+                  <Button
+                    name="securityMethod"
+                    value="passkey"
+                    type="submit"
+                    disabled={passkeyUnlockBusy}
+                  >
+                    {passkeyUnlockBusy
+                      ? text.common.preparing
+                      : text.account.unlockWithPasskey}
+                  </Button>
+                </div>
+              {/if}
+              {#if externalSecurityUnlockAvailable}
+                <div class="unlock-method external-unlock-method">
+                  <div class="external-unlock-actions">
+                    <input
+                      type="hidden"
+                      name="securityMethod"
+                      value="external"
+                    />
+                    {#each data.security.externalUnlockMethods as method (`${method.pluginId}:${method.id}`)}
+                      <button
+                        class:custom-provider={Boolean(method.buttonColor) ||
+                          Boolean(method.buttonTextColor)}
+                        name="securityProvider"
+                        value={`${method.pluginId}:${method.id}`}
+                        type="submit"
+                        style={providerButtonStyle(method)}
+                      >
+                        {#if method.iconUrl}
+                          <img src={method.iconUrl} alt="" aria-hidden="true" />
+                        {/if}
+                        <span>{method.label}</span>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
+            <PluginSlotOutlet
+              slots={data.publicSlots}
+              slot="account-security-unlock"
               locale={data.locale}
+              fallbackLocale={data.defaultLocale}
             />
           </form>
-        {/if}
-      </div>
-    {:else if data.security.unlocked}
-      <form method="POST" action="?/password" use:enhance={keepFormValues}>
-        <p>{text.account.externalPasswordUnavailable}</p>
-        <label>
-          {text.account.nextPassword}
-          <input
-            name="nextPassword"
-            type="password"
-            minlength={data.passwordMinLength}
-            autocomplete="new-password"
-            required
+        </Dialog.Content>
+      </Dialog.Root>
+
+      <section id="sessions">
+        <Card.Root
+          class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+          ><Card.Content class="p-6">
+            <h2>{text.account.sessions}</h2>
+            <form method="POST" action="?/logoutOtherSessions" use:enhance>
+              <p>{text.account.sessionsDescription}</p>
+              <Button type="submit">{text.account.logoutOtherSessions}</Button>
+            </form>
+          </Card.Content></Card.Root
+        >
+      </section>
+
+      {#each data.integrations as integration (integration.pluginId)}
+        {@const registered = accountPluginRegistry.find(
+          (plugin) => plugin.definition.meta.id === integration.pluginId,
+        )}
+        {#if registered?.account}
+          {@const PluginAccount = registered.account}
+          <PluginAccount
+            config={integration.config ?? {}}
+            integrationData={integration.data}
+            locale={data.locale}
+            fallbackLocale={data.defaultLocale}
+            strings={pluginLocaleStrings(
+              registered.definition,
+              data.locale,
+              data.defaultLocale,
+            )}
           />
-          <span>{data.passwordPolicy}</span>
-        </label>
-        <button type="submit">{text.account.setPassword}</button>
-      </form>
-    {:else}
-      <div class="security-locked">
-        <div>
-          <strong>{text.account.securityLockedTitle}</strong>
-          <p>{text.account.externalPasswordUnavailable}</p>
-        </div>
-        <button type="button" onclick={openSecurityUnlock}>
-          {text.account.unlockSecurity}
-        </button>
-      </div>
-    {/if}
-  </section>
+        {:else if integration.runtimeSchema}
+          <section>
+            <Card.Root
+              class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+              ><Card.Content class="p-6">
+                <h2>{integration.pluginName}</h2>
+                <form
+                  method="POST"
+                  action="?/pluginAction"
+                  use:enhance={keepFormValues}
+                >
+                  <input
+                    type="hidden"
+                    name="pluginId"
+                    value={integration.pluginId}
+                  />
+                  <input type="hidden" name="pluginAction" value="save" />
+                  <RuntimePluginSchemaForm schema={integration.runtimeSchema} />
+                  <Button type="submit">{text.common.save}</Button>
+                </form>
+              </Card.Content></Card.Root
+            >
+          </section>
+        {:else if integration.runtimeUi?.mode === 'iframe' && integration.runtimeUi.src}
+          <section>
+            <Card.Root
+              class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+              ><Card.Content class="p-6">
+                <h2>{integration.pluginName}</h2>
+                <form method="POST" action="?/pluginAction" use:enhance>
+                  <RuntimePluginFrame
+                    src={integration.runtimeUi.src}
+                    pluginId={integration.pluginId}
+                    config={integration.config ?? {}}
+                    adminData={integration.data}
+                    locale={data.locale}
+                    fallbackLocale={data.defaultLocale}
+                    strings={integration.strings ?? {}}
+                    pluginFieldName="pluginId"
+                    pluginFieldValue={integration.pluginId}
+                    actionFieldName="pluginAction"
+                  />
+                </form>
+              </Card.Content></Card.Root
+            >
+          </section>
+        {/if}
+      {/each}
 
-  <section>
-    <h2>{text.account.security}</h2>
-    <p>{text.account.securityDescription}</p>
-    {#if data.security.unlocked}
-      <div
-        class="security-tabs"
-        role="tablist"
-        aria-label={text.account.security}
-      >
-        <button
-          class:active={activeSecurityTab === 'totp'}
-          role="tab"
-          aria-selected={activeSecurityTab === 'totp'}
-          type="button"
-          onclick={() => (activeSecurityTab = 'totp')}
-        >
-          {text.account.totp}
-        </button>
-        <button
-          class:active={activeSecurityTab === 'passkey'}
-          role="tab"
-          aria-selected={activeSecurityTab === 'passkey'}
-          type="button"
-          onclick={() => (activeSecurityTab = 'passkey')}
-        >
-          {text.account.passkeys}
-        </button>
-      </div>
-
-      <div class="security-panel">
-        {#if activeSecurityTab === 'totp'}
-          <div>
-            <strong>{text.account.totp}</strong>
-            <span>{text.account.totpDescription}</span>
-          </div>
-          {#if data.security.totpAvailable}
-            {#if data.security.totpEnabled}
-              <p class="status-ok">{text.account.totpEnabledState}</p>
-              <form method="POST" action="?/disableTotp" use:enhance>
-                <button type="submit">{text.account.disableTotp}</button>
-              </form>
-            {:else if form?.setupTotp}
-              <div class="totp-setup">
-                <img src={form.setupTotp.qrDataUrl} alt={text.common.qrCode} />
+      <section id="tokens">
+        <Card.Root
+          class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+          ><Card.Content class="p-6">
+            <h2>{text.account.apiTokens}</h2>
+            {#if form?.token}
+              <div class="issued-token">
+                <strong>{text.account.newApiToken}</strong>
+                <p>{text.account.tokenOnce}</p>
+                <CopyValue
+                  value={form.token}
+                  copied={copiedValue === 'token'}
+                  onclick={() => copyIssuedToken(form.token!, 'token')}
+                  locale={data.locale}
+                />
                 <label>
-                  {text.account.totpSecret}
+                  {text.account.authorizationHeader}
                   <CopyValue
-                    value={form.setupTotp.secret}
-                    copied={copiedValue === 'totpSecret'}
+                    value={`Bearer ${form.token}`}
+                    copied={copiedValue === 'header'}
                     onclick={() =>
-                      copyIssuedToken(form.setupTotp!.secret, 'totpSecret')}
+                      copyIssuedToken(`Bearer ${form.token}`, 'header')}
                     locale={data.locale}
                   />
                 </label>
               </div>
-              <form method="POST" action="?/enableTotp" use:enhance>
-                <label>
-                  {text.account.totpCode}
-                  <input
-                    name="totpCode"
-                    inputmode="numeric"
-                    autocomplete="one-time-code"
-                    required
-                  />
-                  <span>{text.account.totpSetupInstructions}</span>
-                </label>
-                <button type="submit">{text.account.enableTotp}</button>
-              </form>
-            {:else}
-              <form method="POST" action="?/startTotp" use:enhance>
-                <button type="submit">{text.account.setupTotp}</button>
-              </form>
             {/if}
-          {:else}
-            <p class="empty">{text.account.securityMethodDisabled}</p>
-          {/if}
-        {:else}
-          <div>
-            <strong>{text.account.passkeys}</strong>
-            <span>{text.account.passkeysDescription}</span>
-          </div>
-          {#if data.security.passkeyAvailable}
-            {#if passkeyMessage}
-              <p
-                class:status-ok={passkeyOk}
-                class:error-note={passkeyOk === false}
-              >
-                {passkeyMessage}
-              </p>
-            {/if}
-            <form onsubmit={registerPasskey}>
+            <form
+              method="POST"
+              action="?/createToken"
+              use:enhance={keepFormValues}
+            >
               <label>
-                {text.account.passkeyName}
-                <input
-                  bind:value={passkeyName}
-                  autocomplete="off"
-                  placeholder={text.account.passkeyNamePlaceholder}
-                />
+                {text.account.tokenName}
+                <Input name="name" placeholder="local script" />
               </label>
-              <button type="submit" disabled={passkeyBusy}>
-                {passkeyBusy ? text.common.preparing : text.account.addPasskey}
-              </button>
+              <Button type="submit">{text.account.issueToken}</Button>
             </form>
-            <div class="passkey-list">
-              {#each data.security.passkeys as passkey (passkey.id)}
-                <div class="passkey-row">
+
+            {#if data.tokens.length > 0}
+              <form
+                id={apiTokenBulkFormId}
+                method="POST"
+                action="?/revokeTokens"
+                use:enhance={keepFormValues}
+              ></form>
+              <div class="token-bulk-actions">
+                <ToggleField
+                  form={apiTokenBulkFormId}
+                  checked={allTokensSelected}
+                  label={formatText(text.account.selectedApiTokens, {
+                    count: selectedTokenCount,
+                  })}
+                  onchange={(event) =>
+                    toggleAllTokens(event.currentTarget.checked)}
+                />
+                <DangerConfirmButton
+                  formId={apiTokenBulkFormId}
+                  label={text.account.revokeSelectedTokens}
+                  title={text.account.revokeSelectedTokensTitle}
+                  message={formatText(
+                    text.account.revokeSelectedTokensMessage,
+                    {
+                      count: selectedTokenCount,
+                    },
+                  )}
+                  confirmLabel={text.account.revokeSelectedTokensConfirm}
+                  locale={data.locale}
+                  disabled={selectedTokenCount === 0}
+                />
+              </div>
+            {/if}
+
+            <div class="tokens">
+              {#each data.tokens as token (token.id)}
+                <article class="token-row">
+                  <ToggleField
+                    form={apiTokenBulkFormId}
+                    class="token-check"
+                    name="ids"
+                    value={tokenSelectionValue(token)}
+                    ariaLabel={formatText(text.account.selectApiToken, {
+                      name: token.name,
+                    })}
+                    checked={selectedTokenIds.includes(
+                      tokenSelectionValue(token),
+                    )}
+                    onchange={(event) =>
+                      toggleToken(token, event.currentTarget.checked)}
+                  />
                   <div>
-                    <strong>{passkey.name}</strong>
+                    <strong>{token.name}</strong>
                     <span>
-                      {text.account.created}
-                      {new Date(passkey.createdAt).toLocaleString()}
-                      {passkey.lastUsedAt
-                        ? ` · ${text.account.lastUsed} ${new Date(passkey.lastUsedAt).toLocaleString()}`
+                      {token.prefix}... · {text.account.created}
+                      {new Date(token.createdAt).toLocaleString()}
+                      {token.lastUsedAt
+                        ? ` · ${text.account.lastUsed} ${new Date(token.lastUsedAt).toLocaleString()}`
                         : ''}
                     </span>
                   </div>
-                  <form method="POST" action="?/revokePasskey" use:enhance>
-                    <input type="hidden" name="id" value={passkey.id} />
-                    <button type="submit">{text.account.revoke}</button>
+                  <form
+                    method="POST"
+                    action="?/revokeTokens"
+                    use:enhance={keepFormValues}
+                  >
+                    <input type="hidden" name="ids" value={token.id} />
+                    <DangerConfirmButton
+                      label={text.account.revoke}
+                      title={text.account.revokeTokensTitle}
+                      message={text.account.revokeTokensMessage}
+                      details={[`${token.name} (${token.prefix}...)`]}
+                      confirmLabel={text.account.revokeTokensConfirm}
+                      locale={data.locale}
+                    />
                   </form>
-                </div>
+                </article>
               {:else}
-                <p class="empty">{text.account.emptyPasskeys}</p>
+                <p class="empty">{text.account.emptyTokens}</p>
               {/each}
             </div>
-          {:else}
-            <p class="empty">{text.account.securityMethodDisabled}</p>
-          {/if}
-        {/if}
-      </div>
-    {:else}
-      <div class="security-locked">
-        <div>
-          <strong>{text.account.securityLockedTitle}</strong>
-          <p>
-            {externalSecurityUnlockAvailable
-              ? text.account.securityInitialSetupDescription
-              : text.account.securityLockedDescription}
-          </p>
-        </div>
-        {#if passkeyMessage}
-          <p class:status-ok={passkeyOk} class:error-note={passkeyOk === false}>
-            {passkeyMessage}
-          </p>
-        {/if}
-        <button type="button" onclick={openSecurityUnlock}>
-          {text.account.unlockSecurity}
-        </button>
-      </div>
-    {/if}
-  </section>
-
-  {#if securityUnlockOpen}
-    <div
-      class="modal-backdrop"
-      role="presentation"
-      onclick={closeSecurityUnlockFromBackdrop}
-    >
-      <div
-        class="modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="security-unlock-title"
-      >
-        <div class="modal-heading">
-          <div>
-            <h2 id="security-unlock-title">
-              {text.account.securityUnlockTitle}
-            </h2>
-            <p>
-              {externalSecurityUnlockAvailable
-                ? text.account.securityInitialSetupDescription
-                : text.account.securityUnlockDescription}
-            </p>
-          </div>
-          <button
-            class="secondary-button"
-            type="button"
-            onclick={closeSecurityUnlock}
-          >
-            {text.common.close}
-          </button>
-        </div>
-        <form
-          method="POST"
-          action="?/unlockSecurity"
-          use:enhance={securityUnlockEnhance}
+          </Card.Content></Card.Root
         >
-          <div class="unlock-methods">
-            {#if data.security.passwordAvailable}
-              <div class="unlock-method">
-                <label>
-                  {text.account.securityPassword}
-                  <input
-                    name="securityPassword"
-                    type="password"
-                    autocomplete="current-password"
-                  />
-                </label>
-                <button name="securityMethod" value="password" type="submit">
-                  {text.account.unlockWithPassword}
-                </button>
-              </div>
-            {/if}
-            {#if data.security.totpEnabled}
-              <div class="unlock-method">
-                <label>
-                  {text.account.securityTotpCode}
-                  <input
-                    name="securityTotpCode"
-                    inputmode="numeric"
-                    autocomplete="one-time-code"
-                  />
-                </label>
-                <button name="securityMethod" value="totp" type="submit">
-                  {text.account.unlockWithTotp}
-                </button>
-              </div>
-            {/if}
-            {#if data.security.passkeyCount > 0}
-              <div class="unlock-method compact">
-                <p>{text.account.securityPasskeyDescription}</p>
-                <button
-                  name="securityMethod"
-                  value="passkey"
-                  type="submit"
-                  disabled={passkeyUnlockBusy}
-                >
-                  {passkeyUnlockBusy
-                    ? text.common.preparing
-                    : text.account.unlockWithPasskey}
-                </button>
-              </div>
-            {/if}
-            {#if externalSecurityUnlockAvailable}
-              <div class="unlock-method external-unlock-method">
-                <div class="external-unlock-actions">
-                  <input type="hidden" name="securityMethod" value="external" />
-                  {#each data.security.externalUnlockMethods as method (`${method.pluginId}:${method.id}`)}
-                    <button
-                      class:custom-provider={Boolean(method.buttonColor) ||
-                        Boolean(method.buttonTextColor)}
-                      name="securityProvider"
-                      value={`${method.pluginId}:${method.id}`}
-                      type="submit"
-                      style={providerButtonStyle(method)}
-                    >
-                      {#if method.iconUrl}
-                        <img src={method.iconUrl} alt="" aria-hidden="true" />
-                      {/if}
-                      <span>{method.label}</span>
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-          </div>
-          <PluginSlotOutlet
-            slots={data.publicSlots}
-            slot="account-security-unlock"
-            locale={data.locale}
-            fallbackLocale={data.defaultLocale}
-          />
-        </form>
-      </div>
-    </div>
-  {/if}
+      </section>
 
-  <section>
-    <h2>{text.account.sessions}</h2>
-    <form method="POST" action="?/logoutOtherSessions" use:enhance>
-      <p>{text.account.sessionsDescription}</p>
-      <button type="submit">{text.account.logoutOtherSessions}</button>
-    </form>
-  </section>
-
-  {#each data.integrations as integration (integration.pluginId)}
-    {@const registered = accountPluginRegistry.find(
-      (plugin) => plugin.definition.meta.id === integration.pluginId,
-    )}
-    {#if registered?.account}
-      {@const PluginAccount = registered.account}
-      <PluginAccount
-        config={integration.config ?? {}}
-        integrationData={integration.data}
-        locale={data.locale}
-        fallbackLocale={data.defaultLocale}
-        strings={pluginLocaleStrings(
-          registered.definition,
-          data.locale,
-          data.defaultLocale,
-        )}
-      />
-    {:else if integration.runtimeSchema}
-      <section>
-        <h2>{integration.pluginName}</h2>
-        <form
-          method="POST"
-          action="?/pluginAction"
-          use:enhance={keepFormValues}
+      <section id="danger">
+        <Card.Root
+          class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+          ><Card.Content class="p-6">
+            <h2>{text.account.danger}</h2>
+            <form method="POST" action="?/delete" use:enhance>
+              <DangerConfirmButton
+                label={text.account.deleteAccount}
+                title={text.account.deleteAccountTitle}
+                message={text.account.deleteAccountMessage}
+                details={text.account.deleteAccountDetails}
+                confirmLabel={text.account.deleteAccountConfirm}
+                requireConsent
+                consentLabel={text.account.deleteAccountConsent}
+                locale={data.locale}
+              />
+            </form>
+          </Card.Content></Card.Root
         >
-          <input type="hidden" name="pluginId" value={integration.pluginId} />
-          <input type="hidden" name="pluginAction" value="save" />
-          <RuntimePluginSchemaForm schema={integration.runtimeSchema} />
-          <button type="submit">{text.common.save}</button>
-        </form>
       </section>
-    {:else if integration.runtimeUi?.mode === 'iframe' && integration.runtimeUi.src}
-      <section>
-        <h2>{integration.pluginName}</h2>
-        <form method="POST" action="?/pluginAction" use:enhance>
-          <RuntimePluginFrame
-            src={integration.runtimeUi.src}
-            pluginId={integration.pluginId}
-            config={integration.config ?? {}}
-            adminData={integration.data}
-            locale={data.locale}
-            fallbackLocale={data.defaultLocale}
-            strings={integration.strings ?? {}}
-            pluginFieldName="pluginId"
-            pluginFieldValue={integration.pluginId}
-            actionFieldName="pluginAction"
-          />
-        </form>
-      </section>
-    {/if}
-  {/each}
-
-  <section>
-    <h2>{text.account.apiTokens}</h2>
-    {#if form?.token}
-      <div class="issued-token">
-        <strong>{text.account.newApiToken}</strong>
-        <p>{text.account.tokenOnce}</p>
-        <CopyValue
-          value={form.token}
-          copied={copiedValue === 'token'}
-          onclick={() => copyIssuedToken(form.token!, 'token')}
-          locale={data.locale}
-        />
-        <label>
-          {text.account.authorizationHeader}
-          <CopyValue
-            value={`Bearer ${form.token}`}
-            copied={copiedValue === 'header'}
-            onclick={() => copyIssuedToken(`Bearer ${form.token}`, 'header')}
-            locale={data.locale}
-          />
-        </label>
-      </div>
-    {/if}
-    <form method="POST" action="?/createToken" use:enhance={keepFormValues}>
-      <label>
-        {text.account.tokenName}
-        <input name="name" placeholder="local script" />
-      </label>
-      <button type="submit">{text.account.issueToken}</button>
-    </form>
-
-    {#if data.tokens.length > 0}
-      <form
-        id={apiTokenBulkFormId}
-        method="POST"
-        action="?/revokeTokens"
-        use:enhance={keepFormValues}
-      ></form>
-      <div class="token-bulk-actions">
-        <ToggleField
-          form={apiTokenBulkFormId}
-          checked={allTokensSelected}
-          label={formatText(text.account.selectedApiTokens, {
-            count: selectedTokenCount,
-          })}
-          onchange={(event) => toggleAllTokens(event.currentTarget.checked)}
-        />
-        <DangerConfirmButton
-          formId={apiTokenBulkFormId}
-          label={text.account.revokeSelectedTokens}
-          title={text.account.revokeSelectedTokensTitle}
-          message={formatText(text.account.revokeSelectedTokensMessage, {
-            count: selectedTokenCount,
-          })}
-          confirmLabel={text.account.revokeSelectedTokensConfirm}
-          locale={data.locale}
-          disabled={selectedTokenCount === 0}
-        />
-      </div>
-    {/if}
-
-    <div class="tokens">
-      {#each data.tokens as token (token.id)}
-        <article class="token-row">
-          <ToggleField
-            form={apiTokenBulkFormId}
-            class="token-check"
-            name="ids"
-            value={tokenSelectionValue(token)}
-            ariaLabel={formatText(text.account.selectApiToken, {
-              name: token.name,
-            })}
-            checked={selectedTokenIds.includes(tokenSelectionValue(token))}
-            onchange={(event) =>
-              toggleToken(token, event.currentTarget.checked)}
-          />
-          <div>
-            <strong>{token.name}</strong>
-            <span>
-              {token.prefix}... · {text.account.created}
-              {new Date(token.createdAt).toLocaleString()}
-              {token.lastUsedAt
-                ? ` · ${text.account.lastUsed} ${new Date(token.lastUsedAt).toLocaleString()}`
-                : ''}
-            </span>
-          </div>
-          <form
-            method="POST"
-            action="?/revokeTokens"
-            use:enhance={keepFormValues}
-          >
-            <input type="hidden" name="ids" value={token.id} />
-            <DangerConfirmButton
-              label={text.account.revoke}
-              title={text.account.revokeTokensTitle}
-              message={text.account.revokeTokensMessage}
-              details={[`${token.name} (${token.prefix}...)`]}
-              confirmLabel={text.account.revokeTokensConfirm}
-              locale={data.locale}
-            />
-          </form>
-        </article>
-      {:else}
-        <p class="empty">{text.account.emptyTokens}</p>
-      {/each}
-    </div>
-  </section>
-
-  <section>
-    <h2>{text.account.danger}</h2>
-    <form method="POST" action="?/delete" use:enhance>
-      <DangerConfirmButton
-        label={text.account.deleteAccount}
-        title={text.account.deleteAccountTitle}
-        message={text.account.deleteAccountMessage}
-        details={text.account.deleteAccountDetails}
-        confirmLabel={text.account.deleteAccountConfirm}
-        requireConsent
-        consentLabel={text.account.deleteAccountConsent}
-        locale={data.locale}
-      />
-    </form>
-  </section>
-</main>
+    </main>
+  </div>
+</div>
 
 <style>
   :global(*) {
@@ -949,43 +1051,85 @@
   :global(body) {
     margin: 0;
   }
-  main {
-    display: grid;
-    width: min(860px, calc(100% - 36px));
-    margin: 0 auto;
-    padding: 48px 0 100px;
-    gap: 18px;
+  .account-page {
+    min-height: 100dvh;
+    background: var(--page-bg);
     color: var(--page-text);
     font-family: var(--font);
   }
-  main::before {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: var(--page-bg);
-    content: '';
+  .account-layout {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 40px;
+    width: min(1120px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 40px 0 80px;
+    align-items: start;
   }
-  header,
+  .account-nav {
+    display: grid;
+    gap: 4px;
+    position: sticky;
+    top: 24px;
+    padding-top: 8px;
+  }
+  .account-nav a {
+    display: block;
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
+    padding: 10px 12px;
+    color: var(--page-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .account-nav a:hover,
+  .account-nav a:focus-visible {
+    background: var(--ui-muted);
+    color: var(--page-text);
+  }
+  .account-content {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+  }
+  header {
+    padding-bottom: 4px;
+  }
   section {
-    border: 1px solid var(--page-border);
-    border-radius: var(--page-radius);
-    padding: 26px;
-    background: var(--page-surface);
+    min-width: 0;
+    scroll-margin-top: 24px;
+  }
+  section :global([data-slot='card']) {
+    overflow: visible;
+  }
+  section:target :global([data-slot='card']) {
+    border-color: var(--page-muted);
+  }
+
+  section :global(button[data-slot]) {
+    width: fit-content;
+  }
+  section p {
+    max-width: 65ch;
+    font-size: 0.85rem;
+  }
+  section p {
+    margin-bottom: 12px;
+  }
+  form > :global(button[data-slot]) {
+    justify-self: start;
+  }
+  .grid :global(input) {
+    margin-top: 4px;
   }
   header {
     display: flex;
     justify-content: space-between;
     gap: 20px;
   }
-  header a {
-    color: var(--page-primary);
-    font-size: 0.82rem;
-    font-weight: 800;
-    text-decoration: none;
-  }
   h1 {
-    margin: 12px 0 6px;
-    font-size: 2.2rem;
+    margin: 0 0 6px;
+    font-size: 1.8rem;
   }
   h2 {
     margin: 0 0 14px;
@@ -999,7 +1143,7 @@
   }
   form {
     display: grid;
-    gap: 14px;
+    gap: 18px;
   }
   .grid {
     display: grid;
@@ -1012,7 +1156,7 @@
     gap: 7px;
     color: var(--page-muted);
     font-size: 0.82rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   input {
     width: 100%;
@@ -1030,12 +1174,12 @@
     min-height: 40px;
     align-items: center;
     border: 0;
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 10px 15px;
     background: var(--page-primary);
     color: var(--page-primary-contrast);
     font: inherit;
-    font-weight: 850;
+    font-weight: 600;
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
@@ -1080,29 +1224,6 @@
     display: block;
     margin-bottom: 4px;
   }
-  .security-tabs {
-    display: inline-flex;
-    width: fit-content;
-    max-width: 100%;
-    gap: 6px;
-    margin-top: 18px;
-    border: 1px solid var(--page-border);
-    border-radius: var(--form-control-radius);
-    padding: 4px;
-    background: color-mix(in srgb, var(--page-border) 18%, transparent);
-  }
-  .security-tabs button {
-    min-height: 34px;
-    border: 0;
-    border-radius: calc(var(--form-control-radius) - 3px);
-    padding: 8px 14px;
-    background: transparent;
-    color: var(--page-muted);
-  }
-  .security-tabs button.active {
-    background: var(--page-primary);
-    color: var(--page-primary-contrast);
-  }
   .security-panel {
     display: grid;
     gap: 14px;
@@ -1118,11 +1239,11 @@
   }
   .status-ok {
     color: var(--page-primary);
-    font-weight: 850;
+    font-weight: 600;
   }
   .error-note {
     color: #a43428;
-    font-weight: 850;
+    font-weight: 600;
   }
   .totp-setup {
     display: grid;
@@ -1134,7 +1255,7 @@
     width: 132px;
     height: 132px;
     border: 1px solid var(--page-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     background: #fff;
   }
   .passkey-list {
@@ -1155,38 +1276,12 @@
   .passkey-row form {
     flex: 0 0 auto;
   }
-  .passkey-row button {
-    min-width: 58px;
-    justify-content: center;
-  }
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: grid;
-    place-items: center;
-    padding: 18px;
-    background: rgb(15 23 42 / 0.42);
-  }
-  .modal-panel {
-    width: min(560px, 100%);
-    max-height: min(760px, calc(100vh - 36px));
-    border: 1px solid var(--page-border);
-    border-radius: var(--page-radius);
-    padding: 26px;
-    background: var(--page-surface);
-    overflow: auto;
-    box-shadow: 0 24px 70px rgb(15 23 42 / 0.24);
-  }
   .modal-heading {
     display: flex;
     align-items: start;
     justify-content: space-between;
     gap: 14px;
     margin-bottom: 16px;
-  }
-  .modal-heading h2 {
-    margin-bottom: 6px;
   }
   .unlock-methods {
     display: grid;
@@ -1224,11 +1319,6 @@
   .unlock-method.compact {
     align-items: center;
   }
-  .unlock-method.compact button {
-    width: 100%;
-    min-width: 0;
-    align-self: center;
-  }
   .external-unlock-method {
     grid-template-columns: 1fr;
   }
@@ -1262,7 +1352,7 @@
     margin-bottom: 16px;
     border: 1px solid
       color-mix(in srgb, var(--page-primary) 34%, var(--page-border));
-    border-radius: 14px;
+    border-radius: var(--ui-radius, 8px);
     padding: 16px;
     background: color-mix(in srgb, var(--page-primary) 8%, var(--page-surface));
   }
@@ -1323,6 +1413,26 @@
     margin: 0;
     border-top: 1px solid var(--page-border);
     padding-top: 16px;
+  }
+  @media (max-width: 900px) {
+    .account-layout {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+      width: calc(100% - 32px);
+      padding-top: 24px;
+    }
+    .account-nav {
+      position: static;
+      display: flex;
+      overflow-x: auto;
+      padding: 0 0 8px;
+      gap: 4px;
+      border-bottom: 1px solid var(--page-border);
+    }
+    .account-nav a {
+      white-space: nowrap;
+      padding: 8px 10px;
+    }
   }
   @media (max-width: 720px) {
     header,

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import type {
     AuthEmailRequestForm,
@@ -46,7 +48,7 @@
     <form method="POST" action="?/request" use:enhance>
       <label>
         {emailLabel}
-        <input
+        <Input
           type="email"
           name="email"
           autocomplete="email"
@@ -54,7 +56,7 @@
           required
         />
       </label>
-      <button type="submit">{submitLabel}</button>
+      <Button type="submit">{submitLabel}</Button>
     </form>
   {/if}
 </AuthCardPage>

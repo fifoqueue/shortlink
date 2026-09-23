@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Input } from '$lib/components/ui/input';
   import ToggleField from '$lib/components/ToggleField.svelte';
   import { pluginText } from '$lib/i18n/plugin';
   import type {
@@ -111,7 +113,7 @@
       {#if provider !== 'none'}
         <label>
           {t('admin.tokenFieldName')}
-          <input
+          <Input
             name={fieldName('captcha', 'tokenFieldName')}
             bind:value={tokenFieldName}
             placeholder={defaultCaptchaConfig.tokenFieldName}
@@ -120,7 +122,7 @@
         <label>
           {t('admin.verifyTimeout')}
           <small>{t('admin.verifyTimeoutHint')}</small>
-          <input
+          <Input
             name={fieldName('captcha', 'verifyTimeoutMs')}
             type="number"
             min="1000"
@@ -133,7 +135,7 @@
       {#if provider !== 'custom' && provider !== 'none'}
         <label>
           {t('admin.siteKey')}
-          <input
+          <Input
             name={fieldName('captcha', 'siteKey')}
             bind:value={siteKey}
             placeholder={t('admin.publicSiteKeyPlaceholder')}
@@ -142,7 +144,7 @@
         <label>
           {t('admin.secretKey')}
           <small>{t('admin.keepExistingHint')}</small>
-          <input
+          <Input
             name={fieldName('captcha', 'secretKey')}
             type="password"
             bind:value={secretKey}
@@ -154,7 +156,7 @@
         <label>
           {t('admin.scoreThreshold')}
           <small>{t('admin.scoreThresholdHint')}</small>
-          <input
+          <Input
             name={fieldName('captcha', 'scoreThreshold')}
             type="number"
             min="0"
@@ -173,7 +175,7 @@
       <div class="grid form-grid balanced">
         <label class="wide">
           {t('admin.scriptUrl')}
-          <input
+          <Input
             name={fieldName('captcha', 'customScriptUrl')}
             type="url"
             value={captcha.customScriptUrl}
@@ -183,9 +185,11 @@
         <label class="wide">
           {t('admin.widgetHtml')}
           <small>{t('admin.customWidgetHint')}</small>
-          <textarea name={fieldName('captcha', 'customWidgetHtml')} rows="6"
-            >{configString(config, 'customWidgetHtml')}</textarea
-          >
+          <Textarea
+            name={fieldName('captcha', 'customWidgetHtml')}
+            rows={6}
+            value={configString(config, 'customWidgetHtml')}
+          />
         </label>
       </div>
     </section>
@@ -195,7 +199,7 @@
       <div class="grid form-grid balanced">
         <label class="wide">
           {t('admin.verifyEndpoint')}
-          <input
+          <Input
             name={fieldName('captcha', 'customVerifyEndpoint')}
             type="url"
             bind:value={customVerifyEndpoint}
@@ -224,28 +228,28 @@
         </label>
         <label>
           {t('admin.secretParam')}
-          <input
+          <Input
             name={fieldName('captcha', 'customSecretField')}
             value={captcha.customSecretField}
           />
         </label>
         <label>
           {t('admin.responseParam')}
-          <input
+          <Input
             name={fieldName('captcha', 'customResponseField')}
             value={captcha.customResponseField}
           />
         </label>
         <label>
           {t('admin.remoteIpParam')}
-          <input
+          <Input
             name={fieldName('captcha', 'customRemoteIpField')}
             value={captcha.customRemoteIpField}
           />
         </label>
         <label>
           {t('admin.successJsonPath')}
-          <input
+          <Input
             name={fieldName('captcha', 'customSuccessPath')}
             bind:value={customSuccessPath}
             placeholder={t('admin.successJsonPathPlaceholder')}
@@ -253,7 +257,7 @@
         </label>
         <label>
           {t('admin.scoreJsonPath')}
-          <input
+          <Input
             name={fieldName('captcha', 'customScorePath')}
             value={captcha.customScorePath}
             placeholder={t('admin.scoreJsonPathPlaceholder')}
@@ -262,16 +266,20 @@
         <label class="wide">
           {t('admin.httpHeaders')}
           <small>{t('admin.keyValueLines')}</small>
-          <textarea name={fieldName('captcha', 'customHeaders')} rows="4"
-            >{captcha.customHeaders}</textarea
-          >
+          <Textarea
+            name={fieldName('captcha', 'customHeaders')}
+            rows={4}
+            value={captcha.customHeaders}
+          />
         </label>
         <label class="wide">
           {t('admin.extraBody')}
           <small>{t('admin.keyValueLines')}</small>
-          <textarea name={fieldName('captcha', 'customExtraBody')} rows="4"
-            >{captcha.customExtraBody}</textarea
-          >
+          <Textarea
+            name={fieldName('captcha', 'customExtraBody')}
+            rows={4}
+            value={captcha.customExtraBody}
+          />
         </label>
       </div>
     </section>
@@ -324,16 +332,14 @@
     gap: 7px;
     color: var(--admin-text);
     font-size: 0.82rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   label small {
     color: var(--admin-muted);
     font-size: 0.76rem;
     font-weight: 650;
   }
-  input,
-  select,
-  textarea {
+  select {
     width: 100%;
     min-height: var(--form-control-height);
     border: 1px solid var(--admin-border);
@@ -349,13 +355,7 @@
     padding-top: 0;
     padding-bottom: 0;
   }
-  textarea {
-    line-height: 1.5;
-    resize: vertical;
-  }
-  input:focus,
-  select:focus,
-  textarea:focus {
+  select:focus {
     border-color: var(--admin-primary);
     box-shadow: 0 0 0 3px
       color-mix(in srgb, var(--admin-primary) 14%, transparent);

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Input } from '$lib/components/ui/input';
+  import { Button } from '$lib/components/ui/button';
   import { enhance } from '$app/forms';
   import CopyValue from '$lib/components/CopyValue.svelte';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
@@ -154,9 +157,9 @@
       <p>
         {t('admin.passwordLoginPolicyHint')}
       </p>
-      <button type="submit" name="pluginActionSubmit" value="savePolicy">
+      <Button type="submit" name="pluginActionSubmit" value="savePolicy">
         {t('admin.savePolicy')}
-      </button>
+      </Button>
     </form>
   </section>
 
@@ -175,11 +178,11 @@
           <div class="grid form-grid balanced">
             <label
               >{t('admin.id')}
-              <input name="id" value={provider.id} required /></label
+              <Input name="id" value={provider.id} required /></label
             >
             <label
               >{t('admin.displayName')}
-              <input name="name" value={provider.name} required /></label
+              <Input name="name" value={provider.name} required /></label
             >
             <label>
               {t('admin.flow')}
@@ -194,7 +197,7 @@
             </label>
             <label>
               {t('admin.loginButtonColor')}
-              <input
+              <Input
                 name="loginButtonColor"
                 value={provider.loginButtonColor}
                 placeholder={t('admin.loginButtonColorPlaceholder')}
@@ -204,7 +207,7 @@
             </label>
             <label>
               {t('admin.loginButtonTextColor')}
-              <input
+              <Input
                 name="loginButtonTextColor"
                 value={provider.loginButtonTextColor}
                 placeholder={t('admin.loginButtonTextColorPlaceholder')}
@@ -214,7 +217,7 @@
             </label>
             <label class="wide">
               {t('admin.loginIconUrl')}
-              <input
+              <Input
                 name="loginIconUrl"
                 value={provider.loginIconUrl}
                 placeholder={t('admin.loginIconPlaceholder')}
@@ -223,7 +226,7 @@
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oidc'}
               <label class="wide">
                 {t('admin.issuerUrl')}
-                <input type="url" name="issuerUrl" value={provider.issuerUrl} />
+                <Input type="url" name="issuerUrl" value={provider.issuerUrl} />
               </label>
             {:else}
               <label>
@@ -242,7 +245,7 @@
               </label>
               <label class="wide">
                 {t('admin.oauthMetadataUrl')}
-                <input
+                <Input
                   type="url"
                   name="oauthMetadataUrl"
                   value={provider.oauthMetadataUrl}
@@ -251,7 +254,7 @@
               </label>
               <label class="wide">
                 {t('admin.authorizationEndpoint')}
-                <input
+                <Input
                   type="url"
                   name="authorizationEndpoint"
                   value={provider.authorizationEndpoint}
@@ -259,7 +262,7 @@
               </label>
               <label class="wide">
                 {t('admin.tokenEndpoint')}
-                <input
+                <Input
                   type="url"
                   name="tokenEndpoint"
                   value={provider.tokenEndpoint}
@@ -268,7 +271,7 @@
               </label>
               <label class="wide">
                 {t('admin.userInfoEndpoint')}
-                <input
+                <Input
                   type="url"
                   name="userInfoEndpoint"
                   value={provider.userInfoEndpoint}
@@ -277,12 +280,12 @@
             {/if}
             <label
               >{t('admin.clientId')}
-              <input name="clientId" value={provider.clientId} required />
+              <Input name="clientId" value={provider.clientId} required />
               <small>{t('admin.clientIdHint')}</small></label
             >
             <label>
               {t('admin.clientSecret')}
-              <input
+              <Input
                 type="password"
                 name="clientSecret"
                 placeholder={t('admin.clientSecretChangeOnly')}
@@ -303,13 +306,13 @@
             </label>
             <label
               >{t('admin.scopes')}
-              <input name="scopes" value={provider.scopes} />
+              <Input name="scopes" value={provider.scopes} />
               <small>{t('admin.scopesHint')}</small></label
             >
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
               <label>
                 {t('admin.authorizationHintParameter')}
-                <input
+                <Input
                   name="authorizationHintParameter"
                   value={provider.authorizationHintParameter}
                   placeholder={t('admin.authorizationHintParameterPlaceholder')}
@@ -318,23 +321,27 @@
             {/if}
             <label class="wide">
               {t('admin.allowedEmailDomains')}
-              <textarea name="allowedEmailDomains" rows="3"
-                >{provider.allowedEmailDomains.join('\n')}</textarea
-              >
+              <Textarea
+                name="allowedEmailDomains"
+                rows={3}
+                value={provider.allowedEmailDomains.join('\n')}
+              />
             </label>
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
               <label class="wide">
                 {t('admin.tokenRequestBody')}
                 <small>{t('admin.tokenRequestBodyHelp')}</small>
-                <textarea name="tokenRequestBody" rows="3"
-                  >{provider.tokenRequestBody}</textarea
-                >
+                <Textarea
+                  name="tokenRequestBody"
+                  rows={3}
+                  value={provider.tokenRequestBody}
+                />
               </label>
             {/if}
             {#if selectedProviderFlow(provider.id, provider.flow) === 'oauth'}
               <label>
                 {t('admin.loginInputName')}
-                <input
+                <Input
                   name="loginInputName"
                   value={provider.loginInputName}
                   placeholder={t('admin.loginInputNamePlaceholder')}
@@ -342,28 +349,28 @@
               </label>
               <label>
                 {t('admin.loginInputLabel')}
-                <input
+                <Input
                   name="loginInputLabel"
                   value={provider.loginInputLabel}
                 />
               </label>
               <label>
                 {t('admin.loginInputPlaceholder')}
-                <input
+                <Input
                   name="loginInputPlaceholder"
                   value={provider.loginInputPlaceholder}
                 />
               </label>
               <label>
                 {t('admin.loginInputDefault')}
-                <input
+                <Input
                   name="loginInputDefault"
                   value={provider.loginInputDefault}
                 />
               </label>
               <label class="wide">
                 {t('admin.loginInputHelp')}
-                <input name="loginInputHelp" value={provider.loginInputHelp} />
+                <Input name="loginInputHelp" value={provider.loginInputHelp} />
               </label>
               <ToggleField
                 name="loginInputRequired"
@@ -373,23 +380,23 @@
 
               <label>
                 {t('admin.subjectPath')}
-                <input name="subjectPath" value={provider.subjectPath} />
+                <Input name="subjectPath" value={provider.subjectPath} />
               </label>
             {/if}
             <label>
               {t('admin.emailPath')}
-              <input name="emailPath" value={provider.emailPath} />
+              <Input name="emailPath" value={provider.emailPath} />
             </label>
             <label>
               {t('admin.emailVerifiedPath')}
-              <input
+              <Input
                 name="emailVerifiedPath"
                 value={provider.emailVerifiedPath}
               />
             </label>
             <label>
               {t('admin.namePath')}
-              <input name="namePath" value={provider.namePath} />
+              <Input name="namePath" value={provider.namePath} />
             </label>
             <label class="wide">
               {t('admin.emailTrustMode')}
@@ -432,13 +439,13 @@
                 consentLabel={t('admin.emailTrustDisabledConsent')}
               />
             {:else}
-              <button
+              <Button
                 type="submit"
                 name="pluginActionSubmit"
                 value="saveProvider"
               >
                 {t('admin.validateAndSave')}
-              </button>
+              </Button>
             {/if}
           </div>
         </form>
@@ -476,7 +483,7 @@
         <div class="grid form-grid balanced">
           <label
             >{t('admin.id')}
-            <input
+            <Input
               name="id"
               placeholder={t('admin.providerIdPlaceholder')}
               required
@@ -484,7 +491,7 @@
           >
           <label
             >{t('admin.displayName')}
-            <input
+            <Input
               name="name"
               placeholder={t('admin.providerNamePlaceholder')}
               required
@@ -499,7 +506,7 @@
           </label>
           <label>
             {t('admin.loginButtonColor')}
-            <input
+            <Input
               name="loginButtonColor"
               placeholder={t('admin.loginButtonColorPlaceholder')}
               pattern={'#[0-9a-fA-F]{6}'}
@@ -508,7 +515,7 @@
           </label>
           <label>
             {t('admin.loginButtonTextColor')}
-            <input
+            <Input
               name="loginButtonTextColor"
               placeholder={t('admin.loginButtonTextColorPlaceholder')}
               pattern={'#[0-9a-fA-F]{6}'}
@@ -517,7 +524,7 @@
           </label>
           <label class="wide">
             {t('admin.loginIconUrl')}
-            <input
+            <Input
               name="loginIconUrl"
               placeholder={t('admin.loginIconPlaceholder')}
             />
@@ -525,7 +532,7 @@
           {#if newProviderFlow === 'oidc'}
             <label class="wide"
               >{t('admin.issuerUrl')}
-              <input type="url" name="issuerUrl" /></label
+              <Input type="url" name="issuerUrl" /></label
             >
           {:else}
             <label>
@@ -539,7 +546,7 @@
             </label>
             <label class="wide">
               {t('admin.oauthMetadataUrl')}
-              <input
+              <Input
                 type="url"
                 name="oauthMetadataUrl"
                 placeholder={t('admin.oauthMetadataUrlPlaceholder')}
@@ -547,26 +554,26 @@
             </label>
             <label class="wide">
               {t('admin.authorizationEndpoint')}
-              <input type="url" name="authorizationEndpoint" />
+              <Input type="url" name="authorizationEndpoint" />
             </label>
             <label class="wide">
               {t('admin.tokenEndpoint')}
-              <input type="url" name="tokenEndpoint" />
+              <Input type="url" name="tokenEndpoint" />
               <small>{t('admin.tokenEndpointHint')}</small>
             </label>
             <label class="wide">
               {t('admin.userInfoEndpoint')}
-              <input type="url" name="userInfoEndpoint" />
+              <Input type="url" name="userInfoEndpoint" />
             </label>
           {/if}
           <label
             >{t('admin.clientId')}
-            <input name="clientId" required />
+            <Input name="clientId" required />
             <small>{t('admin.clientIdHint')}</small></label
           >
           <label>
             {t('admin.clientSecret')}
-            <input
+            <Input
               type="password"
               name="clientSecret"
               placeholder={t('admin.noneSecretPlaceholder')}
@@ -587,7 +594,7 @@
           </label>
           <label
             >{t('admin.scopes')}
-            <input
+            <Input
               name="scopes"
               value={newProviderFlow === 'oauth' ? '' : defaultOidcScopes}
             />
@@ -596,7 +603,7 @@
           {#if newProviderFlow === 'oauth'}
             <label>
               {t('admin.authorizationHintParameter')}
-              <input
+              <Input
                 name="authorizationHintParameter"
                 placeholder={t('admin.authorizationHintParameterPlaceholder')}
               />
@@ -604,38 +611,38 @@
           {/if}
           <label class="wide">
             {t('admin.allowedEmailDomains')}
-            <textarea name="allowedEmailDomains" rows="3"></textarea>
+            <Textarea name="allowedEmailDomains" rows={3} />
           </label>
           {#if newProviderFlow === 'oauth'}
             <label class="wide">
               {t('admin.tokenRequestBody')}
               <small>{t('admin.tokenRequestBodyHelp')}</small>
-              <textarea name="tokenRequestBody" rows="3"></textarea>
+              <Textarea name="tokenRequestBody" rows={3} />
             </label>
           {/if}
           {#if newProviderFlow === 'oauth'}
             <label>
               {t('admin.loginInputName')}
-              <input
+              <Input
                 name="loginInputName"
                 placeholder={t('admin.loginInputNamePlaceholder')}
               />
             </label>
             <label>
               {t('admin.loginInputLabel')}
-              <input name="loginInputLabel" />
+              <Input name="loginInputLabel" />
             </label>
             <label>
               {t('admin.loginInputPlaceholder')}
-              <input name="loginInputPlaceholder" />
+              <Input name="loginInputPlaceholder" />
             </label>
             <label>
               {t('admin.loginInputDefault')}
-              <input name="loginInputDefault" />
+              <Input name="loginInputDefault" />
             </label>
             <label class="wide">
               {t('admin.loginInputHelp')}
-              <input name="loginInputHelp" />
+              <Input name="loginInputHelp" />
             </label>
             <ToggleField
               name="loginInputRequired"
@@ -644,20 +651,20 @@
 
             <label>
               {t('admin.subjectPath')}
-              <input name="subjectPath" value="sub" />
+              <Input name="subjectPath" value="sub" />
             </label>
           {/if}
           <label>
             {t('admin.emailPath')}
-            <input name="emailPath" value="email" />
+            <Input name="emailPath" value="email" />
           </label>
           <label>
             {t('admin.emailVerifiedPath')}
-            <input name="emailVerifiedPath" value="email_verified" />
+            <Input name="emailVerifiedPath" value="email_verified" />
           </label>
           <label>
             {t('admin.namePath')}
-            <input name="namePath" value="name" />
+            <Input name="namePath" value="name" />
           </label>
           <label class="wide">
             {t('admin.emailTrustMode')}
@@ -692,9 +699,9 @@
             consentLabel={t('admin.emailTrustDisabledConsent')}
           />
         {:else}
-          <button type="submit" name="pluginActionSubmit" value="saveProvider">
+          <Button type="submit" name="pluginActionSubmit" value="saveProvider">
             {t('admin.validateIssuerAndAdd')}
-          </button>
+          </Button>
         {/if}
       </form>
     </details>
@@ -746,15 +753,14 @@
     gap: 7px;
     color: var(--admin-text);
     font-size: 0.82rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   input:not([type='checkbox']),
   select {
     min-height: var(--form-control-height);
   }
   input,
-  select,
-  textarea {
+  select {
     width: 100%;
     border: 1px solid var(--admin-border);
     border-radius: var(--form-control-radius);
@@ -771,29 +777,14 @@
     font-weight: 500;
     line-height: 1.6;
   }
-  button {
-    width: fit-content;
-    border: 0;
-    border-radius: 10px;
-    padding: 10px 15px;
-    background: var(--admin-primary);
-    color: var(--admin-primary-contrast);
-    font: inherit;
-    font-weight: 850;
-    cursor: pointer;
-  }
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
-  }
   .provider {
     border: 1px solid var(--admin-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius, 8px);
     padding: 14px;
   }
   summary {
     cursor: pointer;
-    font-weight: 850;
+    font-weight: 600;
   }
   summary code {
     margin-left: 8px;

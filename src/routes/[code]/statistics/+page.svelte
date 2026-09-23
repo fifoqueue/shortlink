@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
-  import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import SiteHeader from '$lib/components/SiteHeader.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
   import SearchForm from '$lib/components/SearchForm.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
@@ -250,255 +250,257 @@
 
 <SiteThemeStyles customHead={data.customHead} />
 
-<main
-  class="site-theme content-page"
+<div
+  class="site-theme detail-page"
   data-theme-mode={data.theme.mode}
   data-theme-preset={data.theme.preset}
   style={siteThemeStyle(data.theme)}
 >
-  <header class="content-card content-page-header">
-    <div>
-      <a class="content-back-button" href={resolvePath(data.returnTo)}
-        >← {text.common.back}</a
-      >
-      <h1 class="content-page-title">
-        {formatText(text.stats.title, { code: data.link.code })}
-      </h1>
-      <p class="content-page-subtitle">{data.link.url}</p>
-    </div>
-    <LocaleSelect locale={data.locale} compact />
-  </header>
-
-  <section class="content-card summary">
-    <div class="summary-primary">
-      <article>
-        <span>{text.stats.totalClicks}</span>
-        <strong>{data.link.clicks.toLocaleString()}</strong>
-      </article>
-      <article>
-        <span>{text.stats.createdAt}</span>
-        <strong>{new Date(data.link.createdAt).toLocaleDateString()}</strong>
-      </article>
-      <article>
-        <span>{text.stats.lastClick}</span>
-        <strong>
-          {data.link.lastClickedAt
-            ? new Date(data.link.lastClickedAt).toLocaleString()
-            : text.common.none}
-        </strong>
-      </article>
-    </div>
-    <div class="summary-secondary">
-      <article>
-        <span>{text.stats.status}</span>
-        <strong>{healthText()}</strong>
-        <small>{healthDetail()}</small>
-      </article>
-      {#if data.link.creator}
-        <article>
-          <span>{text.stats.creator}</span>
-          <strong>{data.link.creator.name}</strong>
-          {#if creatorDetail()}<small>{creatorDetail()}</small>{/if}
-        </article>
-      {/if}
-    </div>
-  </section>
-
-  <section class="content-card insights">
-    <div class="insight-head">
+  <SiteHeader />
+  <main class="content-page">
+    <header class="content-page-header">
       <div>
-        <h2>{text.stats.insights}</h2>
-        <p>
-          {formatText(text.stats.sampleBasis, {
-            count: data.link.insights.sampleSize.toLocaleString(),
-          })}
-        </p>
-      </div>
-      <LinkQr
-        value={data.link.shortUrl}
-        code={data.link.code}
-        brandName={data.siteName}
-        accentColor={data.theme.customTokens.primary}
-        locale={data.locale}
-      />
-    </div>
-    <div class="insight-grid">
-      <article>
-        <span>{text.stats.last24h}</span>
-        <strong>{data.link.insights.last24h.toLocaleString()}</strong>
-        <small>
-          {formatText(text.stats.compared24h, { delta: deltaText() })}
-        </small>
-      </article>
-      <article>
-        <span>{text.stats.topReferrers}</span>
-        {#if data.link.insights.topReferrers.length}
-          <ol>
-            {#each data.link.insights.topReferrers as item (item.label)}
-              <li><span>{item.label}</span><strong>{item.count}</strong></li>
-            {/each}
-          </ol>
-        {:else}
-          <small>{text.common.noData}</small>
-        {/if}
-      </article>
-      <article>
-        <span>{text.stats.browsers}</span>
-        {#if data.link.insights.topBrowsers.length}
-          <ol>
-            {#each data.link.insights.topBrowsers as item (item.label)}
-              <li><span>{item.label}</span><strong>{item.count}</strong></li>
-            {/each}
-          </ol>
-        {:else}
-          <small>{text.common.noData}</small>
-        {/if}
-      </article>
-      <article>
-        <span>{text.stats.countries}</span>
-        {#if data.link.insights.topCountries.length}
-          <ol>
-            {#each data.link.insights.topCountries as item (item.label)}
-              <li><span>{item.label}</span><strong>{item.count}</strong></li>
-            {/each}
-          </ol>
-        {:else}
-          <small>{text.common.noData}</small>
-        {/if}
-      </article>
-    </div>
-    {#if data.link.insights.alerts.length > 0}
-      <div class="alerts">
-        {#each data.link.insights.alerts as alert (`${alert.type}:${alert.value}`)}
-          <p><strong>{alertLabel(alert)}</strong> {alertMessage(alert)}</p>
-        {/each}
-      </div>
-    {/if}
-  </section>
-
-  <section class="content-card">
-    <div class="section-heading">
-      <div>
-        <h2>{hasSearch ? text.stats.searchResults : text.stats.allClicks}</h2>
-        <p>
-          {formatText(text.home.showingCount, {
-            total: data.link.pagination.totalItems,
-            shown: data.link.clickEvents.length,
-            pageSize: data.link.pagination.pageSize,
-          })}
-        </p>
-      </div>
-      <div class="section-actions">
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href={data.link.shortUrl} target="_blank" rel="noreferrer"
-          >{text.stats.openShortLink}</a
+        <a class="content-back-button" href={resolvePath(data.returnTo)}
+          >← {text.common.back}</a
         >
-        {#if data.canDownloadCsv}
-          <a href={csvHref()} download>{text.stats.downloadCsv}</a>
+        <h1 class="content-page-title">
+          {formatText(text.stats.title, { code: data.link.code })}
+        </h1>
+        <p class="content-page-subtitle">{data.link.url}</p>
+      </div>
+    </header>
+
+    <section class="content-card summary">
+      <div class="summary-primary">
+        <article>
+          <span>{text.stats.totalClicks}</span>
+          <strong>{data.link.clicks.toLocaleString()}</strong>
+        </article>
+        <article>
+          <span>{text.stats.createdAt}</span>
+          <strong>{new Date(data.link.createdAt).toLocaleDateString()}</strong>
+        </article>
+        <article>
+          <span>{text.stats.lastClick}</span>
+          <strong>
+            {data.link.lastClickedAt
+              ? new Date(data.link.lastClickedAt).toLocaleString()
+              : text.common.none}
+          </strong>
+        </article>
+      </div>
+      <div class="summary-secondary">
+        <article>
+          <span>{text.stats.status}</span>
+          <strong>{healthText()}</strong>
+          <small>{healthDetail()}</small>
+        </article>
+        {#if data.link.creator}
+          <article>
+            <span>{text.stats.creator}</span>
+            <strong>{data.link.creator.name}</strong>
+            {#if creatorDetail()}<small>{creatorDetail()}</small>{/if}
+          </article>
         {/if}
       </div>
-    </div>
+    </section>
 
-    <SearchForm
-      baseHref={statsBaseHref()}
-      field={data.search.field}
-      query={data.search.query}
-      options={data.searchOptions}
-      fieldName={STATS_SEARCH_PARAMS.field}
-      queryName={STATS_SEARCH_PARAMS.query}
-      label={text.stats.clickSearch}
-      placeholder={text.stats.query}
-      submitLabel={text.common.search}
-      clearLabel={text.common.all}
-      locale={data.locale}
-    />
-
-    {#if data.link.clickEvents.length === 0}
-      <p class="empty">
-        {hasSearch ? text.stats.noSearchResults : text.stats.emptyClicks}
-      </p>
-    {:else}
-      <div class="events">
-        {#each data.link.clickEvents as click, index (`${click.createdAt}-${index}`)}
-          {@const clickedAt = new Date(click.createdAt).toLocaleString()}
-          <article>
-            <div class="event-metadata">
-              {@render copyMetadata(
-                text.stats.clickFields.createdAt,
-                clickedAt,
-                `${index}:createdAt`,
-              )}
-              {@render copyMetadata(
-                text.stats.clickFields.ipAddress,
-                click.ip,
-                `${index}:ip`,
-              )}
-              {@render copyMetadata(
-                text.stats.browser,
-                click.browser,
-                `${index}:browser`,
-              )}
-              {@render copyMetadata(
-                text.stats.clickFields.referer,
-                click.referer ?? text.stats.direct,
-                `${index}:referer`,
-              )}
-            </div>
-            {@render copyMetadata(
-              text.stats.clickFields.userAgent,
-              click.userAgent,
-              `${index}:userAgent`,
-              text.stats.noUserAgent,
-            )}
-            {#if click.details.length > 0}
-              <details class="event-details">
-                <summary>
-                  <span>
-                    {formatText(text.stats.metadataCount, {
-                      count: click.details.length,
-                    })}
-                  </span>
-                </summary>
-                <dl>
-                  {#each click.details as detail, detailIndex (`${detail.label}:${detail.value}`)}
-                    <div>
-                      <dt>{detail.label}</dt>
-                      <dd>
-                        <button
-                          class="copy-detail"
-                          type="button"
-                          onclick={() =>
-                            copyStatValue(
-                              detail.value,
-                              `${index}:detail:${detailIndex}`,
-                            )}
-                        >
-                          <span>{detail.value}</span>
-                          <em
-                            >{copiedKey === `${index}:detail:${detailIndex}`
-                              ? text.common.copied
-                              : text.common.copy}</em
-                          >
-                        </button>
-                      </dd>
-                    </div>
-                  {/each}
-                </dl>
-              </details>
-            {/if}
-          </article>
-        {/each}
+    <section class="content-card insights">
+      <div class="insight-head">
+        <div>
+          <h2>{text.stats.insights}</h2>
+          <p>
+            {formatText(text.stats.sampleBasis, {
+              count: data.link.insights.sampleSize.toLocaleString(),
+            })}
+          </p>
+        </div>
+        <LinkQr
+          value={data.link.shortUrl}
+          code={data.link.code}
+          brandName={data.siteName}
+          accentColor={data.theme.customTokens.primary}
+          locale={data.locale}
+        />
       </div>
-      <Pagination
-        page={data.link.pagination.page}
-        totalPages={data.link.pagination.totalPages}
-        getHref={pageHref}
-        label={text.stats.pageLabel}
+      <div class="insight-grid">
+        <article>
+          <span>{text.stats.last24h}</span>
+          <strong>{data.link.insights.last24h.toLocaleString()}</strong>
+          <small>
+            {formatText(text.stats.compared24h, { delta: deltaText() })}
+          </small>
+        </article>
+        <article>
+          <span>{text.stats.topReferrers}</span>
+          {#if data.link.insights.topReferrers.length}
+            <ol>
+              {#each data.link.insights.topReferrers as item (item.label)}
+                <li><span>{item.label}</span><strong>{item.count}</strong></li>
+              {/each}
+            </ol>
+          {:else}
+            <small>{text.common.noData}</small>
+          {/if}
+        </article>
+        <article>
+          <span>{text.stats.browsers}</span>
+          {#if data.link.insights.topBrowsers.length}
+            <ol>
+              {#each data.link.insights.topBrowsers as item (item.label)}
+                <li><span>{item.label}</span><strong>{item.count}</strong></li>
+              {/each}
+            </ol>
+          {:else}
+            <small>{text.common.noData}</small>
+          {/if}
+        </article>
+        <article>
+          <span>{text.stats.countries}</span>
+          {#if data.link.insights.topCountries.length}
+            <ol>
+              {#each data.link.insights.topCountries as item (item.label)}
+                <li><span>{item.label}</span><strong>{item.count}</strong></li>
+              {/each}
+            </ol>
+          {:else}
+            <small>{text.common.noData}</small>
+          {/if}
+        </article>
+      </div>
+      {#if data.link.insights.alerts.length > 0}
+        <div class="alerts">
+          {#each data.link.insights.alerts as alert (`${alert.type}:${alert.value}`)}
+            <p><strong>{alertLabel(alert)}</strong> {alertMessage(alert)}</p>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <section class="content-card">
+      <div class="section-heading">
+        <div>
+          <h2>{hasSearch ? text.stats.searchResults : text.stats.allClicks}</h2>
+          <p>
+            {formatText(text.home.showingCount, {
+              total: data.link.pagination.totalItems,
+              shown: data.link.clickEvents.length,
+              pageSize: data.link.pagination.pageSize,
+            })}
+          </p>
+        </div>
+        <div class="section-actions">
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href={data.link.shortUrl} target="_blank" rel="noreferrer"
+            >{text.stats.openShortLink}</a
+          >
+          {#if data.canDownloadCsv}
+            <a href={csvHref()} download>{text.stats.downloadCsv}</a>
+          {/if}
+        </div>
+      </div>
+
+      <SearchForm
+        baseHref={statsBaseHref()}
+        field={data.search.field}
+        query={data.search.query}
+        options={data.searchOptions}
+        fieldName={STATS_SEARCH_PARAMS.field}
+        queryName={STATS_SEARCH_PARAMS.query}
+        label={text.stats.clickSearch}
+        placeholder={text.stats.query}
+        submitLabel={text.common.search}
+        clearLabel={text.common.all}
         locale={data.locale}
       />
-    {/if}
-  </section>
-</main>
+
+      {#if data.link.clickEvents.length === 0}
+        <p class="empty">
+          {hasSearch ? text.stats.noSearchResults : text.stats.emptyClicks}
+        </p>
+      {:else}
+        <div class="events">
+          {#each data.link.clickEvents as click, index (`${click.createdAt}-${index}`)}
+            {@const clickedAt = new Date(click.createdAt).toLocaleString()}
+            <article>
+              <div class="event-metadata">
+                {@render copyMetadata(
+                  text.stats.clickFields.createdAt,
+                  clickedAt,
+                  `${index}:createdAt`,
+                )}
+                {@render copyMetadata(
+                  text.stats.clickFields.ipAddress,
+                  click.ip,
+                  `${index}:ip`,
+                )}
+                {@render copyMetadata(
+                  text.stats.browser,
+                  click.browser,
+                  `${index}:browser`,
+                )}
+                {@render copyMetadata(
+                  text.stats.clickFields.referer,
+                  click.referer ?? text.stats.direct,
+                  `${index}:referer`,
+                )}
+              </div>
+              {@render copyMetadata(
+                text.stats.clickFields.userAgent,
+                click.userAgent,
+                `${index}:userAgent`,
+                text.stats.noUserAgent,
+              )}
+              {#if click.details.length > 0}
+                <details class="event-details">
+                  <summary>
+                    <span>
+                      {formatText(text.stats.metadataCount, {
+                        count: click.details.length,
+                      })}
+                    </span>
+                  </summary>
+                  <dl>
+                    {#each click.details as detail, detailIndex (`${detail.label}:${detail.value}`)}
+                      <div>
+                        <dt>{detail.label}</dt>
+                        <dd>
+                          <button
+                            class="copy-detail"
+                            type="button"
+                            onclick={() =>
+                              copyStatValue(
+                                detail.value,
+                                `${index}:detail:${detailIndex}`,
+                              )}
+                          >
+                            <span>{detail.value}</span>
+                            <em
+                              >{copiedKey === `${index}:detail:${detailIndex}`
+                                ? text.common.copied
+                                : text.common.copy}</em
+                            >
+                          </button>
+                        </dd>
+                      </div>
+                    {/each}
+                  </dl>
+                </details>
+              {/if}
+            </article>
+          {/each}
+        </div>
+        <Pagination
+          page={data.link.pagination.page}
+          totalPages={data.link.pagination.totalPages}
+          getHref={pageHref}
+          label={text.stats.pageLabel}
+          locale={data.locale}
+        />
+      {/if}
+    </section>
+  </main>
+</div>
 
 <style>
   :global(*) {
@@ -529,7 +531,7 @@
   }
   a {
     color: var(--page-primary);
-    font-weight: 850;
+    font-weight: 600;
     text-decoration: none;
   }
   h2,
@@ -550,7 +552,7 @@
   .section-actions a {
     height: fit-content;
     border: 1px solid var(--page-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 9px 12px;
     font-size: 0.82rem;
   }
@@ -568,14 +570,14 @@
   .summary article {
     display: grid;
     gap: 7px;
-    border: 1px solid var(--page-border);
-    border-radius: 14px;
-    padding: 16px;
+    border-left: 1px solid var(--page-border);
+    padding: 8px 16px;
+    font-variant-numeric: tabular-nums;
   }
   .summary span {
     color: var(--page-muted);
     font-size: 0.78rem;
-    font-weight: 850;
+    font-weight: 600;
   }
   .summary small {
     overflow: hidden;
@@ -611,15 +613,14 @@
   .insight-grid article {
     display: grid;
     gap: 8px;
-    border: 1px solid var(--page-border);
-    border-radius: 14px;
-    padding: 14px;
-    background: color-mix(in srgb, var(--page-bg) 54%, var(--page-surface));
+    border-top: 1px solid var(--page-border);
+    padding: 16px 0;
+    font-variant-numeric: tabular-nums;
   }
   .insight-grid article > span {
     color: var(--page-muted);
     font-size: 0.74rem;
-    font-weight: 900;
+    font-weight: 600;
   }
   .insight-grid article > strong {
     font-size: 1.4rem;
@@ -652,10 +653,10 @@
   .alerts p {
     margin: 0;
     border: 1px solid color-mix(in srgb, #a13b2b 34%, var(--page-border));
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 10px 12px;
-    background: #fff0ed;
-    color: #a13b2b;
+    background: var(--notice-error-bg);
+    color: var(--notice-error-text);
   }
   .section-heading {
     display: flex;
@@ -686,7 +687,7 @@
     min-width: 0;
     gap: 5px;
     border: 1px solid var(--page-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 10px;
     background: color-mix(in srgb, var(--page-bg) 52%, var(--page-surface));
     color: var(--page-text);
@@ -710,7 +711,7 @@
   .copy-meta span {
     color: var(--page-muted);
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: 600;
     text-transform: uppercase;
   }
   .copy-meta strong {
@@ -726,11 +727,11 @@
     color: var(--page-primary);
     font-size: 0.7rem;
     font-style: normal;
-    font-weight: 850;
+    font-weight: 600;
   }
   .event-details {
     border: 1px solid var(--page-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     background: color-mix(in srgb, var(--page-bg) 45%, var(--page-surface));
   }
   .event-details summary {
@@ -739,11 +740,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 0 12px;
     color: color-mix(in srgb, var(--page-primary) 82%, var(--page-text));
     font-size: 0.76rem;
-    font-weight: 900;
+    font-weight: 600;
     cursor: pointer;
     list-style: none;
   }
@@ -793,7 +794,7 @@
     overflow: hidden;
     color: var(--page-muted);
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: 600;
     line-height: 1.25;
     text-overflow: ellipsis;
     text-transform: uppercase;
@@ -811,13 +812,13 @@
     justify-content: space-between;
     gap: 6px;
     border: 1px solid var(--page-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius, 8px);
     padding: 7px 9px;
     background: color-mix(in srgb, var(--page-bg) 52%, var(--page-surface));
     color: var(--page-text);
     font: inherit;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.25;
     cursor: pointer;
   }

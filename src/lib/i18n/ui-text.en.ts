@@ -128,9 +128,8 @@ const en: UiTextKo = {
       shortLinkDomainLinkCount: '{count} created links',
       shortLinkDomainDeleteTitle: 'Delete domain?',
       shortLinkDomainDeleteMessage:
-        'This removes domains with created links from the selectable domain list.',
-      shortLinkDomainDeleteConfirm:
-        '{count} links were created with {domain}. Delete this domain anyway?',
+        'This domain will no longer be available for new links.',
+      shortLinkDomainDeleteConfirm: '{domain} · {count} links created',
       brandContentTitle: 'Brand and Content',
       brandContentDescription:
         'The name and message visitors see first on the public page.',
@@ -306,6 +305,8 @@ const en: UiTextKo = {
       apiAllowDelete: 'Allow API link deletion',
       apiAllowUpdate: 'Allow API link updates',
       saveLinks: 'Save links and API settings',
+      themePalette: 'Palette to edit',
+      themePaletteHelp: 'Light and dark colors are saved separately.',
       themePresetTitle: 'Theme Preset',
       themePresetDescription:
         'Use a preset as the base and adjust colors, corners, and fonts.',
@@ -322,6 +323,8 @@ const en: UiTextKo = {
       primaryContrastColor: 'Text on accent',
       borderColor: 'Border',
       radius: 'Corner radius',
+      fontFamilyHelp:
+        'Enter a font name or CSS font list available in the browser.',
       fontFamily: 'Font CSS',
       themePreview: 'Theme preview',
       livePreview: 'LIVE PREVIEW',
@@ -410,42 +413,41 @@ const en: UiTextKo = {
   },
   home: {
     menuOpen: 'Open menu',
-    destinationUrl: 'Destination URL',
+    destinationUrl: 'Destination',
     shortLinkDomain: 'Short domain',
-    customCode: 'Custom code',
+    customCode: 'Short address',
     createLink: 'Create link',
-    linkReady: 'Your link is ready.',
+    linkReady: 'Link created.',
     createDeniedTitle: 'You do not have permission to create links.',
-    createDeniedDetail:
-      'Link creation is not allowed for your account or connection.',
-    permissionReasonsTitle: 'Applied permission notices',
-    permissionReasonsDescription:
-      'Reasons the administrator made public for your current work permissions.',
-    myLinksKicker: 'MY LINKS',
+    createDeniedDetail: 'Sign in to create a link.',
+    permissionReasonsTitle: 'Access notice',
+    permissionReasonsDescription: 'Access notice',
+    myLinksKicker: 'My links',
     myLinksTitle: 'My links',
-    showingCount: 'Showing {shown} of {total} · {pageSize} per page',
-    linksAccessDenied:
-      'Your account or connection cannot view your links right now.',
+    showingCount: '{total} total · {shown} shown',
+    linksAccessDenied: 'Sign in to see your links.',
     emptySearch: 'No search results.',
-    emptyLinks: 'Create your first short link.',
+    emptyLinks: 'No links yet.',
     pageLabel: 'My links page',
     searchLabel: 'Search my links',
-    searchPlaceholder: 'Search slug, destination URL, or tags',
-    quickKicker: 'QUICK CAPTURE',
-    quickTitle: 'Shorten from your browser',
-    quickSave: 'Save to Shortlink',
+    searchPlaceholder: 'Search addresses or tags',
+    quickKicker: 'Bookmark',
+    quickTitle:
+      'Drag this link to your bookmarks bar to shorten the page you are viewing.',
+    quickHelp: 'Drag to your bookmarks bar.',
+    quickSave: 'Shorten link',
     deleteViewAllOnly: 'Only global list access is available',
     deleteSharedOnly: 'Shared links cannot be deleted',
-    deleteDisabled: 'User deletion is disabled',
+    deleteDisabled: 'You cannot delete this link.',
     deleteMaxClicks: 'Only links with {count} clicks or fewer can be deleted',
     deletePolicyMaxClicks:
       'You can delete only links with {count} clicks or fewer.',
-    deletePolicyOwn: 'You can delete links you created regardless of clicks.',
-    deletePolicyDisabled: 'The administrator disabled user link deletion.',
+    deletePolicyOwn: 'You can delete links you created.',
+    deletePolicyDisabled: 'You cannot delete links.',
   },
   auth: {
     loginTitle: 'Log in',
-    loginDescription: 'Log in to create links.',
+    loginDescription: 'Enter your email and password.',
     ssoVerificationSent:
       'Verification email sent. Complete email verification, then log in again.',
     email: 'Email',
@@ -466,8 +468,7 @@ const en: UiTextKo = {
     newPassword: 'New password',
     resendVerification: 'Resend verification email',
     resendVerificationTitle: 'Resend verification email',
-    resendVerificationDescription:
-      'If you did not complete signup or external-login verification, request a new verification email.',
+    resendVerificationDescription: 'Enter the email address to verify.',
     sendVerificationEmail: 'Send verification email',
     passwordPolicyMinimum: 'At least {length} characters',
     passwordPolicyLetters: 'letters required',
@@ -475,7 +476,7 @@ const en: UiTextKo = {
     passwordPolicySymbols: 'symbols required',
     signupTitle: 'Sign up',
     setupTitle: 'Create admin account',
-    signupDescription: 'Create an account with email, name, and password.',
+    signupDescription: 'Enter your account details.',
     setupDescription: 'Create the first administrator account.',
     name: 'Name',
     signupSubmit: 'Create account',
@@ -492,14 +493,13 @@ const en: UiTextKo = {
   },
   account: {
     title: 'Account',
-    description: 'Manage the account for {name}.',
+    description: '{name}',
     profile: 'Profile',
     pendingEmail: 'Pending verification: {email}',
     permissionGroups: 'Current permission groups',
-    permissionGroupsDescription:
-      'Permission groups currently applied to this account.',
-    automaticPermissionGroup: 'Automatic',
-    manualPermissionGroup: 'Manual',
+    permissionGroupsDescription: '',
+    automaticPermissionGroup: '',
+    manualPermissionGroup: '',
     permissionGroupExpires: 'Expires {value}',
     noGroupDescription: 'No description',
     emptyPermissionGroups: 'No permission groups are currently applied.',
@@ -518,26 +518,22 @@ const en: UiTextKo = {
       'After deletion, password login will stop working. You can sign in only with a registered passkey or linked external login account.',
     deletePasswordConfirm: 'Delete password',
     externalPasswordUnavailable:
-      'This external-login account does not have a current password. Set a new password if you also want local login.',
+      'Set a password to sign in with email and password.',
     security: 'Login security',
-    securityDescription:
-      'Manage additional authentication methods such as TOTP and passkeys.',
+    securityDescription: 'Manage your authenticator app and passkeys.',
     securityLockedTitle: 'Security settings are locked.',
-    securityLockedDescription:
-      'Confirm account ownership again before changing login security settings.',
+    securityLockedDescription: 'Verify your identity to continue.',
     securityInitialSetupDescription:
-      'This account does not have a password or MFA method yet. Re-authenticate with a linked external login account, then register TOTP or a passkey as the first authentication method.',
+      'Sign in again with your connected account to verify your identity.',
     unlockSecurity: 'Unlock security settings',
     securityUnlockTitle: 'Unlock security settings',
-    securityUnlockDescription:
-      'Confirm account ownership with one of the available authentication methods.',
+    securityUnlockDescription: 'Choose a verification method.',
     securityPassword: 'Password',
     securityTotpCode: 'TOTP code',
     unlockWithPassword: 'Unlock with password',
     unlockWithTotp: 'Unlock with TOTP',
     unlockWithPasskey: 'Unlock with passkey',
-    securityPasskeyDescription:
-      'Use a registered passkey to unlock security settings for this account.',
+    securityPasskeyDescription: 'Verify your identity with a passkey.',
     securityUnlockFailed: 'Could not unlock security settings.',
     totp: 'TOTP',
     totpDescription:
@@ -559,8 +555,7 @@ const en: UiTextKo = {
     emptyPasskeys: 'No passkeys have been registered.',
     passkeyUnsupported: 'This browser does not support passkeys.',
     passkeyCreateFailed: 'Could not register the passkey.',
-    securityMethodDisabled:
-      'This security method is not available for your current permission group.',
+    securityMethodDisabled: 'This verification method is unavailable.',
     sessions: 'Sessions',
     sessionsDescription:
       'Keep this device signed in and log out every other device.',
@@ -599,7 +594,7 @@ const en: UiTextKo = {
     deleteAccountConfirm: 'Permanently delete account',
     deleteAccountConsent:
       'I understand that all data including created links will be permanently deleted and cannot be recovered.',
-    apiTokenDescription: 'Manage tokens for using the JSON API as {name}.',
+    apiTokenDescription: 'Create and manage API tokens.',
     adminRole: 'Admin',
     userRole: 'User',
   },
@@ -667,7 +662,7 @@ const en: UiTextKo = {
     deleteMessage: 'Deleted links and click statistics cannot be recovered.',
     deleteConfirm: 'Delete link',
     edit: 'Edit',
-    destinationUrl: 'Destination URL',
+    destinationUrl: 'Destination',
     saveChanges: 'Save changes',
   },
   linkPermission: {
@@ -751,7 +746,7 @@ const en: UiTextKo = {
     creator: 'Creator',
     activeAccount: 'Active account',
     inactiveAccount: 'Inactive account',
-    insights: 'Insights',
+    insights: 'Traffic summary',
     sampleBasis: 'Based on the latest {count} click samples',
     last24h: 'Last 24 hours',
     compared24h: 'Compared with previous 24 hours: {delta}',
@@ -800,21 +795,16 @@ const en: UiTextKo = {
     settingsChanged:
       'Another request changed these settings. Reload and save again.',
     createDisabledTitle: 'Link creation is currently disabled.',
-    createDisabledDetail: 'This site is not accepting new short links.',
-    createPrivateDeniedTitle: 'You cannot create links from this connection.',
-    createPrivateDeniedDetail:
-      'Log in or connect from an allowed account or network to create links.',
-    createGroupDeniedTitle:
-      'This account or network cannot create links right now.',
-    createGroupDeniedDetail:
-      'Your active permission group restricts link creation.',
-    createNoPermissionTitle: 'You do not have permission to create links.',
-    createNoPermissionDetail:
-      'Link creation is not allowed for your account or connection.',
-    formVerificationFailed: 'Form verification failed.',
+    createDisabledDetail: 'Try again later.',
+    createPrivateDeniedTitle: 'Sign in to continue.',
+    createPrivateDeniedDetail: 'Sign in to create a link.',
+    createGroupDeniedTitle: 'You cannot create links.',
+    createGroupDeniedDetail: 'Ask the administrator for access.',
+    createNoPermissionTitle: 'You cannot create links.',
+    createNoPermissionDetail: 'Ask the administrator for access.',
+    formVerificationFailed: 'Refresh the page and try again.',
     enterUrl: 'Enter a URL.',
-    urlSchemeNotAllowed:
-      'URL scheme is not allowed. Allowed schemes: {schemes}',
+    urlSchemeNotAllowed: 'This address format is not supported. Use: {schemes}',
     domainBlocked: 'This domain is blocked.',
     shortLinkDomainInvalid: 'The short link domain is invalid.',
     shortLinkDomainSchemeInvalid:

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '$lib/components/ui/textarea';
   import ToggleField from '$lib/components/ToggleField.svelte';
   import LocaleFieldSelector from '$lib/components/LocaleFieldSelector.svelte';
   import {
@@ -76,14 +77,11 @@
     {#key activeLocale}
       <label>
         {t('admin.html')}
-        <textarea
+        <Textarea
           name={fieldName('builtin', `announcementMessages.${activeLocale}`)}
-          rows="6"
-          >{localizedConfigString(
-            'announcementMessages',
-            activeLocale,
-          )}</textarea
-        >
+          rows={6}
+          value={localizedConfigString('announcementMessages', activeLocale)}
+        />
       </label>
     {/key}
   </section>
@@ -96,9 +94,11 @@
     />
     <label>
       {t('admin.links')} <small>{t('admin.linksHelp')}</small>
-      <textarea name={fieldName('builtin', 'socialLinks')} rows="5"
-        >{socialLinks}</textarea
-      >
+      <Textarea
+        name={fieldName('builtin', 'socialLinks')}
+        rows={5}
+        value={socialLinks}
+      />
     </label>
   </section>
 
@@ -111,14 +111,11 @@
     {#key activeLocale}
       <label>
         {t('admin.noticeText')}
-        <textarea
+        <Textarea
           name={fieldName('builtin', `privacyNoticeMessages.${activeLocale}`)}
-          rows="4"
-          >{localizedConfigString(
-            'privacyNoticeMessages',
-            activeLocale,
-          )}</textarea
-        >
+          rows={4}
+          value={localizedConfigString('privacyNoticeMessages', activeLocale)}
+        />
       </label>
     {/key}
   </section>
@@ -143,25 +140,13 @@
     gap: 8px;
     color: var(--admin-text);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   section {
     --toggle-min-height: 24px;
     --toggle-font-size: 0.92rem;
     --toggle-label: var(--admin-text);
     --toggle-primary: var(--admin-primary);
-  }
-  textarea {
-    width: 100%;
-    min-height: var(--form-control-height);
-    border: 1px solid var(--admin-border);
-    border-radius: var(--form-control-radius);
-    padding: 11px 12px;
-    background: var(--admin-surface);
-    color: var(--admin-text);
-    font: inherit;
-    line-height: 1.5;
-    outline: none;
   }
   small {
     color: var(--admin-muted);
@@ -171,12 +156,6 @@
     label,
     small {
       color: var(--admin-muted);
-    }
-    textarea:focus {
-      border-color: var(--admin-primary);
-      outline: 0;
-      box-shadow: 0 0 0 3px
-        color-mix(in srgb, var(--admin-primary) 16%, transparent);
     }
     section {
       --toggle-border: var(--admin-border);

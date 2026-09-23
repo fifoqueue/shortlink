@@ -15,6 +15,7 @@ import {
 import { getSettings } from '../src/lib/server/settings';
 import {
   createLink,
+  listLinksPage,
   updateLink,
   deleteLinks,
   getRedirectLinkByCode,
@@ -54,6 +55,34 @@ export async function checkLinks() {
         operations: { maxClicks },
       },
     );
+  const guest = { sessionId: randomUUID(), ipHash: 'shared-network' };
+  const neighbor = { sessionId: randomUUID(), ipHash: guest.ipHash };
+  const privateLink = await createLink(
+    'https://example.com/private',
+    randomUUID().replaceAll('-', '').slice(0, 12),
+    {
+      domain,
+      isAdmin: true,
+      owner: guest,
+      linkSettings: settings.links,
+    },
+  );
+  const neighborList = await listLinksPage(1, 25, neighbor);
+  assert.equal(
+    neighborList.items.some((link) => link.id === privateLink.id),
+    false,
+    'Shared IP must not expose another browser links',
+  );
+  const deniedEdit = await updateLink(
+    privateLink.code,
+    { url: 'https://example.com/changed' },
+    { domain, owner: neighbor, linkSettings: settings.links },
+  );
+  assert.equal(
+    deniedEdit.status,
+    'denied',
+    'Shared IP must not authorize edits',
+  );
   const quotaLink = await create(3);
   const enqueue = (linkId: number, trackClicks = true) =>
     enqueueClick({

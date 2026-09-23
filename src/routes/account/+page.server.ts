@@ -368,12 +368,18 @@ export const actions: Actions = {
       ) {
         return fail(403, { message: text.messages.securityUnlockRequired });
       }
-      await changeOwnPassword({
+      const updatedUser = await changeOwnPassword({
         id: user.id,
         currentPassword: stringValue(form, 'currentPassword'),
         nextPassword: stringValue(form, 'nextPassword'),
         passwordPolicy: settings.auth.password,
       });
+      createUserSessionFromModel(
+        cookies,
+        updatedUser,
+        user.provider,
+        user.subject,
+      );
       return { ok: true, message: text.messages.passwordChanged };
     } catch (cause) {
       return fail(400, {
@@ -389,7 +395,7 @@ export const actions: Actions = {
     }
   },
 
-  deletePassword: async ({ request, locals, getClientAddress }) => {
+  deletePassword: async ({ request, locals, cookies, getClientAddress }) => {
     const user = requirePageUser(locals, '/account');
     const settings = await getSettings();
     const text = uiText(locals.locale, settings.i18n.defaultLocale);
@@ -416,7 +422,7 @@ export const actions: Actions = {
         settings.i18n.defaultLocale,
         permissions.auth.providers,
       );
-      await deleteOwnPassword({
+      const updatedUser = await deleteOwnPassword({
         id: user.id,
         currentPassword: stringValue(form, 'currentPassword'),
         loginMethods: {
@@ -427,6 +433,12 @@ export const actions: Actions = {
             .map((method) => authProviderKey(method.pluginId, method.id)),
         },
       });
+      createUserSessionFromModel(
+        cookies,
+        updatedUser,
+        user.provider,
+        user.subject,
+      );
       return { ok: true, message: text.messages.passwordDeleted };
     } catch (cause) {
       return fail(400, {

@@ -12,6 +12,7 @@ import {
 import { registerUser } from '../src/lib/server/registration';
 import {
   createUser,
+  changeOwnPassword,
   deleteUser,
   deleteOwnPassword,
   requestUserPasswordReset,
@@ -168,6 +169,18 @@ export async function checkAccounts() {
     resets.filter(Boolean).length,
     1,
     'Password reset token must be consumed once',
+  );
+  await user.reload();
+  const passwordVersion = user.sessionVersion;
+  const changedUser = await changeOwnPassword({
+    id: user.id,
+    currentPassword: password,
+    nextPassword: password,
+  });
+  assert.equal(
+    changedUser.sessionVersion,
+    passwordVersion + 1,
+    'Password update invalidates older sessions in the same transaction',
   );
   await user.reload();
   const initialVersion = user.sessionVersion;

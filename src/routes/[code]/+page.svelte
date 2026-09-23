@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
@@ -140,14 +142,14 @@
       <form method="POST" action="?/unlock" use:enhance>
         <label>
           {text.redirect.password}
-          <input
+          <Input
             name="password"
             type="password"
             autocomplete="current-password"
             required
           />
         </label>
-        <button type="submit">{text.redirect.open}</button>
+        <Button type="submit">{text.redirect.open}</Button>
       </form>
     {:else if data.mode === 'blocked'}
       <div class="content">
@@ -205,8 +207,6 @@
     border-radius: var(--page-radius);
     padding: 34px;
     background: var(--page-surface);
-    box-shadow: 0 28px 80px
-      color-mix(in srgb, var(--page-text) 10%, transparent);
   }
 
   section.blocked {
@@ -232,7 +232,7 @@
     width: 34px;
     height: 34px;
     flex: none;
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
   }
 
   .brand img {
@@ -244,7 +244,7 @@
     place-items: center;
     background: var(--page-primary);
     color: var(--page-primary-contrast);
-    font-weight: 900;
+    font-weight: 600;
   }
 
   .brand strong {
@@ -263,7 +263,7 @@
     margin: 0;
     color: var(--page-primary);
     font-size: 0.74rem;
-    font-weight: 900;
+    font-weight: 600;
     overflow-wrap: anywhere;
   }
 
@@ -289,26 +289,16 @@
   label {
     color: var(--page-muted);
     font-size: 0.82rem;
-    font-weight: 800;
+    font-weight: 600;
   }
 
-  input,
-  button,
   .home-link,
   .primary-link {
     min-height: 48px;
-    border-radius: 11px;
+    border-radius: var(--ui-radius, 8px);
     font: inherit;
   }
 
-  input {
-    border: 1px solid var(--page-border);
-    padding: 0 14px;
-    background: var(--page-surface);
-    color: var(--page-text);
-  }
-
-  button,
   .primary-link,
   .home-link {
     display: inline-flex;
@@ -318,12 +308,8 @@
     padding: 0 16px;
     background: var(--page-primary);
     color: var(--page-primary-contrast);
-    font-weight: 900;
+    font-weight: 600;
     text-decoration: none;
-  }
-
-  button {
-    cursor: pointer;
   }
 
   .home-link {

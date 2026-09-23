@@ -1,4 +1,13 @@
 <script lang="ts">
+  import {
+    siteThemeStyle,
+    darkThemeTokens,
+    defaultDarkThemeTokens,
+  } from '$lib/theme-vars';
+  import '$lib/styles/site-theme.css';
+  import { Button } from '$lib/components/ui/button';
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { adminSections } from '$lib/admin-sections';
@@ -41,6 +50,7 @@
     type SiteSettings,
     type ThemePreset,
     type ThemeTokens,
+    type ThemeColors,
   } from '$lib/config';
   import { keepFormValues } from '$lib/forms';
   import { formatText, uiText } from '$lib/i18n/ui-text';
@@ -216,6 +226,18 @@
   let themeDraft = $state<ThemeTokens>({
     ...(initialTheme?.customTokens ?? builtInThemePresets.emerald),
   });
+  let darkThemeDraft = $state<ThemeColors>(
+    darkThemeTokens(
+      initialTheme ?? { customTokens: builtInThemePresets.emerald },
+    ),
+  );
+  let editingPalette = $state<'light' | 'dark'>(
+    initialTheme?.mode === 'dark' ? 'dark' : 'light',
+  );
+  const paletteDrafts = $derived([
+    { id: 'light' as const, colors: themeDraft },
+    { id: 'dark' as const, colors: darkThemeDraft },
+  ]);
   let emailProvider = $state<EmailProvider>(getInitialEmailProvider());
   let emailHttpAuthMode = $state<EmailHttpAuthMode>(
     getInitialEmailHttpAuthMode(),
@@ -449,6 +471,8 @@
     selectedPreset = data.settings.theme.preset;
     selectedMode = data.settings.theme.mode;
     themeDraft = { ...data.settings.theme.customTokens };
+    darkThemeDraft = darkThemeTokens(data.settings.theme);
+    editingPalette = data.settings.theme.mode === 'dark' ? 'dark' : 'light';
     emailProvider = data.settings.auth.emailVerification.provider;
     emailHttpAuthMode = data.settings.auth.emailVerification.http.authMode;
     apiGlobalEnabled = data.settings.api.enabled;
@@ -484,17 +508,7 @@
   ];
 
   const themePreviewStyle = $derived(
-    [
-      `--preview-bg:${themeDraft.background}`,
-      `--preview-surface:${themeDraft.surface}`,
-      `--preview-text:${themeDraft.text}`,
-      `--preview-muted:${themeDraft.muted}`,
-      `--preview-primary:${themeDraft.primary}`,
-      `--preview-primary-contrast:${themeDraft.primaryContrast}`,
-      `--preview-border:${themeDraft.border}`,
-      `--preview-radius:${themeDraft.radius}px`,
-      `--preview-font:${themeDraft.fontFamily}`,
-    ].join(';'),
+    siteThemeStyle({ customTokens: themeDraft, darkTokens: darkThemeDraft }),
   );
   function applyPreset(event: Event) {
     if (!data.authenticated) return;
@@ -502,6 +516,7 @@
       .value as ThemePreset;
     selectedPreset = preset;
     themeDraft = { ...data.themePresets[preset] };
+    darkThemeDraft = defaultDarkThemeTokens(data.themePresets[preset]);
   }
 
   function adminLinksPageHref(page: number) {
@@ -638,7 +653,7 @@
                 <div class="short-domain-row">
                   <label>
                     {text.admin.settings.shortLinkDomain}
-                    <input
+                    <Input
                       name="shortLinkDomains"
                       placeholder={text.admin.settings
                         .shortLinkDomainPlaceholder}
@@ -680,18 +695,28 @@
                       count: domainLinkCount(domainRow.value),
                     })}
                   </span>
-                  <DangerConfirmButton
-                    label={text.common.delete}
-                    size="small"
-                    disabled={Boolean(rowHost) &&
-                      rowHost === defaultShortLinkDomain}
-                    title={text.admin.settings.shortLinkDomainDeleteTitle}
-                    message={text.admin.settings.shortLinkDomainDeleteMessage}
-                    details={domainDeleteConfirmDetails([rowHost])}
-                    confirmLabel={text.common.delete}
-                    locale={data.locale}
-                    onconfirm={() => removeShortLinkDomain(domainRow)}
-                  />
+                  {#if rowHost}
+                    <DangerConfirmButton
+                      label={text.common.delete}
+                      size="small"
+                      disabled={Boolean(rowHost) &&
+                        rowHost === defaultShortLinkDomain}
+                      title={text.admin.settings.shortLinkDomainDeleteTitle}
+                      message={text.admin.settings.shortLinkDomainDeleteMessage}
+                      details={domainDeleteConfirmDetails([rowHost])}
+                      confirmLabel={text.common.delete}
+                      locale={data.locale}
+                      onconfirm={() => removeShortLinkDomain(domainRow)}
+                    />
+                  {:else}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onclick={() => removeShortLinkDomain(domainRow)}
+                      >{text.common.delete}</Button
+                    >
+                  {/if}
                 </div>
               {:else}
                 <p class="empty-note">
@@ -703,7 +728,7 @@
                 <div class="short-domain-row">
                   <label>
                     {text.admin.settings.shortLinkDomain}
-                    <input name="shortLinkDomains" value={domain} />
+                    <Input name="shortLinkDomains" value={domain} />
                   </label>
                   <label class="domain-scheme-field">
                     {text.admin.settings.shortLinkDomainScheme}
@@ -771,14 +796,14 @@
           </label>
           <label
             >{text.admin.settings.logoUrl}
-            <input
+            <Input
               name="logoUrl"
               value={data.settings.general.logoUrl}
             /></label
           >
           <label
             >{text.admin.settings.faviconUrl}
-            <input
+            <Input
               name="faviconUrl"
               value={data.settings.general.faviconUrl}
             /></label
@@ -794,33 +819,37 @@
             <div class="wide locale-panel">
               <label
                 >{text.admin.settings.siteName}
-                <input
+                <Input
                   name={`${brandContentLocale}SiteName`}
                   value={brandContent.general.siteName}
                 /></label
               >
               <label
                 >{text.admin.settings.eyebrow}
-                <input
+                <Input
                   name={`${brandContentLocale}Eyebrow`}
                   value={brandContent.general.eyebrow}
                 /></label
               >
               <label class="wide"
                 >{text.admin.settings.headline}
-                <textarea name={`${brandContentLocale}Headline`} rows="2"
-                  >{brandContent.general.headline}</textarea
-                ></label
+                <Textarea
+                  name={`${brandContentLocale}Headline`}
+                  rows={2}
+                  value={brandContent.general.headline}
+                /></label
               >
               <label class="wide"
                 >{text.admin.settings.description}
-                <textarea name={`${brandContentLocale}Description`} rows="3"
-                  >{brandContent.general.description}</textarea
-                ></label
+                <Textarea
+                  name={`${brandContentLocale}Description`}
+                  rows={3}
+                  value={brandContent.general.description}
+                /></label
               >
               <label
                 >{text.admin.settings.footerText}
-                <input
+                <Input
                   name={`${brandContentLocale}FooterText`}
                   value={brandContent.general.footerText}
                 /></label
@@ -839,7 +868,7 @@
         <div class="fields form-grid balanced">
           <label
             >{text.admin.settings.ogImageUrl}
-            <input
+            <Input
               name="ogImageUrl"
               value={data.settings.seo.ogImageUrl}
             /></label
@@ -862,23 +891,25 @@
             <div class="wide locale-panel">
               <label
                 >{text.admin.settings.seoTitle}
-                <input
+                <Input
                   name={`${searchContentLocale}SeoTitle`}
                   value={searchContent.seo.title}
                 /></label
               >
               <label class="wide"
                 >{text.admin.settings.seoDescription}
-                <textarea name={`${searchContentLocale}SeoDescription`} rows="3"
-                  >{searchContent.seo.description}</textarea
-                ></label
+                <Textarea
+                  name={`${searchContentLocale}SeoDescription`}
+                  rows={3}
+                  value={searchContent.seo.description}
+                /></label
               >
             </div>
           {/key}
           <label class="wide"
             >{text.admin.settings.robotsTxt}
             <small>{text.admin.settings.robotsTxtHelp}</small>
-            <textarea class="code" name="robotsTxt" rows="8"
+            <textarea class="code" name="robotsTxt" rows={8}
               >{data.settings.seo.robotsTxt}</textarea
             ></label
           >
@@ -889,7 +920,7 @@
           <label class="wide"
             >{text.admin.settings.customHead}
             <small>{text.admin.settings.customHeadHelp}</small>
-            <textarea class="code" name="customHead" rows="10"
+            <textarea class="code" name="customHead" rows={10}
               >{data.settings.seo.customHead}</textarea
             ></label
           >
@@ -913,29 +944,33 @@
             <div class="wide locale-panel legal-locale-panel">
               <label>
                 {text.admin.settings.termsTitle}
-                <input
+                <Input
                   name={`${legalContentLocale}TermsTitle`}
                   value={legalContent.legal.termsTitle}
                 />
               </label>
               <label>
                 {text.admin.settings.privacyTitle}
-                <input
+                <Input
                   name={`${legalContentLocale}PrivacyTitle`}
                   value={legalContent.legal.privacyTitle}
                 />
               </label>
               <label class="wide">
                 {text.admin.settings.termsContent}
-                <textarea name={`${legalContentLocale}TermsContent`} rows="12"
-                  >{legalContent.legal.termsContent}</textarea
-                >
+                <Textarea
+                  name={`${legalContentLocale}TermsContent`}
+                  rows={12}
+                  value={legalContent.legal.termsContent}
+                />
               </label>
               <label class="wide">
                 {text.admin.settings.privacyContent}
-                <textarea name={`${legalContentLocale}PrivacyContent`} rows="12"
-                  >{legalContent.legal.privacyContent}</textarea
-                >
+                <Textarea
+                  name={`${legalContentLocale}PrivacyContent`}
+                  rows={12}
+                  value={legalContent.legal.privacyContent}
+                />
               </label>
             </div>
           {/key}
@@ -953,7 +988,7 @@
             locale={data.locale}
           />
         {:else}
-          <button type="submit">{text.admin.settings.saveGeneral}</button>
+          <Button type="submit">{text.admin.settings.saveGeneral}</Button>
         {/if}
       </div>
     </form>
@@ -983,14 +1018,16 @@
           <label class="wide">
             {text.admin.settings.allowedShortLinkDomains}
             <small>{text.admin.settings.allowedShortLinkDomainsHelp}</small>
-            <textarea name="allowedDomains" rows="4"
-              >{data.settings.links.allowedDomains.join('\n')}</textarea
-            >
+            <Textarea
+              name="allowedDomains"
+              rows={4}
+              value={data.settings.links.allowedDomains.join('\n')}
+            />
           </label>
           <label
             >{text.admin.settings.userDeleteMaxClicks}
             <small>{text.admin.settings.noLimitZero}</small>
-            <input
+            <Input
               type="number"
               name="userDeleteMaxClicks"
               min="0"
@@ -1009,7 +1046,7 @@
         <div class="fields form-grid balanced">
           <label
             >{text.admin.settings.minLength}
-            <input
+            <Input
               type="number"
               name="codeMinLength"
               value={data.settings.links.codeMinLength}
@@ -1017,7 +1054,7 @@
           >
           <label
             >{text.admin.settings.maxLength}
-            <input
+            <Input
               type="number"
               name="codeMaxLength"
               value={data.settings.links.codeMaxLength}
@@ -1025,7 +1062,7 @@
           >
           <label
             >{text.admin.settings.generatedCodeLength}
-            <input
+            <Input
               type="number"
               name="generatedCodeLength"
               value={data.settings.links.generatedCodeLength}
@@ -1177,7 +1214,7 @@
         </div>
       </section>
       <div class="savebar">
-        <button type="submit">{text.admin.settings.saveLinks}</button>
+        <Button type="submit">{text.admin.settings.saveLinks}</Button>
       </div>
     </form>
   {:else if activeSection === 'security'}
@@ -1203,7 +1240,7 @@
           </div>
           <label
             >{text.admin.settings.passwordMinLength}
-            <input
+            <Input
               type="number"
               name="passwordMinLength"
               min="8"
@@ -1236,7 +1273,7 @@
           <label
             >{text.admin.settings.resendVerificationDailyLimit}
             <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
-            <input
+            <Input
               type="number"
               name="resendVerificationDailyLimit"
               min="0"
@@ -1248,7 +1285,7 @@
           <label
             >{text.admin.settings.passwordResetDailyLimit}
             <small>{text.admin.settings.accountRecoveryLimitHelp}</small>
-            <input
+            <Input
               type="number"
               name="passwordResetDailyLimit"
               min="0"
@@ -1282,7 +1319,7 @@
           </label>
           <label
             >{text.admin.settings.emailTokenTtlHours}
-            <input
+            <Input
               type="number"
               name="emailTokenTtlHours"
               min="1"
@@ -1293,7 +1330,7 @@
           <label
             >{text.admin.settings.emailTimeoutMs}
             <small>{text.admin.settings.emailTimeoutHelp}</small>
-            <input
+            <Input
               type="number"
               name="emailTimeoutMs"
               min="1000"
@@ -1304,7 +1341,7 @@
           >
           <label
             >{text.admin.settings.emailFromEmail}
-            <input
+            <Input
               name="emailFromEmail"
               type="email"
               value={data.settings.auth.emailVerification.fromEmail}
@@ -1313,7 +1350,7 @@
           >
           <label
             >{text.admin.settings.emailFromName}
-            <input
+            <Input
               name="emailFromName"
               value={data.settings.auth.emailVerification.fromName}
               placeholder={data.settings.general.siteName}
@@ -1322,7 +1359,7 @@
           {#if emailProvider === 'smtp'}
             <label
               >{text.admin.settings.smtpHost}
-              <input
+              <Input
                 name="smtpHost"
                 value={data.settings.auth.emailVerification.smtp.host}
                 placeholder="smtp.example.com"
@@ -1330,7 +1367,7 @@
             >
             <label
               >{text.admin.settings.smtpPort}
-              <input
+              <Input
                 type="number"
                 name="smtpPort"
                 min="1"
@@ -1340,7 +1377,7 @@
             >
             <label
               >{text.admin.settings.smtpUsername}
-              <input
+              <Input
                 name="smtpUsername"
                 value={data.settings.auth.emailVerification.smtp.username}
               /></label
@@ -1348,7 +1385,7 @@
             <label
               >{text.admin.settings.smtpPassword}
               <small>{text.admin.settings.keepExisting}</small>
-              <input
+              <Input
                 name="smtpPassword"
                 type="password"
                 placeholder={text.admin.settings.changeOnlyPlaceholder}
@@ -1364,7 +1401,7 @@
           {:else}
             <label class="wide"
               >{text.admin.settings.httpApiEndpoint}
-              <input
+              <Input
                 name="emailHttpEndpoint"
                 type="url"
                 value={data.settings.auth.emailVerification.http.endpoint}
@@ -1400,7 +1437,7 @@
             {#if emailHttpAuthMode === 'authorization'}
               <label class="wide"
                 >{text.admin.settings.authorizationHeaderValue}
-                <input
+                <Input
                   name="emailHttpAuthorizationHeader"
                   type="password"
                   placeholder={text.admin.settings
@@ -1410,7 +1447,7 @@
             {:else if emailHttpAuthMode === 'basic'}
               <label
                 >{text.admin.settings.basicAuthId}
-                <input
+                <Input
                   name="emailHttpBasicUsername"
                   value={data.settings.auth.emailVerification.http
                     .basicUsername}
@@ -1419,7 +1456,7 @@
               <label
                 >{text.admin.settings.basicAuthPassword}
                 <small>{text.admin.settings.keepExisting}</small>
-                <input
+                <Input
                   name="emailHttpBasicPassword"
                   type="password"
                   placeholder={text.admin.settings.changeOnlyPlaceholder}
@@ -1429,7 +1466,7 @@
               <label class="wide"
                 >{text.admin.settings.customAuthHeader}
                 <small>{text.admin.settings.customAuthHeaderHelp}</small>
-                <input
+                <Input
                   name="emailHttpAuthHeaders"
                   type="password"
                   placeholder={text.admin.settings.customAuthHeaderPlaceholder}
@@ -1439,9 +1476,11 @@
             <label class="wide"
               >{text.admin.settings.httpExtraHeaders}
               <small>{text.admin.settings.httpExtraHeadersHelp}</small>
-              <textarea name="emailHttpHeaders" rows="4"
-                >{data.settings.auth.emailVerification.http.headers}</textarea
-              ></label
+              <Textarea
+                name="emailHttpHeaders"
+                rows={4}
+                value={data.settings.auth.emailVerification.http.headers}
+              /></label
             >
           {/if}
         </div>
@@ -1463,7 +1502,7 @@
           </div>
           <label>
             {text.admin.settings.webActionGuardTokenTtlSeconds}
-            <input
+            <Input
               type="number"
               name="webActionGuardTokenTtlSeconds"
               min="60"
@@ -1486,7 +1525,7 @@
                 ? text.admin.settings.webActionGuardBypassTokenConfigured
                 : text.admin.settings.webActionGuardBypassTokenEmpty}
             </small>
-            <input
+            <Input
               name="webActionGuardBypassToken"
               type="password"
               placeholder={text.admin.settings.changeOnlyPlaceholder}
@@ -1513,7 +1552,7 @@
           </div>
           <label>
             {text.admin.settings.csrfTokenTtlSeconds}
-            <input
+            <Input
               type="number"
               name="csrfTokenTtlSeconds"
               min="60"
@@ -1540,9 +1579,11 @@
           </div>
           <label class="wide"
             >{text.admin.settings.proxyIpHeaders}
-            <textarea name="proxyIpHeaders" rows="5"
-              >{data.settings.network.proxyIpHeaders.join('\n')}</textarea
-            ></label
+            <Textarea
+              name="proxyIpHeaders"
+              rows={5}
+              value={data.settings.network.proxyIpHeaders.join('\n')}
+            /></label
           >
           <div class="subsection-heading wide">
             <h3>{text.admin.settings.geoipTitle}</h3>
@@ -1565,35 +1606,35 @@
           <div class="two wide">
             <label>
               {text.admin.settings.geoipCountryCodeHeader}
-              <input
+              <Input
                 name="geoipCountryCodeHeader"
                 value={data.settings.network.geoip.countryCodeHeader}
               />
             </label>
             <label>
               {text.admin.settings.geoipCountryNameHeader}
-              <input
+              <Input
                 name="geoipCountryNameHeader"
                 value={data.settings.network.geoip.countryNameHeader}
               />
             </label>
             <label>
               {text.admin.settings.geoipCityHeader}
-              <input
+              <Input
                 name="geoipCityNameHeader"
                 value={data.settings.network.geoip.cityNameHeader}
               />
             </label>
             <label>
               {text.admin.settings.geoipAsnNumberHeader}
-              <input
+              <Input
                 name="geoipAsnNumberHeader"
                 value={data.settings.network.geoip.asnNumberHeader}
               />
             </label>
             <label class="wide">
               {text.admin.settings.geoipAsnOrganizationHeader}
-              <input
+              <Input
                 name="geoipAsnOrganizationHeader"
                 value={data.settings.network.geoip.asnOrganizationHeader}
               />
@@ -1611,7 +1652,7 @@
               <span class="label-line">
                 {text.admin.settings.geoipCityDatabasePath}
               </span>
-              <input
+              <Input
                 name="geoipCityDatabasePath"
                 placeholder={text.admin.settings.geoipCityDatabasePlaceholder}
                 value={data.settings.network.geoip.cityDatabasePath}
@@ -1622,7 +1663,7 @@
                 {text.admin.settings.geoipCountryDatabasePath}
                 <small>{text.admin.settings.geoipCountryDatabaseHint}</small>
               </span>
-              <input
+              <Input
                 name="geoipCountryDatabasePath"
                 placeholder={text.admin.settings
                   .geoipCountryDatabasePlaceholder}
@@ -1633,7 +1674,7 @@
               <span class="label-line">
                 {text.admin.settings.geoipAsnDatabasePath}
               </span>
-              <input
+              <Input
                 name="geoipAsnDatabasePath"
                 placeholder={text.admin.settings.geoipAsnDatabasePlaceholder}
                 value={data.settings.network.geoip.asnDatabasePath}
@@ -1653,15 +1694,19 @@
           </div>
           <label class="wide"
             >{text.admin.settings.allowedSchemes}
-            <textarea name="allowedSchemes" rows="4"
-              >{data.settings.links.allowedSchemes.join('\n')}</textarea
-            ></label
+            <Textarea
+              name="allowedSchemes"
+              rows={4}
+              value={data.settings.links.allowedSchemes.join('\n')}
+            /></label
           >
           <label class="wide"
             >{text.admin.settings.blockedHosts}
-            <textarea name="blockedHosts" rows="5"
-              >{data.settings.links.blockedHosts.join('\n')}</textarea
-            ></label
+            <Textarea
+              name="blockedHosts"
+              rows={5}
+              value={data.settings.links.blockedHosts.join('\n')}
+            /></label
           >
           <div class="subsection-heading wide">
             <h3>{text.admin.settings.outboundProxyTitle}</h3>
@@ -1677,7 +1722,7 @@
           <label class="wide">
             {text.admin.settings.outboundProxyUrl}
             <small>{text.admin.settings.outboundProxyUrlHelp}</small>
-            <input
+            <Input
               name="outboundProxyUrl"
               placeholder={text.admin.settings.outboundProxyUrlPlaceholder}
               value={data.settings.network.outboundProxy.url}
@@ -1686,7 +1731,7 @@
         </div>
       </section>
       <div class="savebar">
-        <button type="submit">{text.admin.settings.saveSecurity}</button>
+        <Button type="submit">{text.admin.settings.saveSecurity}</Button>
       </div>
     </form>
   {:else if activeSection === 'theme'}
@@ -1713,25 +1758,54 @@
           </label>
           <label
             >{text.admin.settings.colorMode}
-            <select name="mode" bind:value={selectedMode}>
+            <select
+              name="mode"
+              bind:value={selectedMode}
+              onchange={(event) => {
+                const mode = event.currentTarget.value;
+                if (mode === 'light' || mode === 'dark') editingPalette = mode;
+              }}
+            >
               <option value="light">{text.admin.settings.lightMode}</option>
               <option value="dark">{text.admin.settings.darkMode}</option>
               <option value="system">{text.admin.settings.systemMode}</option>
             </select>
           </label>
-          {#each colorTokens as token (token[0])}
-            <label
-              >{text.admin.settings[token[1]]}
-              <input
-                type="color"
-                name={token[0]}
-                bind:value={themeDraft[token[0]]}
-              /></label
+          <label class="wide">
+            {text.admin.settings.themePalette}
+            <select bind:value={editingPalette}>
+              <option value="light">{text.admin.settings.lightMode}</option>
+              <option value="dark">{text.admin.settings.darkMode}</option>
+            </select>
+            <small>{text.admin.settings.themePaletteHelp}</small>
+          </label>
+          {#each paletteDrafts as palette (palette.id)}
+            <fieldset
+              class="palette-fields wide form-grid balanced"
+              hidden={editingPalette !== palette.id}
+              aria-label={palette.id === 'light'
+                ? text.admin.settings.lightMode
+                : text.admin.settings.darkMode}
             >
+              {#each colorTokens as token (token[0])}
+                <label>
+                  <span class="color-label-line"
+                    >{text.admin.settings[token[1]]}<code
+                      >{palette.colors[token[0]]}</code
+                    ></span
+                  >
+                  <input
+                    type="color"
+                    name={`${palette.id === 'dark' ? 'dark.' : ''}${token[0]}`}
+                    bind:value={palette.colors[token[0]]}
+                  />
+                </label>
+              {/each}
+            </fieldset>
           {/each}
           <label
             >{text.admin.settings.radius}
-            <input
+            <Input
               type="number"
               name="radius"
               min="0"
@@ -1741,14 +1815,13 @@
           >
           <label class="wide"
             >{text.admin.settings.fontFamily}
-            <input
-              name="fontFamily"
-              bind:value={themeDraft.fontFamily}
-            /></label
+            <Input name="fontFamily" bind:value={themeDraft.fontFamily} /><small
+              >{text.admin.settings.fontFamilyHelp}</small
+            ></label
           >
           <div
-            class="theme-preview wide"
-            data-preview-mode={selectedMode}
+            class="theme-preview site-theme wide"
+            data-theme-mode={editingPalette}
             style={themePreviewStyle}
             aria-label={text.admin.settings.themePreview}
           >
@@ -1756,7 +1829,13 @@
               <span>{text.admin.settings.livePreview}</span>
               <strong>{text.admin.settings.previewHeadline}</strong>
               <p>{text.admin.settings.previewDescription}</p>
-              <button type="button">{text.admin.settings.previewButton}</button>
+              <Input
+                readonly
+                value="https://example.com"
+                aria-label={text.home.destinationUrl}
+                class="mb-4"
+              />
+              <Button type="button">{text.admin.settings.previewButton}</Button>
             </div>
           </div>
         </div>
@@ -1765,7 +1844,7 @@
         <button type="submit" formaction="?/resetTheme" class="ghost"
           >{text.admin.settings.resetPreset}</button
         >
-        <button type="submit">{text.admin.settings.saveTheme}</button>
+        <Button type="submit">{text.admin.settings.saveTheme}</Button>
       </div>
     </form>
   {:else if activeSection === 'plugins'}
@@ -1882,7 +1961,7 @@
     margin: 22px 0 8px;
     color: var(--admin-primary);
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.14em;
   }
   h2,
@@ -1900,7 +1979,7 @@
     gap: 8px;
     color: var(--admin-text);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   label small {
     color: var(--admin-muted);
@@ -1952,7 +2031,7 @@
     align-items: center;
     color: var(--admin-muted);
     font-size: 0.76rem;
-    font-weight: 750;
+    font-weight: 600;
     white-space: nowrap;
   }
   .domain-scheme-field {
@@ -1978,14 +2057,14 @@
     border-radius: var(--form-control-radius);
     padding: 0 14px;
     font-size: 0.8rem;
-    font-weight: 850;
+    font-weight: 600;
   }
-  .short-domain-row :global(.danger-confirm-trigger) {
+  .short-domain-row > :global([data-slot='button']) {
     min-height: var(--form-control-height);
     border-radius: var(--form-control-radius);
     padding: 0 14px;
     font-size: 0.8rem;
-    font-weight: 850;
+    font-weight: 600;
   }
   .add-row {
     justify-self: start;
@@ -2049,13 +2128,13 @@
     padding: 0 20px;
     background: var(--admin-primary);
     color: var(--admin-primary-contrast);
-    font-weight: 850;
+    font-weight: 600;
   }
   .savebar :global(.danger-confirm-trigger) {
     min-height: 46px;
     border-radius: calc(var(--admin-radius) * 0.5);
     padding: 0 20px;
-    font-weight: 850;
+    font-weight: 600;
   }
   button:disabled {
     cursor: not-allowed;
@@ -2067,12 +2146,11 @@
   }
   .setting-card {
     display: grid;
-    grid-template-columns: 270px 1fr;
-    gap: 46px;
-    border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.8);
-    padding: 30px;
-    background: var(--admin-panel);
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    gap: 32px;
+    border-top: 1px solid var(--admin-border);
+    padding: 28px 0;
+    background: transparent;
   }
   .card-copy .step {
     margin-top: 0;
@@ -2082,8 +2160,8 @@
   .data-heading h2 {
     margin-bottom: 9px;
     font-family: inherit;
-    font-size: 1.45rem;
-    font-weight: 500;
+    font-size: 1.05rem;
+    font-weight: 600;
   }
   .card-copy p {
     font-size: 0.87rem;
@@ -2099,10 +2177,9 @@
     margin: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-    border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.55);
-    padding: 20px;
-    background: color-mix(in srgb, var(--admin-surface) 72%, transparent);
+    border: 0;
+    padding: 0;
+    background: transparent;
   }
   .locale-panel > .wide {
     grid-column: 1 / -1;
@@ -2120,10 +2197,9 @@
     display: flex;
     justify-content: flex-end;
     border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.65);
+    border-radius: var(--ui-radius, 8px);
     padding: 12px;
     background: color-mix(in srgb, var(--admin-surface) 90%, transparent);
-    box-shadow: 0 15px 40px var(--admin-shadow);
     backdrop-filter: blur(12px);
   }
   .savebar.split {
@@ -2142,24 +2218,51 @@
     height: 45px;
     padding: 5px;
   }
+  .palette-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    min-width: 0;
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+  .palette-fields[hidden] {
+    display: none;
+  }
+  .color-label-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .color-label-line code {
+    color: var(--admin-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+  @media (max-width: 560px) {
+    .palette-fields {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
   .theme-preview {
-    border: 1px solid var(--preview-border);
-    border-radius: var(--preview-radius);
+    border: 1px solid var(--page-border);
+    border-radius: var(--page-radius);
     padding: 24px;
-    background: var(--preview-bg);
-    color: var(--preview-text);
-    font-family: var(--preview-font);
+    background: var(--page-bg);
+    color: var(--page-text);
+    font-family: var(--font);
   }
   .theme-preview > div {
-    border: 1px solid var(--preview-border);
-    border-radius: calc(var(--preview-radius) * 0.7);
+    border: 1px solid var(--page-border);
+    border-radius: calc(var(--page-radius) * 0.7);
     padding: 24px;
-    background: var(--preview-surface);
+    background: var(--page-surface);
   }
   .theme-preview span {
-    color: var(--preview-primary);
+    color: var(--page-primary);
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.12em;
   }
   .theme-preview strong {
@@ -2169,18 +2272,8 @@
   }
   .theme-preview p {
     margin: 8px 0 18px;
-    color: var(--preview-muted);
+    color: var(--page-muted);
     font-size: 0.84rem;
-  }
-  .theme-preview button {
-    border-radius: calc(var(--preview-radius) * 0.45);
-    padding: 10px 14px;
-    background: var(--preview-primary);
-    color: var(--preview-primary-contrast);
-    font-weight: 800;
-  }
-  .theme-preview[data-preview-mode='dark'] {
-    color-scheme: dark;
   }
   .plugin-grid {
     display: grid;
@@ -2192,7 +2285,7 @@
     align-content: start;
     gap: 16px;
     border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.8);
+    border-radius: var(--ui-radius, 8px);
     padding: 26px;
     background: var(--admin-panel);
   }
@@ -2208,7 +2301,7 @@
   .plugin-heading span {
     color: var(--admin-primary);
     font-size: 0.66rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.12em;
   }
   .plugin-heading h2 {
@@ -2220,7 +2313,7 @@
     align-items: center;
     justify-content: center;
     min-height: 28px;
-    border-radius: 99px;
+    border-radius: calc(var(--ui-radius, 8px) * 0.5);
     padding: 6px 9px;
     background: var(--admin-soft);
     color: var(--admin-muted);
@@ -2240,13 +2333,13 @@
     width: fit-content;
     color: var(--admin-primary);
     font-size: 0.82rem;
-    font-weight: 850;
+    font-weight: 600;
     text-decoration: none;
   }
   .data-panel {
     min-width: 0;
     border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.8);
+    border-radius: var(--ui-radius, 8px);
     overflow: visible;
     background: var(--admin-panel);
   }
@@ -2268,11 +2361,6 @@
     max-width: 440px;
     margin-bottom: 0;
     font-size: 0.85rem;
-  }
-  @media (prefers-color-scheme: dark) {
-    .theme-preview[data-preview-mode='system'] {
-      color-scheme: dark;
-    }
   }
   @media (max-width: 900px) {
     .setting-card {
@@ -2309,7 +2397,7 @@
       align-items: stretch;
     }
     .short-domain-row span,
-    .short-domain-row :global(.danger-confirm-trigger) {
+    .short-domain-row > :global([data-slot='button']) {
       min-height: 38px;
     }
   }

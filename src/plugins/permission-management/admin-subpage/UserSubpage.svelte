@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import RuntimePluginFrame from '$lib/components/RuntimePluginFrame.svelte';
@@ -41,16 +43,16 @@
       <div class="grid form-grid balanced">
         <label>
           {t('admin.email')}
-          <input name="email" type="email" value={user.email} required />
+          <Input name="email" type="email" value={user.email} required />
         </label>
         <label>
           {t('admin.name')}
-          <input name="name" value={user.name} required />
+          <Input name="name" value={user.name} required />
         </label>
       </div>
       <label>
         {t('admin.newPassword')}
-        <input
+        <Input
           name="password"
           type="password"
           minlength={userSettings?.passwordMinLength ?? 10}
@@ -70,7 +72,7 @@
           checked={user.enabled}
         />
       </div>
-      <button type="submit">{t('admin.save')}</button>
+      <Button type="submit">{t('admin.save')}</Button>
     </form>
   </section>
 
@@ -106,7 +108,7 @@
           />
           <input type="hidden" name="integrationAction" value="save" />
           <RuntimePluginSchemaForm schema={integration.runtimeSchema} />
-          <button type="submit">{t('admin.save')}</button>
+          <Button type="submit">{t('admin.save')}</Button>
         </form>
       </section>
     {:else if integration.runtimeUi?.mode === 'iframe' && integration.runtimeUi.src}

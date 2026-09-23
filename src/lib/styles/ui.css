@@ -1,0 +1,128 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark {
+  &:where([data-theme-mode='dark'], [data-theme-mode='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where([data-theme-mode='system'], [data-theme-mode='system'] *) {
+      @slot;
+    }
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--ui-radius) * 0.5);
+  --radius-md: calc(var(--ui-radius) * 0.75);
+  --radius-lg: var(--ui-radius);
+  --radius-xl: calc(var(--ui-radius) * 1.25);
+  --color-background: var(--ui-background);
+  --color-foreground: var(--ui-foreground);
+  --color-card: var(--ui-card);
+  --color-card-foreground: var(--ui-foreground);
+  --color-popover: var(--ui-card);
+  --color-popover-foreground: var(--ui-foreground);
+  --color-primary: var(--ui-primary);
+  --color-primary-foreground: var(--ui-primary-foreground);
+  --color-secondary: var(--ui-muted);
+  --color-secondary-foreground: var(--ui-foreground);
+  --color-muted: var(--ui-muted);
+  --color-muted-foreground: var(--ui-muted-foreground);
+  --color-accent: var(--ui-muted);
+  --color-accent-foreground: var(--ui-foreground);
+  --color-destructive: var(--ui-destructive);
+  --color-border: var(--ui-border);
+  --color-input: var(--ui-border);
+  --color-ring: var(--ui-ring);
+}
+
+:root {
+  --ui-radius: 8px;
+  --ui-background: #fafafa;
+  --ui-card: #ffffff;
+  --ui-foreground: #202020;
+  --ui-primary: #262626;
+  --ui-primary-foreground: #fafafa;
+  --ui-muted: #f2f2f2;
+  --ui-muted-foreground: #656565;
+  --ui-border: #dedede;
+  --ui-destructive: #b42318;
+  --ui-ring: #737373;
+}
+
+.site-theme,
+.admin-theme {
+  --ui-radius: var(--page-radius, var(--admin-radius, 8px));
+  /* Also resolve arbitrary radius utilities within this theme, not at :root. */
+  --radius-md: calc(var(--ui-radius) * 0.75);
+  --ui-background: var(--page-bg, var(--admin-bg));
+  --ui-card: var(--page-surface, var(--admin-surface));
+  --ui-foreground: var(--page-text, var(--admin-text));
+  --ui-primary: var(--page-primary, var(--admin-primary));
+  --ui-primary-foreground: var(
+    --page-primary-contrast,
+    var(--admin-primary-contrast)
+  );
+  --ui-muted: color-mix(in srgb, var(--ui-foreground) 5%, var(--ui-card));
+  --ui-muted-foreground: var(--page-muted, var(--admin-muted));
+  --ui-border: var(--page-border, var(--admin-border));
+  --ui-destructive: var(--page-danger, var(--admin-danger));
+  --ui-ring: var(--ui-primary);
+}
+
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--ui-background);
+    color: var(--ui-foreground);
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ui-ring);
+    outline-offset: 3px;
+  }
+  button:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

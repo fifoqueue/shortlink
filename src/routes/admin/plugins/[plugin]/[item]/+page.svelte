@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as Card from '$lib/components/ui/card';
   import AdminPluginShell from '$lib/components/admin/AdminPluginShell.svelte';
   import type {
     PluginIntegrationData,
@@ -50,20 +51,25 @@
   backLabel={data.plugin.name}
 >
   <section class="plugin-panel">
-    {#if registered?.adminSubpage}
-      {@const PluginAdminSubpage = registered.adminSubpage}
-      <PluginAdminSubpage
-        config={data.state.config}
-        adminData={data.adminData}
-        item={data.item}
-        integrations={data.integrations}
-        locale={data.locale}
-        fallbackLocale={data.defaultLocale}
-        strings={data.pluginStrings}
-      />
-    {:else}
-      <p>{text.admin.plugins.noSubpage}</p>
-    {/if}
+    <Card.Root
+      class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+      ><Card.Content class="p-5 sm:p-6">
+        {#if registered?.adminSubpage}
+          {@const PluginAdminSubpage = registered.adminSubpage}
+          <PluginAdminSubpage
+            config={data.state.config}
+            adminData={data.adminData}
+            item={data.item}
+            integrations={data.integrations}
+            locale={data.locale}
+            fallbackLocale={data.defaultLocale}
+            strings={data.pluginStrings}
+          />
+        {:else}
+          <p>{text.admin.plugins.noSubpage}</p>
+        {/if}
+      </Card.Content></Card.Root
+    >
   </section>
 </AdminPluginShell>
 
@@ -75,9 +81,6 @@
     line-height: 1.6;
   }
   .plugin-panel {
-    border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.8);
-    padding: 26px;
-    background: var(--admin-panel);
+    min-width: 0;
   }
 </style>

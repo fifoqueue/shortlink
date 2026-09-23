@@ -53,7 +53,7 @@
     gap: 9px;
     color: var(--toggle-label, #455148);
     font-size: var(--toggle-font-size, 0.82rem);
-    font-weight: 750;
+    font-weight: 550;
   }
   .toggle.icon-only {
     width: 18px;

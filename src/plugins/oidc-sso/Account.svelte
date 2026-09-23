@@ -173,7 +173,7 @@
   input {
     min-height: 40px;
     border: 1px solid var(--page-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 0 12px;
     background: var(--page-surface);
     color: var(--page-text);
@@ -186,7 +186,7 @@
     min-height: 40px;
     align-items: center;
     border: 0;
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 10px 15px;
     background: var(--page-primary);
     color: var(--page-primary-contrast);

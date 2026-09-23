@@ -57,7 +57,7 @@
     max-width: 680px;
     gap: 18px;
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--ui-radius, 8px);
     margin: 70px auto 0;
     padding: 22px;
     background: var(--surface);
@@ -68,7 +68,7 @@
     margin: 0;
     color: var(--primary);
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.13em;
     text-transform: uppercase;
   }
@@ -109,7 +109,7 @@
     background: var(--surface);
     color: var(--text);
     font-size: 0.82rem;
-    font-weight: 850;
+    font-weight: 600;
     text-decoration: none;
   }
   .result-actions a:first-child {

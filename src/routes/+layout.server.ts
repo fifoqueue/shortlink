@@ -1,4 +1,5 @@
 import type { LayoutServerLoad } from './$types';
+import { effectivePermissionsForEvent } from '$lib/server/permissions';
 import {
   createCsrfToken,
   createWebActionToken,
@@ -6,9 +7,10 @@ import {
   WEB_ACTION_TOKEN_FIELD,
 } from '$lib/server/web-action-guard';
 
-export const load: LayoutServerLoad = (event) => {
+export const load: LayoutServerLoad = async (event) => {
   const { locals } = event;
   const settings = locals.localizedSettings;
+  const permissions = await effectivePermissionsForEvent(event);
 
   return {
     shell: {
@@ -18,6 +20,8 @@ export const load: LayoutServerLoad = (event) => {
       faviconUrl: settings.general.faviconUrl,
       theme: settings.theme,
       customHead: settings.seo.customHead,
+      userName: locals.user?.name,
+      canAccessAdmin: permissions.admin.access,
     },
     securityFormTokens: {
       csrf: locals.settings.security.csrf.enabled

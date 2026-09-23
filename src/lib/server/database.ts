@@ -67,7 +67,7 @@ function createSequelize() {
   const poolMin = numberEnv('DATABASE_POOL_MIN', 0, 0, poolMax);
   const dialectOptions: Record<string, unknown> = {};
   if (env.DATABASE_SSL === 'true') {
-    dialectOptions.ssl = { require: true, rejectUnauthorized: false };
+    dialectOptions.ssl = { require: true, rejectUnauthorized: true };
   }
   if (env.DATABASE_APPLICATION_NAME) {
     dialectOptions.application_name = env.DATABASE_APPLICATION_NAME;

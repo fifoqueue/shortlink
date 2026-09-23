@@ -1,6 +1,8 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import type { Snippet } from 'svelte';
+  import { Button } from '$lib/components/ui/button';
+  import * as Card from '$lib/components/ui/card';
   import LocaleSelect from '$lib/components/LocaleSelect.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
@@ -65,173 +67,128 @@
     {/key}
   {/if}
 
-  <section class="auth-card">
+  <div class="auth-frame">
     <div class="topline">
-      <p class="kicker">{siteName}</p>
-      <LocaleSelect {locale} compact />
+      <a href={resolve('/')} class="brand">{siteName}</a><LocaleSelect
+        {locale}
+        compact
+      />
     </div>
-    <h1>{title}</h1>
-    <p class="muted">{description}</p>
-
-    {#if children}
-      {@render children()}
-    {/if}
-
-    {#if links.length > 0}
-      <div class:single={links.length === 1} class="links">
-        {#each links as link (link.href)}
-          <a
-            class:primary={link.primary}
-            class="link-button"
-            href={resolvePath(link.href)}>{link.label}</a
-          >
-        {/each}
-      </div>
-    {/if}
-  </section>
+    <Card.Root
+      class="gap-0 rounded-xl border border-border bg-card p-0 shadow-none ring-0"
+    >
+      <Card.Header class="p-7 pb-6">
+        <h1>{title}</h1>
+        {#if description}<Card.Description>{description}</Card.Description>{/if}
+      </Card.Header>
+      <Card.Content class="px-7 pb-7"
+        ><div class="auth-fields">
+          {#if children}{@render children()}{/if}
+        </div></Card.Content
+      >
+      {#if links.length > 0}
+        <Card.Footer
+          class="flex flex-wrap gap-x-4 gap-y-2 border-t border-border px-7 py-4"
+        >
+          {#each links as link (link.href)}<Button
+              variant="link"
+              class="h-auto p-0 text-xs"
+              href={resolvePath(link.href)}>{link.label}</Button
+            >{/each}
+        </Card.Footer>
+      {/if}
+    </Card.Root>
+  </div>
 </main>
 
 <style>
-  :global(*) {
-    box-sizing: border-box;
-  }
-  :global(body) {
-    margin: 0;
-  }
   .auth-page {
     display: grid;
-    min-height: 100vh;
-    place-items: center;
-    padding: 24px;
+    min-height: 100dvh;
+    align-items: start;
+    justify-items: center;
+    padding: clamp(40px, 10vh, 100px) 20px 60px;
     background: var(--page-bg);
     color: var(--page-text);
     font-family: var(--font);
   }
-  .auth-card {
-    width: min(460px, 100%);
-    border: 1px solid var(--page-border);
-    border-radius: var(--page-radius);
-    padding: 38px;
-    background: var(--page-surface);
-    box-shadow: 0 28px 80px
-      color-mix(in srgb, var(--page-text) 10%, transparent);
+  .auth-frame {
+    width: min(420px, 100%);
   }
   .topline {
     display: flex;
-    align-items: start;
+    align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 8px;
+    gap: 16px;
+    margin-bottom: 28px;
   }
-  .kicker {
-    margin: 0;
-    color: var(--page-primary);
-    font-size: 0.7rem;
-    font-weight: 900;
-    letter-spacing: 0.14em;
+  .brand {
+    color: var(--page-text);
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
   h1 {
-    margin: 0;
-    font-size: 2rem;
+    margin: 0 0 6px;
+    font-size: 1.6rem;
+    font-weight: 650;
+    letter-spacing: -0.04em;
   }
-  .muted,
-  .auth-card :global(.hint),
-  .auth-card :global(label span) {
+  .auth-fields :global(form),
+  .auth-fields :global(label) {
+    display: grid;
+    gap: 8px;
+  }
+  .auth-fields :global(form) {
+    gap: 18px;
+  }
+  .auth-fields :global(label) {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .auth-fields :global(label span),
+  .auth-fields :global(.hint) {
     color: var(--page-muted);
-  }
-  .muted {
-    margin: 12px 0 26px;
+    font-size: 0.78rem;
     line-height: 1.6;
   }
-  .auth-card :global(form),
-  .auth-card :global(label) {
-    display: grid;
-    gap: 10px;
+  .auth-fields :global(.hint) {
+    margin: 18px 0 0;
   }
-  .auth-card :global(form) {
-    gap: 14px;
-  }
-  .auth-card :global(label) {
-    color: var(--page-muted);
-    font-size: 0.82rem;
-    font-weight: 800;
-  }
-  .auth-card :global(label span) {
-    font-size: 0.76rem;
-    font-weight: 650;
-    line-height: 1.5;
-  }
-  .auth-card :global(input),
-  .auth-card :global(button),
-  .link-button {
-    min-height: 48px;
-    border-radius: 11px;
-    font: inherit;
-  }
-  .auth-card :global(input) {
+  .auth-fields :global(input:not([type='hidden'])) {
+    width: 100%;
+    min-height: 42px;
     border: 1px solid var(--page-border);
-    padding: 0 14px;
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
+    padding: 0 12px;
     background: var(--page-surface);
     color: var(--page-text);
   }
-  .auth-card :global(button) {
-    display: grid;
-    place-items: center;
-    border: 0;
+  .auth-fields :global(button:not([data-slot])) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
+    padding: 0 16px;
     background: var(--page-primary);
     color: var(--page-primary-contrast);
-    font-weight: 900;
+    font-size: 0.85rem;
+    font-weight: 550;
     cursor: pointer;
   }
-  .auth-card :global(.inline-note) {
-    margin-bottom: 18px;
-    border-radius: 11px;
-    padding: 13px 14px;
+  .auth-fields :global(.inline-note) {
+    padding: 12px;
+    margin-bottom: 16px;
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
     background: var(--notice-error-bg);
     color: var(--notice-error-text);
     font-size: 0.8rem;
-    line-height: 1.5;
   }
-  .auth-card :global(.inline-note.ok) {
-    background: color-mix(
-      in srgb,
-      var(--page-primary) 12%,
-      var(--page-surface)
-    );
-    color: var(--page-primary);
-  }
-  .auth-card :global(.hint) {
-    margin: 16px 0 0;
-    font-size: 0.8rem;
-    line-height: 1.6;
-  }
-  .links {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 22px;
-  }
-  .links.single {
-    grid-template-columns: 1fr;
-  }
-  .link-button {
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--page-border);
-    background: var(--page-surface);
-    color: var(--page-primary);
-    font-size: 0.82rem;
-    font-weight: 900;
-    text-decoration: none;
-  }
-  .link-button.primary {
-    border-color: var(--page-primary);
-    background: var(--page-primary);
-    color: var(--page-primary-contrast);
-  }
-  @media (max-width: 520px) {
-    .links {
-      grid-template-columns: 1fr;
-    }
+  .auth-fields :global(.inline-note.ok) {
+    background: var(--notice-success-bg);
+    color: var(--notice-success-text);
   }
 </style>

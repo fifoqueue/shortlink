@@ -4,13 +4,11 @@
   import AdminShell from '$lib/components/AdminShell.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import type { SiteLocale, SiteSettings } from '$lib/config';
-  import { uiText } from '$lib/i18n/ui-text';
   import type { PluginMeta } from '$lib/plugin-contracts';
 
   type PluginShellData = {
     plugin: PluginMeta;
     locale: SiteLocale;
-    defaultLocale: SiteLocale;
     permissions: {
       isAdmin: boolean;
       admin: { sections: string[] };
@@ -35,7 +33,6 @@
     children: Snippet;
   } = $props();
 
-  const text = $derived(uiText(data.locale, data.defaultLocale));
   const allowedAdminSections = $derived(
     data.permissions.isAdmin
       ? adminSections
@@ -54,7 +51,6 @@
   locale={data.locale}
   activeSection="plugins"
   title={data.plugin.name}
-  kicker={text.admin.pluginSettings}
   description={data.plugin.description}
   status={`v${data.plugin.version}`}
   {backHref}

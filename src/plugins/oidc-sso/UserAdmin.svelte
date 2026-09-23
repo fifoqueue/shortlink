@@ -101,7 +101,7 @@
   .connections {
     display: grid;
     border: 1px solid var(--admin-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius, 8px);
     overflow: hidden;
   }
   article {

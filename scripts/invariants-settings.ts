@@ -90,6 +90,42 @@ export async function checkSettings() {
     assert.equal(secured.security.csrf.enabled, true);
     assert.deepEqual(secured.links.allowedSchemes, ['https']);
     assert.deepEqual(secured.theme, updated.theme);
+
+    const themeForm = new FormData();
+    themeForm.set('preset', 'mono');
+    themeForm.set('mode', 'system');
+    themeForm.set('background', '#fafafa');
+    themeForm.set('dark.background', '#123456');
+    themeForm.set('dark.primaryContrast', '#abcdef');
+    themeForm.set('radius', '17');
+    themeForm.set('fontFamily', 'Georgia, serif');
+    await updateSettings((settings) =>
+      applySettingsForm('theme', themeForm, settings),
+    );
+    const themed = await getSettings();
+    assert.equal(themed.theme.customTokens.background, '#fafafa');
+    assert.equal(themed.theme.darkTokens?.background, '#123456');
+    assert.equal(themed.theme.darkTokens?.primaryContrast, '#abcdef');
+    assert.equal(themed.theme.customTokens.radius, 17);
+    assert.equal(themed.theme.customTokens.fontFamily, 'Georgia, serif');
+
+    // Old forms that only edit light colors must preserve a saved dark palette.
+    const legacyThemeForm = new FormData();
+    legacyThemeForm.set('preset', 'mono');
+    legacyThemeForm.set('mode', 'dark');
+    await updateSettings((settings) =>
+      applySettingsForm('theme', legacyThemeForm, settings),
+    );
+    assert.deepEqual(
+      (await getSettings()).theme.darkTokens,
+      themed.theme.darkTokens,
+    );
+    await updateSettings((settings) =>
+      applySettingsForm('resetTheme', legacyThemeForm, settings),
+    );
+    const resetTheme = (await getSettings()).theme;
+    assert.equal(resetTheme.customTokens.radius, 8);
+    assert.equal(resetTheme.darkTokens?.background, '#141414');
   } finally {
     await updateSettings((settings) => {
       Object.assign(settings, original);

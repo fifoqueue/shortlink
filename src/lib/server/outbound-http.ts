@@ -380,7 +380,7 @@ async function connectHttpProxyTarget(input: {
     input.timeoutMs,
     async () => {
       const reader = new SocketReader(proxySocket);
-      const host = `${input.host}:${input.port}`;
+      const host = `${urlHost(input.host)}:${input.port}`;
       proxySocket.write(
         `CONNECT ${host} HTTP/1.1\r\nHost: ${host}\r\n${proxyAuthorization(
           proxy,

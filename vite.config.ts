@@ -1,4 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, type Plugin } from 'vite';
 
 type SettingsModule = typeof import('./src/lib/server/settings');
@@ -33,7 +34,7 @@ function warmupShortlinkServer(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [sveltekit(), warmupShortlinkServer()],
+  plugins: [tailwindcss(), sveltekit(), warmupShortlinkServer()],
   server: {
     warmup: {
       ssrFiles: [
@@ -48,6 +49,7 @@ export default defineConfig({
         './src/lib/components/LinkQr.svelte',
       ],
     },
+    port: Number(process.env.PORT) || 5174,
   },
   optimizeDeps: {
     include: ['qrcode'],

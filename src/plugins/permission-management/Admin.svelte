@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
@@ -126,11 +128,11 @@
       use:enhance={keepFormValues}
     >
       <input type="hidden" name="pluginAction" value="createGroup" />
-      <input name="name" placeholder={t('admin.groupName')} required />
-      <input name="description" placeholder={t('admin.description')} />
-      <input name="priority" type="number" min="0" max="10000" value="100" />
+      <Input name="name" placeholder={t('admin.groupName')} required />
+      <Input name="description" placeholder={t('admin.description')} />
+      <Input name="priority" type="number" min="0" max="10000" value="100" />
       <input type="hidden" name="enabled" value="on" />
-      <button type="submit">{t('admin.addGroup')}</button>
+      <Button type="submit">{t('admin.addGroup')}</Button>
     </form>
     {#if data.groups?.length}
       <form
@@ -217,12 +219,12 @@
       </div>
     </div>
     <form class="search-users" method="GET">
-      <input
+      <Input
         name="userQ"
         placeholder={t('admin.userSearchPlaceholder')}
         value={data.userSearch?.query ?? ''}
       />
-      <button type="submit">{t('admin.search')}</button>
+      <Button type="submit">{t('admin.search')}</Button>
       {#if data.userSearch?.query}
         <a href={resolve('/admin/plugins/permission-management')}
           >{t('admin.reset')}</a
@@ -236,14 +238,14 @@
       use:enhance={keepFormValues}
     >
       <input type="hidden" name="pluginAction" value="createUser" />
-      <input
+      <Input
         name="email"
         type="email"
         placeholder={t('admin.emailPlaceholder')}
         required
       />
-      <input name="name" placeholder={t('admin.name')} required />
-      <input
+      <Input name="name" placeholder={t('admin.name')} required />
+      <Input
         name="password"
         type="password"
         minlength={data.passwordMinLength ?? 10}
@@ -251,7 +253,7 @@
         required
       />
       <ToggleField name="isAdmin" label={t('admin.administrator')} />
-      <button type="submit">{t('admin.addUser')}</button>
+      <Button type="submit">{t('admin.addUser')}</Button>
     </form>
     <div class="items">
       {#each data.userSearch?.users ?? [] as user (user.id)}
@@ -310,22 +312,11 @@
   input {
     width: 100%;
     border: 1px solid var(--admin-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 10px 12px;
     background: var(--admin-surface);
     color: var(--admin-text);
     font: inherit;
-  }
-  button {
-    width: fit-content;
-    border: 0;
-    border-radius: 10px;
-    padding: 10px 15px;
-    background: var(--admin-primary);
-    color: var(--admin-primary-contrast);
-    font: inherit;
-    font-weight: 850;
-    cursor: pointer;
   }
   .create-user {
     grid-template-columns: 1.3fr 1fr 1fr auto auto;
@@ -342,7 +333,7 @@
   .search-users a {
     color: var(--admin-primary);
     font-size: 0.84rem;
-    font-weight: 850;
+    font-weight: 600;
     text-decoration: none;
   }
   .bulk-actions {
@@ -398,7 +389,7 @@
     color: var(--admin-muted);
     font-size: 0.82rem;
     font-style: normal;
-    font-weight: 750;
+    font-weight: 600;
   }
   .row-action {
     display: inline-flex;
@@ -406,12 +397,12 @@
     align-items: center;
     justify-content: center;
     border: 1px solid var(--admin-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius, 8px);
     padding: 7px 10px;
     background: transparent;
     color: var(--admin-muted);
     font-size: 0.76rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1;
     text-decoration: none;
   }

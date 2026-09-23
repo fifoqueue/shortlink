@@ -12,5 +12,12 @@
   </head>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>
+    <script>
+      // SSR tokens support forms without JavaScript. Remove only these injected
+      // nodes before hydration; FormSecurityTokenInjector restores current tokens.
+      document
+        .querySelectorAll('input[data-shortlink-ssr-token]')
+        .forEach((input) => input.remove());
+    </script>
   </body>
 </html>

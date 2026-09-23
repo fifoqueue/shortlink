@@ -3,14 +3,14 @@
   --form-grid-gap: 14px;
   --form-field-gap: 8px;
   --form-control-height: 44px;
-  --form-control-radius: 10px;
+  --form-control-radius: calc(var(--ui-radius, 8px) * 0.75);
   --form-help-min-height: 1.25rem;
   --form-help-line-height: 1.45;
 }
 
 .site-theme {
-  --form-control-height: 48px;
-  --form-control-radius: 11px;
+  --form-control-height: 44px;
+  --form-control-radius: calc(var(--ui-radius, 8px) * 0.75);
 }
 
 :where(.site-theme, .admin-theme)

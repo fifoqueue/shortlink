@@ -1,3 +1,4 @@
+import { linkMatchesOwner } from './link-ownership';
 import { randomBytes } from 'node:crypto';
 import { Op, type Transaction, type WhereOptions } from 'sequelize';
 import {
@@ -82,14 +83,6 @@ function activeGrantWhere(): WhereOptions {
   return {
     [Op.or]: [{ expiresAt: null }, { expiresAt: { [Op.gt]: new Date() } }],
   };
-}
-
-function linkMatchesOwner(link: ShortLinkModel, owner: LinkOwner) {
-  if (owner.userId) return link.creatorUserId === owner.userId;
-  return Boolean(
-    (owner.sessionId && link.creatorSessionId === owner.sessionId) ||
-    (owner.ipHash && link.creatorIpHash === owner.ipHash),
-  );
 }
 
 function normalizeEditableFields(value: unknown): LinkEditFieldKey[] {

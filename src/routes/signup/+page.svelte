@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import AuthCardPage from '$lib/components/AuthCardPage.svelte';
   import PluginSlotOutlet from '$lib/components/PluginSlotOutlet.svelte';
@@ -58,7 +60,7 @@
     <form method="POST" action="?/register" use:enhance>
       <label>
         {text.auth.email}
-        <input
+        <Input
           type="email"
           name="email"
           autocomplete="email"
@@ -68,7 +70,7 @@
       </label>
       <label>
         {text.auth.name}
-        <input
+        <Input
           name="name"
           autocomplete="name"
           value={form?.values?.name ?? ''}
@@ -77,7 +79,7 @@
       </label>
       <label>
         {text.auth.password}
-        <input
+        <Input
           type="password"
           name="password"
           autocomplete="new-password"
@@ -91,7 +93,7 @@
         locale={data.locale}
         fallbackLocale={data.defaultLocale}
       />
-      <button type="submit">{text.auth.signupSubmit}</button>
+      <Button type="submit">{text.auth.signupSubmit}</Button>
     </form>
   {/if}
 

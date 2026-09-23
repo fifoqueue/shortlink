@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Input } from '$lib/components/ui/input';
+  import { Button } from '$lib/components/ui/button';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import {
@@ -10,7 +12,7 @@
   import CopyValue from '$lib/components/CopyValue.svelte';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import LinkShareResultPanel from '$lib/components/LinkShareResultPanel.svelte';
-  import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import SiteHeader from '$lib/components/SiteHeader.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
   import SearchForm from '$lib/components/SearchForm.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
@@ -343,8 +345,9 @@
     {/key}
   {/if}
 
+  <SiteHeader />
   <main class="content-page">
-    <header class="content-card content-page-header">
+    <header class="content-page-header">
       <div>
         {#if data.mode === 'manage'}
           <a
@@ -362,7 +365,6 @@
           {data.mode === 'manage' ? data.link.url : data.link.shortUrl}
         </p>
       </div>
-      <LocaleSelect locale={data.locale} compact />
     </header>
 
     {#if data.mode === 'manage'}
@@ -407,7 +409,7 @@
             {/if}
             <form method="POST" action="?/rotate" use:enhance={keepFormValues}>
               <input type="hidden" name="domain" value={data.link.domain} />
-              <button type="submit">{text.linkPermission.rotateInvite}</button>
+              <Button type="submit">{text.linkPermission.rotateInvite}</Button>
             </form>
           </div>
         {:else}
@@ -424,7 +426,7 @@
 
           <label class="wide">
             <span>{text.linkPermission.expiresAt}</span>
-            <input
+            <Input
               name="expiresAt"
               type="datetime-local"
               value={expiresAtInput(data.share?.expiresAt)}
@@ -475,11 +477,11 @@
           </fieldset>
 
           <div class="form-actions wide">
-            <button type="submit">
+            <Button type="submit">
               {data.share?.inviteActive
                 ? text.linkPermission.saveShare
                 : text.linkPermission.createShare}
-            </button>
+            </Button>
           </div>
         </form>
 
@@ -629,7 +631,7 @@
 
                     <label>
                       <span>{text.linkPermission.recipientExpiresAt}</span>
-                      <input
+                      <Input
                         name="expiresAt"
                         type="datetime-local"
                         value={recipient.active
@@ -683,9 +685,9 @@
                     </details>
 
                     <div class="form-actions">
-                      <button type="submit">
+                      <Button type="submit">
                         {text.linkPermission.saveRecipientAccess}
-                      </button>
+                      </Button>
                     </div>
                   </form>
 
@@ -760,7 +762,7 @@
     font: inherit;
   }
   .permission-page {
-    min-height: 100vh;
+    min-height: 100dvh;
     background: var(--page-bg);
     color: var(--text);
     font-family: var(--font);
@@ -787,9 +789,7 @@
     text-decoration: none;
   }
   .link-panel a,
-  .invite-actions a,
-  .invite-actions button,
-  .form-actions button {
+  .invite-actions a {
     display: inline-flex;
     min-height: 42px;
     align-items: center;
@@ -800,14 +800,14 @@
     background: var(--surface);
     color: var(--text);
     font-size: 0.82rem;
-    font-weight: 850;
+    font-weight: 600;
     cursor: pointer;
   }
   .panel-head p {
     margin: 0;
     color: var(--primary);
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.13em;
     text-transform: uppercase;
   }
@@ -825,9 +825,8 @@
   .share-panel,
   .recipients-panel {
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--ui-radius, 8px);
     background: var(--surface);
-    box-shadow: 0 22px 64px color-mix(in srgb, var(--text) 7%, transparent);
   }
   .link-panel {
     display: flex;
@@ -863,7 +862,7 @@
   .panel-head > span {
     color: var(--primary);
     font-size: 0.8rem;
-    font-weight: 900;
+    font-weight: 600;
     white-space: nowrap;
   }
   .invite-actions,
@@ -879,11 +878,6 @@
   .danger-zone {
     justify-content: flex-end;
   }
-  .form-actions button {
-    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
-    background: var(--primary);
-    color: var(--primary-contrast);
-  }
   .settings-form {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -897,7 +891,7 @@
     gap: 8px;
     color: var(--text);
     font-size: 0.84rem;
-    font-weight: 800;
+    font-weight: 600;
   }
   label > small {
     color: var(--muted);
@@ -914,38 +908,6 @@
     color: var(--text);
     outline: none;
   }
-  input[type='datetime-local'] {
-    -webkit-appearance: none;
-    appearance: none;
-    box-sizing: border-box;
-    display: block;
-    height: 46px;
-    min-height: 46px;
-    line-height: 1.2;
-    padding-top: 0;
-    padding-bottom: 0;
-  }
-  input[type='datetime-local']::-webkit-date-and-time-value {
-    display: flex;
-    min-height: 44px;
-    align-items: center;
-    padding: 0;
-    line-height: 1.2;
-    text-align: left;
-  }
-  input[type='datetime-local']::-webkit-datetime-edit {
-    display: flex;
-    min-height: 44px;
-    align-items: center;
-    padding: 0;
-  }
-  input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
-    display: flex;
-    align-items: center;
-  }
-  input[type='datetime-local']::-webkit-calendar-picker-indicator {
-    margin-inline-start: auto;
-  }
   fieldset {
     min-width: 0;
     border: 1px solid var(--border);
@@ -957,7 +919,7 @@
     padding: 0 6px;
     color: var(--muted);
     font-size: 0.78rem;
-    font-weight: 850;
+    font-weight: 600;
   }
   .permission-hint {
     display: block;
@@ -970,7 +932,7 @@
     width: fit-content;
     margin: 4px 0 12px;
     color: var(--text);
-    font-weight: 900;
+    font-weight: 600;
   }
   .field-grid {
     display: grid;
@@ -1011,7 +973,7 @@
     margin: 0;
     color: var(--muted);
     font-size: 0.78rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   .recipient-bulk-actions {
     display: flex;
@@ -1071,7 +1033,7 @@
     color: var(--primary);
     font-size: 0.76rem;
     font-style: normal;
-    font-weight: 900;
+    font-weight: 600;
   }
   .recipient-summary span,
   .recipient-summary time {
@@ -1104,7 +1066,7 @@
     padding: 0 12px;
     color: var(--text);
     font-size: 0.82rem;
-    font-weight: 900;
+    font-weight: 600;
     cursor: pointer;
     list-style: none;
   }
@@ -1138,7 +1100,6 @@
     grid-column: 1;
     justify-content: stretch;
   }
-  .recipient-form .form-actions button,
   .recipient-danger :global(.danger-confirm-trigger) {
     width: 100%;
     min-height: 42px;
@@ -1180,10 +1141,8 @@
     .invite-actions {
       display: grid;
     }
-    .form-actions button,
     .recipient-danger :global(.danger-confirm-trigger),
     .invite-actions a,
-    .invite-actions button,
     .link-panel a {
       width: 100%;
     }

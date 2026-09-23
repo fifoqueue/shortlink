@@ -1,4 +1,8 @@
 <script lang="ts">
+  import * as Dialog from '$lib/components/ui/dialog';
+  import { Link2 } from '@lucide/svelte';
+  import { Input } from '$lib/components/ui/input';
+  import { Button } from '$lib/components/ui/button';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { keepFormValues } from '$lib/forms';
@@ -298,7 +302,7 @@
           disabled={!canDelete(link)}
           onchange={(event) => toggleLink(link, event.currentTarget.checked)}
         />
-        <div class="link-mark">↗</div>
+        <div class="link-mark"><Link2 size={16} aria-hidden="true" /></div>
         <div class="link-copy">
           <!-- eslint-disable svelte/no-navigation-without-resolve -->
           <a
@@ -311,15 +315,9 @@
           </a>
           <!-- eslint-enable svelte/no-navigation-without-resolve -->
           <p class="long">{link.url}</p>
-          {#if link.preview.title || link.preview.description || link.preview.imageUrl || link.preview.themeColor}
-            <p class="preview-meta">
-              {link.preview.title || text.managedLinks.previewTitleEmpty} ·
-              {link.preview.imageUrl
-                ? text.managedLinks.imageConfigured
-                : text.managedLinks.imageEmpty} ·
-              {link.preview.themeColor || text.managedLinks.themeColorEmpty}
-            </p>
-          {/if}
+          {#if link.preview.title}<p class="preview-meta">
+              {link.preview.title}
+            </p>{/if}
           {#if link.tags.length > 0 || smartLabels(link).length > 0}
             <div class="link-badges">
               {#each link.tags as tag (tag)}
@@ -353,11 +351,15 @@
           </span>
         </div>
         <div class="actions">
-          <button type="button" onclick={() => copy(link.shortUrl, link)}>
+          <Button
+            variant="outline"
+            type="button"
+            onclick={() => copy(link.shortUrl, link)}
+          >
             {copiedLink === linkSelectionValue(link)
               ? text.managedLinks.copied
               : text.managedLinks.copy}
-          </button>
+          </Button>
           {#if canViewStats(link)}
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href={statsHref(link)}>{text.managedLinks.stats}</a>
@@ -375,16 +377,17 @@
             >
               <input type="hidden" name="code" value={link.code} />
               <input type="hidden" name="domain" value={link.domain} />
-              <button type="submit">{text.managedLinks.health}</button>
+              <Button type="submit">{text.managedLinks.health}</Button>
             </form>
           {/if}
           {#if link.health.responseBody}
-            <button
+            <Button
+              variant="outline"
               type="button"
               onclick={() => openHealthResponse(link, link.health.responseBody)}
             >
               {text.managedLinks.healthResponse}
-            </button>
+            </Button>
           {/if}
           <DangerConfirmButton
             formId={deleteFormId}
@@ -403,13 +406,40 @@
           />
         </div>
         <div class="qr-wrap">
-          <LinkQr
-            value={link.shortUrl}
-            code={link.code}
-            {brandName}
-            {accentColor}
-            {locale}
-          />
+          <Dialog.Root>
+            <Dialog.Trigger
+              >{#snippet child({ props })}<Button
+                  {...props}
+                  variant="outline"
+                  size="sm">{text.common.qrCode}</Button
+                >{/snippet}</Dialog.Trigger
+            >
+            <Dialog.Content
+              portalProps={{ disabled: true }}
+              showCloseButton={false}
+              class="sm:max-w-sm"
+            >
+              <Dialog.Header
+                ><Dialog.Title>{text.common.qrCode}</Dialog.Title
+                ><Dialog.Description>{link.shortUrl}</Dialog.Description
+                ></Dialog.Header
+              >
+              <div class="qr-preview">
+                <LinkQr
+                  value={link.shortUrl}
+                  code={link.code}
+                  {brandName}
+                  {accentColor}
+                  {locale}
+                />
+              </div>
+              <Dialog.Close
+                >{#snippet child({ props })}<Button {...props} variant="outline"
+                    >{text.common.close}</Button
+                  >{/snippet}</Dialog.Close
+              >
+            </Dialog.Content>
+          </Dialog.Root>
         </div>
         {#if canEditLink(link)}
           <details class="link-editor">
@@ -425,7 +455,7 @@
               {#if fieldEditable(link, 'url')}
                 <label class="wide">
                   <span>{text.managedLinks.destinationUrl}</span>
-                  <input name="url" type="text" value={link.url} required />
+                  <Input name="url" type="text" value={link.url} required />
                 </label>
               {:else}
                 <input type="hidden" name="url" value={link.url} />
@@ -447,7 +477,7 @@
                 {locale}
               />
               <div class="edit-actions">
-                <button type="submit">{text.managedLinks.saveChanges}</button>
+                <Button type="submit">{text.managedLinks.saveChanges}</Button>
               </div>
             </form>
           </details>
@@ -465,104 +495,100 @@
   />
 {/if}
 
-{#if healthResponseModal}
-  <div class="modal-backdrop" role="presentation">
-    <div
-      class="health-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={healthResponseModal.title}
+<Dialog.Root
+  open={Boolean(healthResponseModal)}
+  onOpenChange={(open) => {
+    if (!open) healthResponseModal = null;
+  }}
+>
+  <Dialog.Content
+    portalProps={{ disabled: true }}
+    showCloseButton={false}
+    class="sm:max-w-2xl"
+  >
+    <Dialog.Header
+      ><Dialog.Title
+        >{healthResponseModal?.title ??
+          text.managedLinks.healthResponse}</Dialog.Title
+      ></Dialog.Header
     >
-      <div class="modal-head">
-        <h2>{healthResponseModal.title}</h2>
-        <button type="button" onclick={() => (healthResponseModal = null)}>
-          {text.managedLinks.closeHealthResponse}
-        </button>
-      </div>
-      <pre>{healthResponseModal.body}</pre>
-    </div>
-  </div>
-{/if}
+    <pre class="health-body">{healthResponseModal?.body ?? ''}</pre>
+    <Dialog.Close
+      >{#snippet child({ props })}<Button {...props} variant="outline"
+          >{text.common.close}</Button
+        >{/snippet}</Dialog.Close
+    >
+  </Dialog.Content>
+</Dialog.Root>
 
 <style>
   .link-list,
   .empty {
-    border: 1px solid var(--managed-link-border, var(--border));
-    border-radius: var(--managed-link-radius, var(--radius));
-    background: var(--managed-link-surface, var(--surface));
-    box-shadow: 0 24px 70px
-      color-mix(in srgb, var(--managed-link-text, var(--text)) 7%, transparent);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius, 8px);
+    background: var(--ui-card);
   }
-  .link-list {
-    overflow: hidden;
+  .empty {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--ui-muted-foreground);
+    font-size: 0.875rem;
   }
   .bulk-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
-    margin-bottom: var(--managed-link-bulk-margin-bottom, 12px);
-    padding: var(--managed-link-bulk-padding, 0);
+    margin-bottom: 12px;
   }
   .bulk-actions p {
     margin: 0 0 0 auto;
-    color: var(--managed-link-muted, var(--muted));
-    font-size: 0.78rem;
-  }
-  .bulk-actions,
-  .link-row {
-    --toggle-border: var(--managed-link-border, var(--border));
-    --toggle-surface: var(--managed-link-surface, var(--surface));
-    --toggle-primary: var(--managed-link-primary, var(--primary));
-    --toggle-label: var(--managed-link-text, var(--text));
-    --toggle-font-size: 0.82rem;
-    --toggle-min-height: 38px;
+    color: var(--ui-muted-foreground);
+    font-size: 0.75rem;
   }
   .link-row {
     display: grid;
-    grid-template-columns: 18px 36px minmax(0, 1fr) auto auto 112px;
+    grid-template-columns: 20px 28px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 16px;
-    padding: 18px 20px;
+    gap: 12px;
+    padding: 20px;
   }
   .link-row + .link-row {
-    border-top: 1px solid var(--managed-link-border, var(--border));
+    border-top: 1px solid var(--ui-border);
   }
   .link-mark {
+    color: var(--ui-muted-foreground);
     display: grid;
-    width: 34px;
-    height: 34px;
     place-items: center;
-    border-radius: 10px;
-    background: color-mix(
-      in srgb,
-      var(--managed-link-primary, var(--primary)) 9%,
-      var(--managed-link-surface, var(--surface))
-    );
-    color: var(--managed-link-primary, var(--primary));
+  }
+  .link-copy {
+    min-width: 0;
   }
   .short {
-    color: var(--managed-link-text, var(--text));
-    font-weight: 850;
+    color: var(--ui-foreground);
+    font-weight: 600;
+    font-size: 0.9rem;
     text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+  .short:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .long {
-    max-width: 580px;
-    margin: 5px 0 0;
-    overflow: hidden;
-    color: var(--managed-link-muted, var(--muted));
-    font-size: 0.78rem;
-    text-overflow: ellipsis;
+    margin: 4px 0 0;
+    color: var(--ui-muted-foreground);
+    font-size: 0.8rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .preview-meta {
-    max-width: 580px;
-    margin: 5px 0 0;
-    overflow: hidden;
-    color: var(--managed-link-primary, var(--primary));
-    font-size: 0.74rem;
-    font-weight: 750;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .preview-meta,
+  .share-summary {
+    margin: 6px 0 0;
+    font-size: 0.75rem;
+    color: var(--ui-muted-foreground);
+    overflow-wrap: anywhere;
   }
   .link-badges {
     display: flex;
@@ -571,252 +597,142 @@
     margin-top: 8px;
   }
   .link-badges span {
-    display: inline-flex;
-    min-height: 24px;
-    align-items: center;
-    border: 1px solid
-      color-mix(
-        in srgb,
-        var(--managed-link-primary, var(--primary)) 18%,
-        var(--managed-link-border, var(--border))
-      );
-    border-radius: 999px;
-    padding: 4px 8px;
-    background: color-mix(
-      in srgb,
-      var(--managed-link-primary, var(--primary)) 7%,
-      var(--managed-link-surface, var(--surface))
-    );
-    color: var(--managed-link-text, var(--text));
+    padding: 2px 6px;
+    background: var(--ui-muted);
+    border-radius: calc(var(--ui-radius, 8px) * 0.5);
+    color: var(--ui-muted-foreground);
     font-size: 0.7rem;
-    font-weight: 850;
   }
   .link-badges .smart {
-    border-color: var(--managed-link-border, var(--border));
-    color: var(--managed-link-muted, var(--muted));
-  }
-  .share-summary {
-    margin: 8px 0 0;
-    color: var(--managed-link-primary, var(--primary));
-    font-size: 0.74rem;
-    font-weight: 850;
+    border: 1px solid var(--ui-border);
+    background: transparent;
   }
   .meta {
-    display: flex;
-    gap: 16px;
-    color: var(--managed-link-muted, var(--muted));
+    display: grid;
+    gap: 4px;
+    justify-items: end;
+    color: var(--ui-muted-foreground);
     font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
   }
   .meta .ok {
-    color: var(--managed-link-primary, var(--primary));
-    font-weight: 900;
+    color: var(--ui-foreground);
   }
   .meta .broken {
-    color: var(--managed-link-danger, var(--page-danger));
-    font-weight: 900;
+    color: var(--ui-destructive);
   }
   .actions {
+    grid-column: 3;
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
+    align-items: center;
+    gap: 6px;
+  }
+  .actions :global(button) {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 0.75rem;
+  }
+  .actions a,
+  .link-editor summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--ui-border);
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
+    color: var(--ui-foreground);
+    font-size: 0.75rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .actions a:hover,
+  .link-editor summary:hover {
+    background: var(--ui-muted);
   }
   .inline-form {
     display: contents;
   }
-  .actions button,
-  .actions a,
-  .link-editor summary {
-    display: inline-flex;
-    min-height: 34px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--managed-link-border, var(--border));
-    border-radius: 8px;
-    padding: 7px 10px;
-    background: transparent;
-    color: var(--managed-link-muted, var(--muted));
-    font-size: 0.76rem;
-    font-weight: 800;
-    line-height: 1;
-    text-decoration: none;
-    cursor: pointer;
-  }
-  .link-editor {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--managed-link-border, var(--border));
-    padding-top: 14px;
-  }
   .qr-wrap {
     justify-self: end;
   }
+  .qr-preview {
+    --qr-size: 180px;
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+  }
+  .link-editor {
+    grid-column: 3/-1;
+  }
   .link-editor summary {
-    width: fit-content;
     list-style: none;
+    width: fit-content;
   }
   .link-editor summary::-webkit-details-marker {
     display: none;
   }
   .edit-form {
     display: grid;
-    gap: 12px;
-    margin-top: 12px;
+    gap: 16px;
+    margin-top: 16px;
+    border-top: 1px solid var(--ui-border);
+    padding-top: 16px;
   }
   .edit-form > label {
     display: grid;
     gap: 8px;
-    color: var(--managed-link-muted, var(--muted));
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: 0.8rem;
   }
-  .edit-form > label > span {
-    display: block;
-    margin: 0 0 2px 4px;
-  }
-  .edit-form > label > input {
-    width: 100%;
-    border: 1px solid var(--managed-link-border, var(--border));
-    border-radius: calc(var(--managed-link-radius, var(--radius)) * 0.45);
-    background: var(--managed-link-bg, var(--page-bg));
-    color: var(--managed-link-text, var(--text));
-    outline: none;
-    min-height: 44px;
-    padding: 0 12px;
-  }
-  .wide {
-    grid-column: 1 / -1;
+  .wide,
+  .edit-actions {
+    grid-column: 1/-1;
   }
   .edit-actions {
     display: flex;
-    grid-column: 1 / -1;
     justify-content: flex-end;
   }
-  .edit-actions button {
-    border: 0;
-    border-radius: calc(var(--managed-link-radius, var(--radius)) * 0.45);
-    padding: 10px 14px;
-    background: var(--managed-link-primary, var(--primary));
-    color: var(--managed-link-primary-contrast, var(--primary-contrast));
-    font-size: 0.8rem;
-    font-weight: 850;
-    cursor: pointer;
-  }
-  .empty {
-    padding: 50px 20px;
-    color: var(--managed-link-muted, var(--muted));
-    text-align: center;
-  }
-  .modal-backdrop {
-    position: fixed;
-    z-index: 50;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: 20px;
-    background: color-mix(
-      in srgb,
-      var(--managed-link-text, var(--text)) 45%,
-      transparent
-    );
-  }
-  .health-modal {
-    display: grid;
-    width: min(760px, 100%);
-    max-height: min(760px, 86vh);
-    overflow: hidden;
-    border: 1px solid var(--managed-link-border, var(--border));
-    border-radius: var(--managed-link-radius, var(--radius));
-    background: var(--managed-link-surface, var(--surface));
-    color: var(--managed-link-text, var(--text));
-    box-shadow: 0 24px 80px
-      color-mix(in srgb, var(--managed-link-text, var(--text)) 20%, transparent);
-  }
-  .modal-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    border-bottom: 1px solid var(--managed-link-border, var(--border));
-    padding: 14px 16px;
-  }
-  .modal-head h2 {
-    margin: 0;
-    font-size: 0.98rem;
-  }
-  .modal-head button {
-    min-height: 34px;
-    border: 1px solid var(--managed-link-border, var(--border));
-    border-radius: 8px;
-    padding: 7px 10px;
-    background: transparent;
-    color: var(--managed-link-muted, var(--muted));
-    font-size: 0.76rem;
-    font-weight: 800;
-    cursor: pointer;
-  }
-  .health-modal pre {
-    max-height: calc(86vh - 70px);
-    margin: 0;
+  .health-body {
+    max-height: 60dvh;
     overflow: auto;
+    margin: 0;
     padding: 16px;
-    color: var(--managed-link-text, var(--text));
-    font:
-      0.82rem/1.55 ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      Consolas,
-      monospace;
+    background: var(--ui-muted);
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
+    font-size: 0.8rem;
+    line-height: 1.6;
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: anywhere;
   }
-  @media (max-width: 820px) {
+  @media (max-width: 640px) {
     .link-row {
-      grid-template-columns: 18px 36px 1fr auto;
-    }
-    .meta {
-      display: none;
-    }
-    .qr-wrap {
-      grid-column: 3 / -1;
-      justify-self: start;
-    }
-  }
-  @media (max-width: 560px) {
-    .link-row {
-      grid-template-columns: 1fr;
-    }
-    :global(.row-check) {
-      justify-self: start;
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      padding: 16px;
+      gap: 12px 8px;
     }
     .link-mark {
       display: none;
     }
+    .link-copy {
+      grid-column: 2/-1;
+    }
+    .meta {
+      grid-column: 2/-1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-items: start;
+    }
     .actions {
-      margin-top: 3px;
+      grid-column: 2/-1;
     }
     .qr-wrap {
-      grid-column: auto;
+      grid-column: 2/-1;
+      justify-self: start;
     }
-    .bulk-actions {
-      align-items: stretch;
-      flex-direction: column;
-    }
-    .bulk-actions p {
-      margin-left: 0;
-    }
-  }
-  @media (max-width: 360px) {
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr;
-      width: 100%;
-    }
-    .actions button,
-    .actions a {
-      display: flex;
-      width: 100%;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
+    .link-editor {
+      grid-column: 2/-1;
     }
   }
 </style>

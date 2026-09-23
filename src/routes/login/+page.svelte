@@ -1,4 +1,7 @@
 <script lang="ts">
+  import * as Dialog from '$lib/components/ui/dialog';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { onMount, tick } from 'svelte';
@@ -73,7 +76,7 @@
     { href: '/', label: text.common.home },
   ]);
   let identifierProvider = $state<LoginProvider | null>(null);
-  let identifierInput = $state<HTMLInputElement>();
+  let identifierInput = $state<HTMLInputElement | null>(null);
 
   async function openIdentifierModal(provider: LoginProvider) {
     identifierProvider = provider;
@@ -83,14 +86,6 @@
 
   function closeIdentifierModal() {
     identifierProvider = null;
-  }
-
-  function closeIdentifierModalFromBackdrop(event: MouseEvent) {
-    if (event.target === event.currentTarget) closeIdentifierModal();
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') closeIdentifierModal();
   }
 
   async function attemptPasskeyLogin() {
@@ -123,8 +118,6 @@
   });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <AuthCardPage
   locale={data.locale}
   siteName={data.siteName}
@@ -140,7 +133,7 @@
       <input type="hidden" name="returnTo" value={data.returnTo} />
       <label>
         {text.auth.totpCode}
-        <input
+        <Input
           type="text"
           name="totpCode"
           inputmode="numeric"
@@ -148,17 +141,17 @@
           required
         />
       </label>
-      <button type="submit">{text.auth.verifyTotp}</button>
+      <Button type="submit">{text.auth.verifyTotp}</Button>
     </form>
   {:else if data.passwordEnabled}
     <form method="POST" action="?/login" use:enhance>
       <input type="hidden" name="returnTo" value={data.returnTo} />
       <label
-        >{text.auth.email} <input type="email" name="email" required /></label
+        >{text.auth.email} <Input type="email" name="email" required /></label
       >
       <label
         >{text.auth.password}
-        <input
+        <Input
           type="password"
           name="password"
           autocomplete="current-password"
@@ -171,7 +164,7 @@
         locale={data.locale}
         fallbackLocale={data.defaultLocale}
       />
-      <button type="submit">{text.auth.passwordLogin}</button>
+      <Button type="submit">{text.auth.passwordLogin}</Button>
     </form>
   {/if}
 
@@ -216,18 +209,14 @@
     </div>
   {/if}
 
-  {#if identifierProvider?.identifier}
-    <div
-      class="identifier-backdrop"
-      role="presentation"
-      onclick={closeIdentifierModalFromBackdrop}
-    >
-      <div
-        class="identifier-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={identifierProvider.label}
-      >
+  <Dialog.Root
+    open={Boolean(identifierProvider)}
+    onOpenChange={(open) => {
+      if (!open) identifierProvider = null;
+    }}
+  >
+    <Dialog.Content portalProps={{ disabled: true }} showCloseButton={false}>
+      {#if identifierProvider?.identifier}
         <form
           method="GET"
           action={resolve(
@@ -236,7 +225,7 @@
         >
           <input type="hidden" name="returnTo" value={data.returnTo} />
           <div class="modal-head">
-            <h2>{identifierProvider.label}</h2>
+            <Dialog.Title>{identifierProvider.label}</Dialog.Title>
             <button
               class="close-button"
               type="button"
@@ -249,8 +238,8 @@
             {#if identifierProvider.identifier.help}
               <small>{identifierProvider.identifier.help}</small>
             {/if}
-            <input
-              bind:this={identifierInput}
+            <Input
+              bind:ref={identifierInput}
               name={identifierProvider.identifier.name}
               value={identifierProvider.identifier.value ?? ''}
               placeholder={identifierProvider.identifier.placeholder ?? ''}
@@ -280,9 +269,9 @@
             </button>
           </div>
         </form>
-      </div>
-    </div>
-  {/if}
+      {/if}
+    </Dialog.Content>
+  </Dialog.Root>
 
   {#if !data.passwordEnabled && !data.providers.length && !data.passkeyEnabled}
     <div class="inline-note">{text.auth.noLoginMethods}</div>
@@ -299,7 +288,7 @@
   .providers button,
   .provider-launch {
     min-height: 48px;
-    border-radius: 11px;
+    border-radius: var(--ui-radius, 8px);
     font: inherit;
   }
   .providers button {
@@ -310,7 +299,7 @@
     border: 0;
     background: var(--page-primary);
     color: var(--page-primary-contrast);
-    font-weight: 900;
+    font-weight: 600;
     text-decoration: none;
     cursor: pointer;
   }
@@ -332,41 +321,17 @@
     flex: none;
     object-fit: contain;
   }
-  .identifier-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: grid;
-    place-items: center;
-    padding: 18px;
-    background: color-mix(in srgb, #000 42%, transparent);
-  }
-  .identifier-modal {
-    display: grid;
-    width: min(420px, 100%);
-    gap: 18px;
-    border: 1px solid var(--page-border);
-    border-radius: 18px;
-    padding: 22px;
-    background: var(--page-surface);
-    box-shadow: 0 28px 90px color-mix(in srgb, #000 28%, transparent);
-    color: var(--page-text);
-  }
   .modal-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
   }
-  .modal-head h2 {
-    margin: 0;
-    font-size: 1.15rem;
-  }
   .close-button {
     width: 40px;
     min-height: 40px;
     border: 1px solid var(--page-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
     padding: 0;
     background: var(--page-surface);
     color: var(--page-muted);

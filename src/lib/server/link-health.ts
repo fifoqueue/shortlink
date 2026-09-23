@@ -1,5 +1,5 @@
 import type { SiteSettings } from '$lib/config';
-import { outboundRequest } from './outbound-http';
+import { publicHttpRequest } from './public-http';
 
 export interface LinkHealthCheckResult {
   status: 'ok' | 'warning' | 'broken';
@@ -55,20 +55,18 @@ export async function fetchLinkHealth(
   const startedAt = Date.now();
 
   try {
-    let response = await outboundRequest({
+    let response = await publicHttpRequest({
       url,
       method: 'HEAD',
       settings,
-      purpose: 'link-health',
       timeoutMs: 8_000,
     });
 
     if (response.status === 405 || response.status >= 400) {
-      response = await outboundRequest({
+      response = await publicHttpRequest({
         url,
         method: 'GET',
         settings,
-        purpose: 'link-health',
         timeoutMs: 8_000,
       });
     }

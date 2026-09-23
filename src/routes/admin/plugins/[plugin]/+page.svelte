@@ -1,4 +1,6 @@
 <script lang="ts">
+  import * as Card from '$lib/components/ui/card';
+  import { Button } from '$lib/components/ui/button';
   import { enhance } from '$app/forms';
   import AdminPluginShell from '$lib/components/admin/AdminPluginShell.svelte';
   import RuntimePluginFrame from '$lib/components/RuntimePluginFrame.svelte';
@@ -72,103 +74,108 @@
   backLabel={text.admin.plugins.listBack}
 >
   <section class="plugin-panel">
-    {#if data.handlesAdminActions && (registered?.admin || data.runtimeAdminUi || data.runtimeAdminSchema)}
-      {#if data.plugin.required}
-        <p class="core-note">{text.admin.plugins.cannotDisableCore}</p>
-      {:else}
-        <form method="POST" action="?/save" use:enhance={keepFormValues}>
-          {#if activationBlocked && data.state.enabled}
-            <input type="hidden" name="enabled" value="on" />
+    <Card.Root
+      class="rounded-lg border border-border bg-card p-0 shadow-none ring-0"
+      ><Card.Content class="p-5 sm:p-6">
+        {#if data.handlesAdminActions && (registered?.admin || data.runtimeAdminUi || data.runtimeAdminSchema)}
+          {#if data.plugin.required}
+            <p class="core-note">{text.admin.plugins.cannotDisableCore}</p>
+          {:else}
+            <form method="POST" action="?/save" use:enhance={keepFormValues}>
+              {#if activationBlocked && data.state.enabled}
+                <input type="hidden" name="enabled" value="on" />
+              {/if}
+              <ToggleField
+                name="enabled"
+                label={text.admin.plugins.enablePlugin}
+                checked={data.state.enabled}
+                disabled={activationBlocked}
+              />
+              {#if activationBlocked && activationBlockReason}
+                <p class="activation-note">{activationBlockReason}</p>
+              {/if}
+              <Button type="submit">{text.admin.plugins.saveActivation}</Button>
+            </form>
           {/if}
-          <ToggleField
-            name="enabled"
-            label={text.admin.plugins.enablePlugin}
-            checked={data.state.enabled}
-            disabled={activationBlocked}
-          />
-          {#if activationBlocked && activationBlockReason}
-            <p class="activation-note">{activationBlockReason}</p>
+          {#if data.state.enabled}
+            <div class:separated={!data.plugin.required} class="plugin-fields">
+              {#if registered?.admin}
+                {@const PluginAdmin = registered.admin}
+                <PluginAdmin
+                  config={data.state.config}
+                  adminData={data.adminData}
+                  locale={data.locale}
+                  fallbackLocale={data.defaultLocale}
+                  strings={data.pluginStrings}
+                />
+              {:else if data.runtimeAdminSchema}
+                <RuntimePluginSchemaForm schema={data.runtimeAdminSchema} />
+              {:else if data.runtimeAdminUi?.mode === 'iframe' && data.runtimeAdminUi.src}
+                <RuntimePluginFrame
+                  src={data.runtimeAdminUi.src}
+                  pluginId={data.plugin.id}
+                  config={data.state.config}
+                  adminData={data.adminData}
+                  locale={data.locale}
+                  fallbackLocale={data.defaultLocale}
+                  strings={data.pluginStrings}
+                />
+              {/if}
+            </div>
+          {:else}
+            <p class="disabled-note">{text.admin.plugins.disabledNote}</p>
           {/if}
-          <button type="submit">{text.admin.plugins.saveActivation}</button>
-        </form>
-      {/if}
-      {#if data.state.enabled}
-        <div class:separated={!data.plugin.required} class="plugin-fields">
-          {#if registered?.admin}
-            {@const PluginAdmin = registered.admin}
-            <PluginAdmin
-              config={data.state.config}
-              adminData={data.adminData}
-              locale={data.locale}
-              fallbackLocale={data.defaultLocale}
-              strings={data.pluginStrings}
-            />
-          {:else if data.runtimeAdminSchema}
-            <RuntimePluginSchemaForm schema={data.runtimeAdminSchema} />
-          {:else if data.runtimeAdminUi?.mode === 'iframe' && data.runtimeAdminUi.src}
-            <RuntimePluginFrame
-              src={data.runtimeAdminUi.src}
-              pluginId={data.plugin.id}
-              config={data.state.config}
-              adminData={data.adminData}
-              locale={data.locale}
-              fallbackLocale={data.defaultLocale}
-              strings={data.pluginStrings}
-            />
-          {/if}
-        </div>
-      {:else}
-        <p class="disabled-note">{text.admin.plugins.disabledNote}</p>
-      {/if}
-    {:else}
-      <form method="POST" action="?/save" use:enhance={keepFormValues}>
-        {#if data.plugin.required || (activationBlocked && data.state.enabled)}
-          <input type="hidden" name="enabled" value="on" />
-        {/if}
-        {#if data.plugin.required}
-          <p class="core-note">{text.admin.plugins.cannotDisableCore}</p>
         {:else}
-          <ToggleField
-            name="enabled"
-            label={text.admin.plugins.enablePlugin}
-            checked={data.state.enabled}
-            disabled={activationBlocked}
-          />
-          {#if activationBlocked && activationBlockReason}
-            <p class="activation-note">{activationBlockReason}</p>
-          {/if}
+          <form method="POST" action="?/save" use:enhance={keepFormValues}>
+            {#if data.plugin.required || (activationBlocked && data.state.enabled)}
+              <input type="hidden" name="enabled" value="on" />
+            {/if}
+            {#if data.plugin.required}
+              <p class="core-note">{text.admin.plugins.cannotDisableCore}</p>
+            {:else}
+              <ToggleField
+                name="enabled"
+                label={text.admin.plugins.enablePlugin}
+                checked={data.state.enabled}
+                disabled={activationBlocked}
+              />
+              {#if activationBlocked && activationBlockReason}
+                <p class="activation-note">{activationBlockReason}</p>
+              {/if}
+            {/if}
+            {#if registered?.admin}
+              {@const PluginAdmin = registered.admin}
+              <div class="plugin-fields">
+                <PluginAdmin
+                  config={data.state.config}
+                  adminData={data.adminData}
+                  locale={data.locale}
+                  fallbackLocale={data.defaultLocale}
+                  strings={data.pluginStrings}
+                />
+              </div>
+            {:else if data.runtimeAdminSchema}
+              <div class="plugin-fields">
+                <RuntimePluginSchemaForm schema={data.runtimeAdminSchema} />
+              </div>
+            {:else if data.runtimeAdminUi?.mode === 'iframe' && data.runtimeAdminUi.src}
+              <div class="plugin-fields">
+                <RuntimePluginFrame
+                  src={data.runtimeAdminUi.src}
+                  pluginId={data.plugin.id}
+                  config={data.state.config}
+                  adminData={data.adminData}
+                  locale={data.locale}
+                  fallbackLocale={data.defaultLocale}
+                  strings={data.pluginStrings}
+                />
+              </div>
+            {/if}
+            <Button type="submit">{text.admin.plugins.saveSettings}</Button>
+          </form>
         {/if}
-        {#if registered?.admin}
-          {@const PluginAdmin = registered.admin}
-          <div class="plugin-fields">
-            <PluginAdmin
-              config={data.state.config}
-              adminData={data.adminData}
-              locale={data.locale}
-              fallbackLocale={data.defaultLocale}
-              strings={data.pluginStrings}
-            />
-          </div>
-        {:else if data.runtimeAdminSchema}
-          <div class="plugin-fields">
-            <RuntimePluginSchemaForm schema={data.runtimeAdminSchema} />
-          </div>
-        {:else if data.runtimeAdminUi?.mode === 'iframe' && data.runtimeAdminUi.src}
-          <div class="plugin-fields">
-            <RuntimePluginFrame
-              src={data.runtimeAdminUi.src}
-              pluginId={data.plugin.id}
-              config={data.state.config}
-              adminData={data.adminData}
-              locale={data.locale}
-              fallbackLocale={data.defaultLocale}
-              strings={data.pluginStrings}
-            />
-          </div>
-        {/if}
-        <button type="submit">{text.admin.plugins.saveSettings}</button>
-      </form>
-    {/if}
+      </Card.Content></Card.Root
+    >
   </section>
 </AdminPluginShell>
 
@@ -176,10 +183,7 @@
   .plugin-panel {
     display: grid;
     gap: 14px;
-    border: 1px solid var(--admin-border);
-    border-radius: calc(var(--admin-radius) * 0.8);
-    padding: 26px;
-    background: var(--admin-panel);
+    min-width: 0;
   }
   form,
   .plugin-fields {
@@ -207,29 +211,12 @@
   .core-note {
     margin: 0;
     border: 1px solid var(--admin-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius, 8px);
     padding: 12px 14px;
     background: var(--admin-surface);
     color: var(--admin-text);
     font-size: 0.84rem;
-    font-weight: 800;
-  }
-  button {
-    border: 0;
-    cursor: pointer;
-  }
-  .plugin-panel button {
-    width: fit-content;
-    border-radius: 10px;
-    padding: 10px 15px;
-    background: var(--admin-primary);
-    color: var(--admin-primary-contrast);
-    font: inherit;
-    font-weight: 850;
-  }
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
+    font-weight: 600;
   }
   @media (prefers-color-scheme: dark) {
     .plugin-panel {

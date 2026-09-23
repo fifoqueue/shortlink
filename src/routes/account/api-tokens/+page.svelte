@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import CopyValue from '$lib/components/CopyValue.svelte';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
-  import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import SiteHeader from '$lib/components/SiteHeader.svelte';
   import SiteThemeStyles from '$lib/components/SiteThemeStyles.svelte';
   import ToastNotice from '$lib/components/ToastNotice.svelte';
   import { keepFormValues } from '$lib/forms';
@@ -53,8 +55,8 @@
 
 <SiteThemeStyles customHead={data.customHead} />
 
-<main
-  class="site-theme"
+<div
+  class="token-page site-theme"
   data-theme-mode={data.theme.mode}
   data-theme-preset={data.theme.preset}
   style={siteThemeStyle(data.theme)}
@@ -65,75 +67,77 @@
     {/key}
   {/if}
 
-  <section>
-    <header>
-      <div>
-        <a href={resolve('/')}>← {text.common.home}</a>
-        <h1>{text.account.apiTokens}</h1>
-        <p>
-          {formatText(text.account.apiTokenDescription, {
-            name: data.user.name,
-          })}
-        </p>
+  <SiteHeader />
+  <main>
+    <section>
+      <header>
+        <div>
+          <a href={resolve('/')}>← {text.common.home}</a>
+          <h1>{text.account.apiTokens}</h1>
+          <p>
+            {formatText(text.account.apiTokenDescription, {
+              name: data.user.name,
+            })}
+          </p>
+        </div>
+        <div class="header-tools">
+          <span
+            >{data.user.isAdmin
+              ? text.account.adminRole
+              : text.account.userRole}</span
+          >
+        </div>
+      </header>
+
+      {#if form?.token}
+        <CopyValue
+          value={form.token}
+          {copied}
+          onclick={() => copyToken(form.token!)}
+          locale={data.locale}
+        />
+      {/if}
+
+      <form method="POST" action="?/create" use:enhance={keepFormValues}>
+        <label>
+          {text.account.tokenName}
+          <Input name="name" placeholder="local script" />
+        </label>
+        <Button type="submit">{text.account.issueToken}</Button>
+      </form>
+
+      <div class="tokens">
+        {#each data.tokens as token (token.id)}
+          <article>
+            <div>
+              <strong>{token.name}</strong>
+              <span>
+                {token.prefix}... · {text.account.created}
+                {new Date(token.createdAt).toLocaleString()}
+                {token.lastUsedAt
+                  ? ` · ${text.account.lastUsed} ${new Date(token.lastUsedAt).toLocaleString()}`
+                  : ''}
+              </span>
+            </div>
+            <form method="POST" action="?/revokeTokens" use:enhance>
+              <input type="hidden" name="ids" value={token.id} />
+              <DangerConfirmButton
+                label={text.account.revoke}
+                title={text.account.revokeTokensTitle}
+                message={text.account.revokeTokensMessage}
+                details={[`${token.name} (${token.prefix}...)`]}
+                confirmLabel={text.account.revokeTokensConfirm}
+                locale={data.locale}
+              />
+            </form>
+          </article>
+        {:else}
+          <p class="empty">{text.account.emptyTokens}</p>
+        {/each}
       </div>
-      <div class="header-tools">
-        <span
-          >{data.user.isAdmin
-            ? text.account.adminRole
-            : text.account.userRole}</span
-        >
-        <LocaleSelect locale={data.locale} compact />
-      </div>
-    </header>
-
-    {#if form?.token}
-      <CopyValue
-        value={form.token}
-        {copied}
-        onclick={() => copyToken(form.token!)}
-        locale={data.locale}
-      />
-    {/if}
-
-    <form method="POST" action="?/create" use:enhance={keepFormValues}>
-      <label>
-        {text.account.tokenName}
-        <input name="name" placeholder="local script" />
-      </label>
-      <button type="submit">{text.account.issueToken}</button>
-    </form>
-
-    <div class="tokens">
-      {#each data.tokens as token (token.id)}
-        <article>
-          <div>
-            <strong>{token.name}</strong>
-            <span>
-              {token.prefix}... · {text.account.created}
-              {new Date(token.createdAt).toLocaleString()}
-              {token.lastUsedAt
-                ? ` · ${text.account.lastUsed} ${new Date(token.lastUsedAt).toLocaleString()}`
-                : ''}
-            </span>
-          </div>
-          <form method="POST" action="?/revokeTokens" use:enhance>
-            <input type="hidden" name="ids" value={token.id} />
-            <DangerConfirmButton
-              label={text.account.revoke}
-              title={text.account.revokeTokensTitle}
-              message={text.account.revokeTokensMessage}
-              details={[`${token.name} (${token.prefix}...)`]}
-              confirmLabel={text.account.revokeTokensConfirm}
-              locale={data.locale}
-            />
-          </form>
-        </article>
-      {:else}
-        <p class="empty">{text.account.emptyTokens}</p>
-      {/each}
-    </div>
-  </section>
-</main>
+    </section>
+  </main>
+</div>
 
 <style>
   :global(*) {
@@ -141,6 +145,12 @@
   }
   :global(body) {
     margin: 0;
+  }
+  .token-page {
+    min-height: 100dvh;
+    background: var(--page-bg);
+    color: var(--page-text);
+    font-family: var(--font);
   }
   main {
     width: min(860px, calc(100% - 36px));
@@ -160,7 +170,7 @@
     display: grid;
     gap: 18px;
     border: 1px solid var(--page-border);
-    border-radius: var(--page-radius);
+    border-radius: var(--ui-radius, 8px);
     padding: 28px;
     background: var(--page-surface);
   }
@@ -178,12 +188,12 @@
   header a {
     color: var(--page-primary);
     font-size: 0.82rem;
-    font-weight: 800;
+    font-weight: 600;
     text-decoration: none;
   }
   h1 {
     margin: 12px 0 6px;
-    font-size: 2.2rem;
+    font-size: 1.75rem;
   }
   p,
   span {
@@ -200,7 +210,7 @@
     gap: 8px;
     color: var(--page-muted);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   input {
     width: 100%;
@@ -210,17 +220,6 @@
     background: var(--page-surface);
     color: var(--page-text);
     font: inherit;
-  }
-  button {
-    width: fit-content;
-    border: 0;
-    border-radius: 10px;
-    padding: 10px 15px;
-    background: var(--page-primary);
-    color: var(--page-primary-contrast);
-    font: inherit;
-    font-weight: 850;
-    cursor: pointer;
   }
   .tokens {
     display: grid;

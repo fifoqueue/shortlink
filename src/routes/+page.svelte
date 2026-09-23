@@ -3,7 +3,10 @@
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
-  import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import SiteHeader from '$lib/components/SiteHeader.svelte';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { ArrowRight, Link2 } from '@lucide/svelte';
   import LinkFormOptions from '$lib/components/LinkFormOptions.svelte';
   import ManagedLinkList from '$lib/components/ManagedLinkList.svelte';
   import PluginSlotOutlet from '$lib/components/PluginSlotOutlet.svelte';
@@ -53,7 +56,6 @@
         access: boolean;
       };
     };
-    permissionGroups: Array<{ id: number; name: string; reason: string }>;
     canCreate: boolean;
     createDenied: {
       title: string;
@@ -98,7 +100,6 @@
 
   let { data, form }: { data: PageData; form?: ActionData } = $props();
   let copiedCode = $state<string | null>(null);
-  let menuOpen = $state(false);
   let bookmarkletHref = $state('');
   const locale = $derived(data.settings.general.language as SiteLocale);
   const text = $derived(uiText(locale, data.settings.i18n.defaultLocale));
@@ -106,15 +107,6 @@
     form?.action === 'deleteLinks' || form?.action === 'updateLink'
       ? undefined
       : form,
-  );
-
-  const hasAccountActions = $derived(
-    Boolean(
-      data.user ||
-      data.auth.enabled ||
-      !data.canCreate ||
-      data.permissions.admin.access,
-    ),
   );
 
   onMount(() => {
@@ -181,19 +173,6 @@
     return '';
   }
 
-  function deletePolicyMessage() {
-    if (data.permissions.links.deleteAll) return '';
-    if (data.permissions.links.deleteOwn) {
-      if (data.permissions.links.deleteMaxClicks > 0) {
-        return formatText(text.home.deletePolicyMaxClicks, {
-          count: data.permissions.links.deleteMaxClicks,
-        });
-      }
-      return text.home.deletePolicyOwn;
-    }
-    return text.home.deletePolicyDisabled;
-  }
-
   function canEditLink(link: LinkItem) {
     return linkCanEdit(link, data.permissions);
   }
@@ -240,100 +219,32 @@
     fallbackLocale={data.settings.i18n.defaultLocale}
   />
 
-  <header class="site-header">
-    <a class="brand" href={resolve('/')}>
-      {#if data.settings.general.logoUrl}
-        <img src={data.settings.general.logoUrl} alt="" />
-      {:else}
-        <span>{data.settings.general.siteName.slice(0, 1).toUpperCase()}</span>
-      {/if}
-      <strong>{data.settings.general.siteName}</strong>
-    </a>
-    <div class="header-controls">
-      <LocaleSelect {locale} compact />
-      {#if hasAccountActions}
-        <button
-          class="menu-toggle"
-          type="button"
-          aria-label={text.home.menuOpen}
-          aria-expanded={menuOpen}
-          onclick={() => (menuOpen = !menuOpen)}
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-      {/if}
-      {#if hasAccountActions}
-        <nav
-          class:open={menuOpen}
-          class="account-actions"
-          aria-label={text.common.account}
-        >
-          {#if data.user}
-            <span class="user-chip" title={data.user.name}
-              >{data.user.name}</span
-            >
-            <a
-              class="account-cta"
-              href={resolve('/account')}
-              onclick={() => (menuOpen = false)}>{text.common.account}</a
-            >
-            <a
-              class="account-cta"
-              href={resolve('/logout')}
-              data-sveltekit-reload
-              onclick={() => (menuOpen = false)}>{text.common.logout}</a
-            >
-          {:else if data.auth.enabled || !data.canCreate}
-            <a
-              class="login-cta"
-              href={data.auth.setupRequired
-                ? resolve('/signup')
-                : data.auth.enabled
-                  ? resolve('/login')
-                  : resolve('/admin')}
-              onclick={() => (menuOpen = false)}
-              >{data.auth.setupRequired
-                ? text.auth.setupTitle
-                : text.common.login}</a
-            >
-          {/if}
-          {#if data.permissions.admin.access}
-            <a
-              class="account-cta danger-cta"
-              href={resolve('/admin')}
-              onclick={() => (menuOpen = false)}>{text.common.admin}</a
-            >
-          {/if}
-        </nav>
-      {/if}
-    </div>
-  </header>
+  <SiteHeader
+    siteName={data.settings.general.siteName}
+    logoUrl={data.settings.general.logoUrl}
+    {locale}
+    userName={data.user?.name}
+    admin={data.permissions.admin.access}
+    loginHref={data.auth.setupRequired
+      ? '/signup'
+      : data.auth.enabled
+        ? '/login'
+        : !data.canCreate
+          ? '/admin'
+          : undefined}
+    loginLabel={data.auth.setupRequired
+      ? text.auth.setupTitle
+      : text.common.login}
+  />
 
   <main class="shell">
     <section class="hero">
-      <p class="eyebrow">{data.settings.general.eyebrow}</p>
+      {#if data.settings.general.eyebrow}<p class="brand-note">
+          {data.settings.general.eyebrow}
+        </p>{/if}
       <h1>{data.settings.general.headline}</h1>
       <p class="subtitle">{data.settings.general.description}</p>
     </section>
-
-    {#if data.permissionGroups.length > 0}
-      <section class="permission-reasons">
-        <div>
-          <p class="eyebrow">{text.home.permissionReasonsTitle}</p>
-          <h2>{text.home.permissionReasonsDescription}</h2>
-        </div>
-        <div class="permission-reason-list">
-          {#each data.permissionGroups as group (group.id)}
-            <article>
-              <strong>{group.name}</strong>
-              <p>{group.reason}</p>
-            </article>
-          {/each}
-        </div>
-      </section>
-    {/if}
 
     {#if data.canCreate}
       <section class="composer">
@@ -341,12 +252,12 @@
           <div class="primary-fields">
             <label class="url-field">
               <span>{text.home.destinationUrl}</span>
-              <input
+              <Input
                 name="url"
                 type="text"
                 inputmode="url"
                 autocomplete="url"
-                placeholder="https://example.com/very/long/url"
+                placeholder="https://example.com"
                 value={createForm?.values?.url ?? data.prefillUrl}
                 required
               />
@@ -373,8 +284,7 @@
                   >{text.home.customCode} <em>{text.common.optional}</em></span
                 >
                 <div class="code-input">
-                  <i>/</i>
-                  <input
+                  <Input
                     name="code"
                     type="text"
                     placeholder="my-link"
@@ -385,14 +295,17 @@
               </label>
             {/if}
 
-            <button class="create" type="submit"
-              >{text.home.createLink} <span>→</span></button
+            <Button class="create h-11" type="submit"
+              >{text.home.createLink}<ArrowRight
+                size={16}
+                aria-hidden="true"
+              /></Button
             >
           </div>
 
           <LinkFormOptions
             mode="create"
-            collapsible={false}
+            collapsible={true}
             idPrefix="create-link-options"
             allowedOptions={data.permissions.links.options}
             values={{
@@ -411,7 +324,7 @@
           />
 
           {#if createForm?.ok && createForm.link}
-            <div class="feedback success" role="status">
+            <div class="result" role="status">
               <span>{text.home.linkReady}</span>
               <!-- eslint-disable svelte/no-navigation-without-resolve -->
               <a
@@ -420,7 +333,7 @@
                 rel="noreferrer">{createForm.link.shortUrl}</a
               >
               <!-- eslint-enable svelte/no-navigation-without-resolve -->
-              <button
+              <Button
                 type="button"
                 onclick={() =>
                   copy(createForm.link!.shortUrl, createForm.link!.code)}
@@ -428,7 +341,7 @@
                 {copiedCode === createForm.link.code
                   ? text.common.copied
                   : text.common.copy}
-              </button>
+              </Button>
             </div>
           {/if}
 
@@ -456,7 +369,6 @@
     <section class="links">
       <div class="section-header">
         <div>
-          <p class="eyebrow">{text.home.myLinksKicker}</p>
           <h2>{text.home.myLinksTitle}</h2>
         </div>
         <p>
@@ -489,7 +401,6 @@
           editableFields={data.permissions.links.editableFields}
           {editableFieldsForLink}
           {deleteDisabledReason}
-          policyMessage={deletePolicyMessage()}
           page={data.pagination.page}
           totalPages={data.pagination.totalPages}
           getPageHref={pageHref}
@@ -524,11 +435,12 @@
     {#if bookmarkletHref}
       <section class="quick-tools">
         <div>
-          <p class="eyebrow">{text.home.quickKicker}</p>
-          <h2>{text.home.quickTitle}</h2>
+          <p>{text.home.quickTitle}</p>
         </div>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href={bookmarkletHref}>{text.home.quickSave}</a>
+        <a href={bookmarkletHref} title={text.home.quickHelp}
+          ><Link2 size={14} aria-hidden="true" />{text.home.quickSave}</a
+        >
       </section>
     {/if}
   </main>
@@ -553,558 +465,236 @@
 </div>
 
 <style>
-  :global(*) {
-    box-sizing: border-box;
-  }
-  :global(body) {
-    margin: 0;
-  }
-  :global(button),
-  :global(input),
-  :global(textarea),
-  :global(select) {
-    font: inherit;
-  }
   .site {
-    min-height: 100vh;
+    min-height: 100dvh;
     background: var(--page-bg);
-    color: var(--text);
+    color: var(--page-text);
     font-family: var(--font);
-    transition:
-      background 0.2s,
-      color 0.2s;
-  }
-  .site-header,
-  footer {
-    display: flex;
-    width: min(1120px, calc(100% - 40px));
-    align-items: center;
-    justify-content: space-between;
-    margin: 0 auto;
-  }
-  .site-header {
-    height: 84px;
-  }
-  .brand {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 10px;
-    color: var(--text);
-    text-decoration: none;
-  }
-  .brand span,
-  .brand img {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    border-radius: calc(var(--radius) * 0.45);
-    background: var(--primary);
-    color: var(--primary-contrast);
-    object-fit: contain;
-  }
-  .brand strong {
-    overflow: hidden;
-    letter-spacing: -0.02em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .header-controls {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-  .account-actions {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-  .menu-toggle {
-    position: relative;
-    display: none;
-    width: 42px;
-    height: 42px;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0;
-    background: color-mix(in srgb, var(--surface) 92%, var(--primary));
-    color: var(--text);
-    cursor: pointer;
-    box-shadow: 0 10px 28px color-mix(in srgb, var(--text) 6%, transparent);
-  }
-  .menu-toggle span {
-    position: absolute;
-    width: 17px;
-    height: 2px;
-    border-radius: 99px;
-    background: currentColor;
-  }
-  .menu-toggle span:nth-child(1) {
-    transform: translateY(-6px);
-  }
-  .menu-toggle span:nth-child(3) {
-    transform: translateY(6px);
-  }
-  .account-actions .user-chip,
-  .account-actions a {
-    display: inline-flex;
-    min-height: 42px;
-    align-items: center;
-    border: 1px solid var(--border);
-    border-radius: 99px;
-    padding: 10px 16px;
-    font-size: 0.82rem;
-    font-weight: 850;
-    line-height: 1;
-    text-decoration: none;
-    transition:
-      transform 0.15s,
-      border-color 0.15s,
-      background 0.15s,
-      box-shadow 0.15s;
-  }
-  .account-actions .user-chip {
-    max-width: 190px;
-    overflow: hidden;
-    border-color: color-mix(in srgb, var(--primary) 18%, var(--border));
-    background: color-mix(in srgb, var(--primary) 8%, var(--surface));
-    color: var(--text);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .account-actions a {
-    background: color-mix(in srgb, var(--surface) 92%, var(--primary));
-    color: var(--text);
-    box-shadow: 0 10px 30px color-mix(in srgb, var(--text) 6%, transparent);
-  }
-  .account-actions a:hover {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
-    box-shadow: 0 14px 34px color-mix(in srgb, var(--text) 8%, transparent);
-  }
-  .account-actions .login-cta {
-    border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
-    padding: 11px 18px;
-    background: var(--primary);
-    color: var(--primary-contrast);
-    box-shadow: 0 12px 34px color-mix(in srgb, var(--primary) 24%, transparent);
-    font-size: 0.86rem;
-    font-weight: 900;
-  }
-  .account-actions .login-cta:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 16px 42px color-mix(in srgb, var(--primary) 30%, transparent);
-  }
-  .account-actions .danger-cta {
-    border-color: color-mix(in srgb, var(--page-danger) 52%, var(--border));
-    background: var(--page-danger);
-    color: var(--page-danger-contrast);
-    box-shadow: 0 12px 34px
-      color-mix(in srgb, var(--page-danger) 22%, transparent);
-  }
-  .account-actions .danger-cta:hover {
-    border-color: color-mix(in srgb, var(--page-danger) 68%, var(--border));
-    box-shadow: 0 16px 42px
-      color-mix(in srgb, var(--page-danger) 28%, transparent);
   }
   .shell {
-    width: min(1120px, calc(100% - 40px));
-    margin: 0 auto;
-    padding: 72px 0 100px;
+    width: min(1040px, calc(100% - 48px));
+    margin: auto;
+    padding: 52px 0 64px;
+  }
+  .brand-note {
+    margin: 0 0 12px;
+    color: var(--page-muted);
+    font-size: 0.8rem;
   }
   .hero {
-    max-width: 900px;
-    margin-bottom: 42px;
-  }
-  .eyebrow {
-    margin: 0 0 13px;
-    color: var(--primary);
-    font-size: 0.72rem;
-    font-weight: 900;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
+    margin-bottom: 28px;
   }
   h1 {
-    max-width: 850px;
     margin: 0;
-    font-family: var(--font);
-    font-size: clamp(3rem, 7vw, 6.2rem);
-    font-weight: 500;
-    letter-spacing: -0.06em;
-    line-height: 0.98;
-    text-wrap: balance;
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    line-height: 1.3;
+    letter-spacing: -0.045em;
+    font-weight: 650;
   }
   .subtitle {
-    max-width: 650px;
-    margin: 24px 0 0;
-    color: var(--muted);
-    font-size: 1.05rem;
-    line-height: 1.75;
-  }
-  .composer,
-  .permission-reasons,
-  .empty {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: 0 24px 70px color-mix(in srgb, var(--text) 7%, transparent);
-  }
-  .composer {
-    padding: 12px;
-  }
-  .permission-reasons {
-    display: grid;
-    gap: 14px;
-    margin-bottom: 18px;
-    padding: 18px;
-  }
-  .permission-reasons h2 {
-    margin: 0;
-    color: var(--text);
-    font-size: 0.95rem;
-    font-weight: 750;
-    line-height: 1.5;
-  }
-  .permission-reason-list {
-    display: grid;
-    gap: 10px;
-  }
-  .permission-reason-list article {
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) * 0.45);
-    padding: 12px;
-    background: color-mix(in srgb, var(--surface) 88%, var(--primary));
-  }
-  .permission-reason-list strong,
-  .permission-reason-list p {
-    display: block;
-    margin: 0;
-  }
-  .permission-reason-list strong {
-    font-size: 0.82rem;
-  }
-  .permission-reason-list p {
-    margin-top: 4px;
-    color: var(--muted);
-    font-size: 0.84rem;
+    margin: 10px 0 0;
+    color: var(--page-muted);
+    font-size: 0.9rem;
     line-height: 1.6;
   }
-  .access-locked {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
+  .composer {
     padding: 24px;
-  }
-  .access-locked strong {
-    display: block;
-    margin-bottom: 6px;
-  }
-  .access-locked p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.86rem;
+    border: 1px solid var(--page-border);
+    border-radius: var(--ui-radius, 8px);
+    background: var(--page-surface);
   }
   .primary-fields {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(170px, 220px)) auto;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 180px) auto;
+    align-items: end;
+    gap: 16px;
+  }
+  .primary-fields:has(.domain-field) {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(140px, 170px) minmax(120px, 150px)
+      auto;
+  }
+  .primary-fields:not(:has(.code-field)):not(:has(.domain-field)) {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   label {
-    color: var(--muted);
-    font-size: 0.74rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    display: grid;
+    gap: 9px;
+    font-size: 0.82rem;
+    font-weight: 550;
   }
-  label > span {
-    display: block;
-    margin: 0 0 8px 4px;
+  label span {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
   }
-  label em {
-    color: color-mix(in srgb, var(--muted) 65%, transparent);
+  em {
+    color: var(--page-muted);
+    font-size: 0.75rem;
     font-style: normal;
-    font-weight: 600;
+    font-weight: 400;
   }
-  input:not([type='checkbox']):not([type='radio']):not([type='hidden']) {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) * 0.55);
-    background: var(--page-bg);
-    color: var(--text);
-    outline: none;
+  .code-input {
+    min-width: 0;
   }
-  input:not([type='checkbox']):not([type='radio']):not([type='hidden']) {
-    height: 52px;
-    padding: 0 15px;
+  .primary-fields :global(input),
+  select {
+    height: 44px;
   }
   select {
     width: 100%;
-    height: 52px;
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) * 0.55);
-    padding: 0 15px;
-    background: var(--page-bg);
-    color: var(--text);
-    outline: none;
+    border: 1px solid var(--page-border);
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
+    padding: 0 12px;
+    background: var(--page-surface);
+    color: var(--page-text);
   }
-  input:not([type='checkbox']):not([type='radio']):not([type='hidden']):focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
-  }
-  select:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
-  }
-  .code-input {
-    position: relative;
-  }
-  .code-input i {
-    position: absolute;
-    top: 50%;
-    left: 10px;
-    color: var(--muted);
-    font-style: normal;
-    transform: translateY(-50%);
-  }
-  .code-input input {
-    padding-left: 46px;
-  }
-  .create {
-    align-self: end;
-    height: 52px;
-    border: 0;
-    border-radius: calc(var(--radius) * 0.55);
-    padding: 0 22px;
-    background: var(--primary);
-    color: var(--primary-contrast);
-    font-weight: 900;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .create span {
-    margin-left: 14px;
-  }
-  .feedback {
+  .result {
+    margin-top: 20px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
-    margin: 10px 0 0;
-    border-radius: calc(var(--radius) * 0.5);
-    padding: 13px 15px;
-    font-size: 0.86rem;
+    gap: 12px;
+    border-top: 1px solid var(--page-border);
+    padding-top: 20px;
   }
-  .feedback.success {
-    background: color-mix(in srgb, var(--primary) 10%, var(--surface));
-    color: var(--text);
+  .result span {
+    color: var(--page-muted);
+    font-size: 0.8rem;
   }
-  .feedback.success span {
-    color: var(--muted);
+  .result a {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--page-text);
+    font-weight: 600;
   }
-  .feedback.success a {
-    overflow: hidden;
-    color: var(--primary);
-    font-weight: 900;
-    text-overflow: ellipsis;
-  }
-  .feedback.success button {
+  .result :global(button) {
     margin-left: auto;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 10px;
-    background: var(--surface);
-    color: var(--text);
-    cursor: pointer;
+  }
+  .access-locked strong {
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  .access-locked p {
+    margin: 8px 0 0;
+    color: var(--page-muted);
+    font-size: 0.85rem;
   }
   .links {
-    margin-top: 90px;
-  }
-  .quick-tools {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    margin-top: 34px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 22px;
-    background: color-mix(in srgb, var(--surface) 86%, var(--primary));
-  }
-  .quick-tools h2 {
-    font-size: 1.35rem;
-  }
-  .quick-tools a {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-    border-radius: calc(var(--radius) * 0.45);
-    padding: 0 16px;
-    background: var(--primary);
-    color: var(--primary-contrast);
-    font-size: 0.82rem;
-    font-weight: 900;
-    text-decoration: none;
-    white-space: nowrap;
+    margin-top: 44px;
   }
   .section-header {
     display: flex;
-    align-items: end;
+    align-items: baseline;
     justify-content: space-between;
-    gap: 20px;
+    gap: 16px;
     margin-bottom: 18px;
   }
   h2 {
     margin: 0;
-    font-family: var(--font);
-    font-size: 2rem;
-    font-weight: 500;
-    letter-spacing: -0.03em;
+    font-size: 1.15rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
   }
-  .section-header > p {
+  .section-header p {
     margin: 0;
-    color: var(--muted);
+    color: var(--page-muted);
     font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
   }
   .empty {
-    padding: 50px 20px;
-    color: var(--muted);
+    padding: 48px 20px;
+    border: 1px solid var(--page-border);
+    border-radius: var(--ui-radius, 8px);
     text-align: center;
+    color: var(--page-muted);
+    font-size: 0.875rem;
+  }
+  .quick-tools {
+    margin-top: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.8rem;
+    color: var(--page-muted);
+  }
+  .quick-tools p {
+    margin: 0;
+  }
+  .quick-tools a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--page-text);
+    text-underline-offset: 4px;
   }
   footer {
-    border-top: 1px solid var(--border);
-    padding: 28px 0 42px;
-    color: var(--muted);
-    font-size: 0.78rem;
+    width: min(1120px, calc(100% - 48px));
+    margin: auto;
+    padding: 24px 0;
+    border-top: 1px solid var(--page-border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--page-muted);
+    font-size: 0.75rem;
   }
   footer p {
     margin: 0;
   }
   .legal-links {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 12px;
+    gap: 20px;
   }
   .legal-links a {
     color: inherit;
-    font-weight: 850;
     text-decoration: none;
   }
   .legal-links a:hover {
-    color: var(--primary);
+    text-decoration: underline;
   }
-  @media (max-width: 820px) {
-    .shell {
-      padding-top: 44px;
+  @media (max-width: 800px) {
+    .primary-fields,
+    .primary-fields:has(.domain-field) {
+      grid-template-columns: 1fr 1fr;
     }
-    .primary-fields {
-      grid-template-columns: 1fr;
+    .url-field {
+      grid-column: 1/-1;
     }
-    .create {
-      margin-top: 4px;
+    .primary-fields :global(.create) {
+      grid-column: 1/-1;
     }
   }
-  @media (max-width: 560px) {
-    .site-header,
-    .shell,
-    footer {
-      width: min(100% - 28px, 1120px);
-    }
-    footer {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-    .legal-links {
-      justify-content: flex-start;
-    }
-    .site-header {
-      position: relative;
-      height: auto;
-      min-height: 70px;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 0;
-    }
-    .brand {
-      max-width: calc(100% - 54px);
-    }
-    .header-controls {
-      margin-left: auto;
-    }
-    .menu-toggle {
-      display: inline-flex;
-    }
+  @media (max-width: 520px) {
     .shell {
-      padding-bottom: 70px;
-    }
-    h1 {
-      font-size: clamp(2.8rem, 14vw, 4.6rem);
+      width: calc(100% - 32px);
+      padding: 32px 0 48px;
     }
     .composer {
-      padding: 10px;
+      padding: 18px;
     }
-    .access-locked {
-      align-items: stretch;
-      flex-direction: column;
-      padding: 20px;
-    }
-    .links {
-      margin-top: 65px;
+    .primary-fields,
+    .primary-fields:has(.domain-field),
+    .primary-fields:not(:has(.code-field)):not(:has(.domain-field)) {
+      grid-template-columns: minmax(0, 1fr);
     }
     .section-header {
       align-items: start;
-      flex-direction: column;
+    }
+    .section-header p {
+      max-width: 55%;
+      text-align: right;
     }
     .quick-tools {
-      align-items: stretch;
-      flex-direction: column;
-    }
-    .quick-tools a {
-      width: 100%;
-    }
-    .account-actions {
-      position: absolute;
-      top: calc(100% - 8px);
-      right: 0;
-      z-index: 10;
-      display: none;
-      width: min(260px, calc(100vw - 28px));
-      max-width: calc(100vw - 28px);
-      align-items: stretch;
-      flex-direction: column;
-      gap: 8px;
-      border: 1px solid var(--border);
-      border-radius: calc(var(--radius) * 0.6);
-      padding: 10px;
-      background: var(--surface);
-      box-shadow: 0 18px 44px color-mix(in srgb, var(--text) 12%, transparent);
-    }
-    .account-actions.open {
-      display: flex;
-    }
-    .account-actions .user-chip,
-    .account-actions a {
-      width: 100%;
-      min-height: 36px;
-      justify-content: center;
-      padding: 8px 11px;
-      font-size: 0.74rem;
-    }
-    .account-actions .user-chip {
-      max-width: none;
-    }
-    footer {
       align-items: start;
       flex-direction: column;
-      gap: 18px;
+      gap: 8px;
+    }
+    footer {
+      width: calc(100% - 32px);
     }
   }
 </style>

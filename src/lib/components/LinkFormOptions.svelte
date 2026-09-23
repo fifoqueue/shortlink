@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Input } from '$lib/components/ui/input';
+  import * as Tabs from '$lib/components/ui/tabs';
   import {
     defaultSiteLocale,
     type LinkOptionKey,
@@ -184,282 +187,272 @@
 </script>
 
 {#snippet optionTabs()}
-  <div
-    class="option-tabs"
-    role="tablist"
-    aria-label={text.linkOptions.ariaLabel}
+  <Tabs.Root
+    value={activeTab}
+    onValueChange={(value) => (activeTab = value as TabId)}
   >
-    {#each visibleTabs as tab (tab.id)}
-      <button
-        type="button"
-        class:active={activeTab === tab.id}
-        role="tab"
-        aria-selected={activeTab === tab.id}
-        aria-controls={`${idPrefix}-${tab.id}`}
-        onclick={() => (activeTab = tab.id)}
+    <Tabs.List
+      class="my-3 h-auto flex-wrap justify-start"
+      aria-label={text.linkOptions.ariaLabel}
+    >
+      {#each visibleTabs as tab (tab.id)}<Tabs.Trigger value={tab.id}
+          >{tab.label}</Tabs.Trigger
+        >{/each}
+    </Tabs.List>
+    {#if tabAllowed('preview')}
+      <Tabs.Content
+        value="preview"
+        hidden={activeTab !== 'preview'}
+        class="option-panel grid grid-cols-1 gap-4 sm:grid-cols-2 data-[state=inactive]:hidden"
       >
-        {tab.label}
-      </button>
-    {/each}
-  </div>
-
-  {#if tabAllowed('preview')}
-    <div
-      id={`${idPrefix}-preview`}
-      class="option-panel"
-      role="tabpanel"
-      hidden={activeTab !== 'preview'}
-    >
-      {#if optionAllowed('previewTitle')}
-        <label>
-          <span
-            >{text.linkOptions.previewTitle}
-            <em>{text.common.optional}</em></span
-          >
-          <input
-            name="previewTitle"
-            type="text"
-            maxlength="160"
-            placeholder={seo?.title ?? ''}
-            value={values?.preview?.title ?? ''}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('previewImageUrl')}
-        <label>
-          <span
-            >{text.linkOptions.previewImageUrl}
-            <em>{text.common.optional}</em></span
-          >
-          <input
-            name="previewImageUrl"
-            type="url"
-            inputmode="url"
-            placeholder={seo?.ogImageUrl || 'https://example.com/preview.png'}
-            value={values?.preview?.imageUrl ?? ''}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('themeColor')}
-        <label>
-          <span
-            >{text.linkOptions.themeColor} <em>{text.common.optional}</em></span
-          >
-          <input
-            name="themeColor"
-            type="text"
-            maxlength="7"
-            pattern={'#[0-9a-fA-F]{6}'}
-            placeholder="#22c55e"
-            value={values?.preview?.themeColor ?? ''}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('previewDescription')}
-        <label class="wide">
-          <span
-            >{text.linkOptions.previewDescription}
-            <em>{text.common.optional}</em></span
-          >
-          <textarea
-            name="previewDescription"
-            rows="3"
-            maxlength="500"
-            placeholder={seo?.description ?? ''}
-            >{values?.preview?.description ?? ''}</textarea
-          >
-        </label>
-      {/if}
-    </div>
-  {/if}
-
-  {#if tabAllowed('utm')}
-    <div
-      id={`${idPrefix}-utm`}
-      class="option-panel"
-      role="tabpanel"
-      hidden={activeTab !== 'utm'}
-    >
-      {#if optionAllowed('utmSource')}
-        <label>
-          <span>UTM source <em>{text.common.optional}</em></span>
-          <input
-            name="utmSource"
-            type="text"
-            placeholder="newsletter"
-            value={stringOption('utmSource')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('utmMedium')}
-        <label>
-          <span>UTM medium <em>{text.common.optional}</em></span>
-          <input
-            name="utmMedium"
-            type="text"
-            placeholder="email"
-            value={stringOption('utmMedium')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('utmCampaign')}
-        <label>
-          <span>UTM campaign <em>{text.common.optional}</em></span>
-          <input
-            name="utmCampaign"
-            type="text"
-            placeholder="launch"
-            value={stringOption('utmCampaign')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('utmTerm')}
-        <label>
-          <span>UTM term <em>{text.common.optional}</em></span>
-          <input
-            name="utmTerm"
-            type="text"
-            placeholder="keyword"
-            value={stringOption('utmTerm')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('utmContent')}
-        <label>
-          <span>UTM content <em>{text.common.optional}</em></span>
-          <input
-            name="utmContent"
-            type="text"
-            placeholder="cta-button"
-            value={stringOption('utmContent')}
-          />
-        </label>
-      {/if}
-    </div>
-  {/if}
-
-  {#if tabAllowed('security')}
-    <div
-      id={`${idPrefix}-security`}
-      class="option-panel"
-      role="tabpanel"
-      hidden={activeTab !== 'security'}
-    >
-      {#if optionAllowed('expiresAt')}
-        <label class="wide">
-          <span
-            >{text.linkOptions.expiresAt}
-            <em>{text.common.optional}</em></span
-          >
-          <input
-            name="expiresAt"
-            type="datetime-local"
-            step="60"
-            bind:value={expiresAt}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('maxClicks')}
-        <label>
-          <span
-            >{text.linkOptions.maxClicks}
-            <em>{text.linkOptions.unlimitedZero}</em></span
-          >
-          <input
-            name="maxClicks"
-            type="number"
-            min="0"
-            max="2000000000"
-            value={numberOption('maxClicks')}
-          />
-        </label>
-      {/if}
-      {#if optionAllowed('password')}
-        <div class="password-field" class:clearing={clearPassword}>
-          <div class="field-heading">
-            <span id={`${idPrefix}-password-label`}
-              >{mode === 'edit'
-                ? text.linkOptions.newPassword
-                : text.linkOptions.password}
+        {#if optionAllowed('previewTitle')}
+          <label>
+            <span
+              >{text.linkOptions.previewTitle}
               <em>{text.common.optional}</em></span
             >
-            {#if hasExistingPassword}
-              <label class="clear-password-toggle">
-                <input
-                  name="clearPassword"
-                  type="checkbox"
-                  bind:checked={clearPassword}
-                  aria-label={text.linkOptions.clearPassword}
-                />
-                <span>
-                  {clearPassword
-                    ? text.linkOptions.clearingPassword
-                    : text.linkOptions.clearPassword}
-                </span>
-              </label>
-            {/if}
+            <Input
+              name="previewTitle"
+              type="text"
+              maxlength={160}
+              placeholder={seo?.title ?? ''}
+              value={values?.preview?.title ?? ''}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('previewImageUrl')}
+          <label>
+            <span
+              >{text.linkOptions.previewImageUrl}
+              <em>{text.common.optional}</em></span
+            >
+            <Input
+              name="previewImageUrl"
+              type="url"
+              inputmode="url"
+              placeholder={seo?.ogImageUrl || 'https://example.com/preview.png'}
+              value={values?.preview?.imageUrl ?? ''}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('themeColor')}
+          <label>
+            <span
+              >{text.linkOptions.themeColor}
+              <em>{text.common.optional}</em></span
+            >
+            <Input
+              name="themeColor"
+              type="text"
+              maxlength={7}
+              pattern={'#[0-9a-fA-F]{6}'}
+              placeholder="#22c55e"
+              value={values?.preview?.themeColor ?? ''}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('previewDescription')}
+          <label class="wide">
+            <span
+              >{text.linkOptions.previewDescription}
+              <em>{text.common.optional}</em></span
+            >
+            <Textarea
+              name="previewDescription"
+              rows={3}
+              maxlength={500}
+              placeholder={seo?.description ?? ''}
+              value={values?.preview?.description ?? ''}
+            />
+          </label>
+        {/if}
+      </Tabs.Content>
+    {/if}
+
+    {#if tabAllowed('utm')}
+      <Tabs.Content
+        value="utm"
+        hidden={activeTab !== 'utm'}
+        class="option-panel grid grid-cols-1 gap-4 sm:grid-cols-2 data-[state=inactive]:hidden"
+      >
+        {#if optionAllowed('utmSource')}
+          <label>
+            <span>UTM source <em>{text.common.optional}</em></span>
+            <Input
+              name="utmSource"
+              type="text"
+              placeholder="newsletter"
+              value={stringOption('utmSource')}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('utmMedium')}
+          <label>
+            <span>UTM medium <em>{text.common.optional}</em></span>
+            <Input
+              name="utmMedium"
+              type="text"
+              placeholder="email"
+              value={stringOption('utmMedium')}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('utmCampaign')}
+          <label>
+            <span>UTM campaign <em>{text.common.optional}</em></span>
+            <Input
+              name="utmCampaign"
+              type="text"
+              placeholder="launch"
+              value={stringOption('utmCampaign')}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('utmTerm')}
+          <label>
+            <span>UTM term <em>{text.common.optional}</em></span>
+            <Input
+              name="utmTerm"
+              type="text"
+              placeholder="keyword"
+              value={stringOption('utmTerm')}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('utmContent')}
+          <label>
+            <span>UTM content <em>{text.common.optional}</em></span>
+            <Input
+              name="utmContent"
+              type="text"
+              placeholder="cta-button"
+              value={stringOption('utmContent')}
+            />
+          </label>
+        {/if}
+      </Tabs.Content>
+    {/if}
+
+    {#if tabAllowed('security')}
+      <Tabs.Content
+        value="security"
+        hidden={activeTab !== 'security'}
+        class="option-panel grid grid-cols-1 gap-4 sm:grid-cols-2 data-[state=inactive]:hidden"
+      >
+        {#if optionAllowed('expiresAt')}
+          <label class="wide">
+            <span
+              >{text.linkOptions.expiresAt}
+              <em>{text.common.optional}</em></span
+            >
+            <Input
+              name="expiresAt"
+              type="datetime-local"
+              step="60"
+              bind:value={expiresAt}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('maxClicks')}
+          <label>
+            <span
+              >{text.linkOptions.maxClicks}
+              <em>{text.linkOptions.unlimitedZero}</em></span
+            >
+            <Input
+              name="maxClicks"
+              type="number"
+              min="0"
+              max="2000000000"
+              value={numberOption('maxClicks')}
+            />
+          </label>
+        {/if}
+        {#if optionAllowed('password')}
+          <div class="password-field" class:clearing={clearPassword}>
+            <div class="field-heading">
+              <span id={`${idPrefix}-password-label`}
+                >{mode === 'edit'
+                  ? text.linkOptions.newPassword
+                  : text.linkOptions.password}
+                <em>{text.common.optional}</em></span
+              >
+              {#if hasExistingPassword}
+                <label class="clear-password-toggle">
+                  <input
+                    name="clearPassword"
+                    type="checkbox"
+                    bind:checked={clearPassword}
+                    aria-label={text.linkOptions.clearPassword}
+                  />
+                  <span>
+                    {clearPassword
+                      ? text.linkOptions.clearingPassword
+                      : text.linkOptions.clearPassword}
+                  </span>
+                </label>
+              {/if}
+            </div>
+            <Input
+              id={`${idPrefix}-password`}
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              aria-labelledby={`${idPrefix}-password-label`}
+              placeholder={passwordPlaceholder}
+              disabled={clearPassword}
+            />
           </div>
-          <input
-            id={`${idPrefix}-password`}
-            name="password"
-            type="password"
-            autocomplete="new-password"
-            aria-labelledby={`${idPrefix}-password-label`}
-            placeholder={passwordPlaceholder}
-            disabled={clearPassword}
-          />
-        </div>
-      {/if}
-    </div>
-  {/if}
+        {/if}
+      </Tabs.Content>
+    {/if}
 
-  {#if tabAllowed('rules')}
-    <div
-      id={`${idPrefix}-rules`}
-      class="option-panel"
-      role="tabpanel"
-      hidden={activeTab !== 'rules'}
-    >
-      <label class="wide">
-        <span
-          >{text.linkOptions.redirectRules}
-          <em>{text.linkOptions.redirectRulesHelp}</em></span
-        >
-        <textarea
-          class="rules-json"
-          name="redirectRules"
-          rows="7"
-          spellcheck="false"
-          placeholder={text.linkOptions.redirectRulesPlaceholder}
-          >{redirectRulesValue()}</textarea
-        >
-      </label>
-    </div>
-  {/if}
-
-  {#if tabAllowed('misc')}
-    <div
-      id={`${idPrefix}-misc`}
-      class="option-panel"
-      role="tabpanel"
-      hidden={activeTab !== 'misc'}
-    >
-      {#if optionAllowed('tags')}
-        <label>
+    {#if tabAllowed('rules')}
+      <Tabs.Content
+        value="rules"
+        hidden={activeTab !== 'rules'}
+        class="option-panel grid grid-cols-1 gap-4 sm:grid-cols-2 data-[state=inactive]:hidden"
+      >
+        <label class="wide">
           <span
-            >{text.linkOptions.tags}
-            <em>{text.linkOptions.commaSeparated}</em></span
+            >{text.linkOptions.redirectRules}
+            <em>{text.linkOptions.redirectRulesHelp}</em></span
           >
-          <input
-            name="tags"
-            type="text"
-            placeholder="ads, blog, client-a"
-            value={tagsValue()}
-          />
+          <textarea
+            class="rules-json"
+            name="redirectRules"
+            rows={7}
+            spellcheck="false"
+            placeholder={text.linkOptions.redirectRulesPlaceholder}
+            >{redirectRulesValue()}</textarea
+          >
         </label>
-      {/if}
-    </div>
-  {/if}
+      </Tabs.Content>
+    {/if}
+
+    {#if tabAllowed('misc')}
+      <Tabs.Content
+        value="misc"
+        hidden={activeTab !== 'misc'}
+        class="option-panel grid grid-cols-1 gap-4 sm:grid-cols-2 data-[state=inactive]:hidden"
+      >
+        {#if optionAllowed('tags')}
+          <label>
+            <span
+              >{text.linkOptions.tags}
+              <em>{text.linkOptions.commaSeparated}</em></span
+            >
+            <Input
+              name="tags"
+              type="text"
+              placeholder="ads, blog, client-a"
+              value={tagsValue()}
+            />
+          </label>
+        {/if}
+      </Tabs.Content>
+    {/if}
+  </Tabs.Root>
 {/snippet}
 
 {#if visibleTabs.length > 0}
@@ -542,7 +535,7 @@
 
   .link-options summary span {
     font-size: 0.8rem;
-    font-weight: 850;
+    font-weight: 600;
   }
 
   .link-options summary em {
@@ -553,57 +546,13 @@
     font-weight: 650;
   }
 
-  .option-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 10px 0;
-  }
-
-  .option-tabs button {
-    min-height: 36px;
-    border: 1px solid var(--_link-options-border);
-    border-radius: 9px;
-    padding: 8px 11px;
-    background: var(--_link-options-surface);
-    color: var(--_link-options-muted);
-    font: inherit;
-    font-size: 0.75rem;
-    font-weight: 850;
-    cursor: pointer;
-  }
-
-  .option-tabs button.active {
-    border-color: color-mix(
-      in srgb,
-      var(--_link-options-primary) 46%,
-      var(--_link-options-border)
-    );
-    background: color-mix(
-      in srgb,
-      var(--_link-options-primary) 12%,
-      var(--_link-options-surface)
-    );
-    color: var(--_link-options-primary);
-  }
-
-  .option-panel {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .option-panel[hidden] {
-    display: none;
-  }
-
   label,
   .password-field {
     display: grid;
     gap: 8px;
     color: var(--_link-options-muted);
     font-size: 0.74rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.02em;
   }
 
@@ -637,7 +586,7 @@
     margin: 0;
     color: var(--_link-options-muted);
     font-size: 0.7rem;
-    font-weight: 850;
+    font-weight: 600;
     letter-spacing: 0;
     cursor: pointer;
   }
@@ -657,7 +606,7 @@
     min-height: 28px;
     align-items: center;
     border: 1px solid var(--_link-options-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius, 8px);
     margin: 0;
     padding: 0 9px;
     background: var(--_link-options-surface);
@@ -700,43 +649,6 @@
     padding: 0 12px;
   }
 
-  input[type='datetime-local'] {
-    -webkit-appearance: none;
-    appearance: none;
-    box-sizing: border-box;
-    display: block;
-    height: 44px;
-    min-height: 44px;
-    line-height: 1.2;
-    padding-top: 0;
-    padding-bottom: 0;
-  }
-
-  input[type='datetime-local']::-webkit-date-and-time-value {
-    display: flex;
-    min-height: 42px;
-    align-items: center;
-    padding: 0;
-    line-height: 1.2;
-    text-align: left;
-  }
-
-  input[type='datetime-local']::-webkit-datetime-edit {
-    display: flex;
-    min-height: 42px;
-    align-items: center;
-    padding: 0;
-  }
-
-  input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
-    display: flex;
-    align-items: center;
-  }
-
-  input[type='datetime-local']::-webkit-calendar-picker-indicator {
-    margin-inline-start: auto;
-  }
-
   textarea {
     min-height: 86px;
     padding: 12px;
@@ -768,24 +680,12 @@
   }
 
   @media (max-width: 820px) {
-    .option-panel {
-      grid-template-columns: 1fr;
-    }
-
     .wide {
       grid-column: auto;
     }
   }
 
   @media (max-width: 520px) {
-    .option-tabs {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .option-tabs button {
-      width: 100%;
-    }
   }
 
   @supports (-webkit-touch-callout: none) {

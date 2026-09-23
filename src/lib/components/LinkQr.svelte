@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
   import { browser } from '$app/environment';
   import { defaultSiteLocale, type SiteLocale } from '$lib/config';
   import { uiText } from '$lib/i18n/ui-text';
@@ -68,7 +69,7 @@
     const QRCode = await loadQrCode();
     const markup = await QRCode.toString(source, {
       type: 'svg',
-      margin: 1,
+      margin: 4,
       width: 192,
       color: {
         dark: '#111111',
@@ -116,7 +117,7 @@
     try {
       const QRCode = await loadQrCode();
       const qrDataUrl = await QRCode.toDataURL(value, {
-        margin: 1,
+        margin: 4,
         width: 520,
         color: {
           dark: '#111111',
@@ -165,11 +166,21 @@
     {/if}
   </div>
   <div class="qr-actions">
-    <button type="button" onclick={downloadPng} disabled={busy}>
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      onclick={downloadPng}
+      disabled={busy}
+    >
       {busy ? text.common.preparing : 'PNG'}
-    </button>
-    <button type="button" onclick={downloadSvg} disabled={!svgMarkup}
-      >SVG</button
+    </Button>
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      onclick={downloadSvg}
+      disabled={!svgMarkup}>SVG</Button
     >
   </div>
 </div>
@@ -181,11 +192,11 @@
   }
   .qr-box {
     display: grid;
-    width: 104px;
-    height: 104px;
+    width: var(--qr-size, 104px);
+    height: var(--qr-size, 104px);
     place-items: center;
     border: 1px solid var(--managed-link-border, var(--page-border, #d4d4d4));
-    border-radius: 8px;
+    border-radius: 6px;
     padding: 6px;
     background: #fff;
   }
@@ -198,19 +209,5 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 6px;
-  }
-  .qr-actions button {
-    min-height: 30px;
-    border: 1px solid var(--managed-link-border, var(--page-border, #d4d4d4));
-    border-radius: 7px;
-    background: var(--managed-link-surface, var(--page-surface, #fff));
-    color: var(--managed-link-text, var(--page-text, #171717));
-    font-size: 0.72rem;
-    font-weight: 850;
-    cursor: pointer;
-  }
-  .qr-actions button:disabled {
-    cursor: wait;
-    opacity: 0.6;
   }
 </style>

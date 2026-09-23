@@ -1,3 +1,4 @@
+import { linkMatchesOwner, ownerWhere } from './link-ownership';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import {
   cast,
@@ -794,21 +795,6 @@ function anonymizeIp(ip: string) {
   return createHash('sha256').update(ip).digest('hex').slice(0, 32);
 }
 
-function ownerWhere(owner: LinkOwner): WhereOptions {
-  if (owner.userId) return { creatorUserId: owner.userId };
-
-  const candidates: WhereOptions[] = [];
-  if (owner.sessionId) {
-    candidates.push({ creatorSessionId: owner.sessionId });
-  }
-  if (owner.ipHash) {
-    candidates.push({ creatorIpHash: owner.ipHash });
-  }
-
-  if (candidates.length === 0) return { id: -1 };
-  return { [Op.or]: candidates };
-}
-
 function linkSearchWhere(search?: LinkSearchState): WhereOptions | undefined {
   const query = search?.query.trim();
   if (!query) return undefined;
@@ -1038,14 +1024,6 @@ async function linkCreatorInfo(linkId: number, visibility: CreatorVisibility) {
       : null,
     ipAddress: link.creatorIpAddress,
   } satisfies LinkCreatorInfo;
-}
-
-function linkMatchesOwner(link: ShortLinkModel, owner: LinkOwner) {
-  if (owner.userId) return link.creatorUserId === owner.userId;
-  return Boolean(
-    (owner.sessionId && link.creatorSessionId === owner.sessionId) ||
-    (owner.ipHash && link.creatorIpHash === owner.ipHash),
-  );
 }
 
 async function clickCountsByLinkId(linkIds: readonly number[]) {

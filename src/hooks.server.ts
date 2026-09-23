@@ -1,4 +1,5 @@
 import '$lib/server/click-analytics';
+import { dev } from '$app/environment';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import {
   localeCookieName,
@@ -119,6 +120,8 @@ function defaultDomainRedirect(
   staticAsset: boolean,
   shortLinkCode: string | null,
 ) {
+  // Keep the local development origin usable alongside other applications.
+  if (dev) return null;
   if (!settings.general.defaultDomain) return null;
   if (isDefaultShortLinkDomain(settings, origin)) return null;
   if (staticAsset) return null;

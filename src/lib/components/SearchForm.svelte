@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { SvelteURL } from 'svelte/reactivity';
@@ -104,7 +106,7 @@
         <option value={option.value}>{option.label}</option>
       {/each}
     </select>
-    <input
+    <Input
       name={queryName}
       type="search"
       value={query}
@@ -112,7 +114,7 @@
       autocomplete="off"
       aria-label={text.search.ariaQuery}
     />
-    <button type="submit">{resolvedSubmitLabel}</button>
+    <Button type="submit" variant="outline">{resolvedSubmitLabel}</Button>
     {#if hasQuery}
       <a href={resolvedBaseHref}>{resolvedClearLabel}</a>
     {/if}
@@ -121,128 +123,46 @@
 
 <style>
   .search-form {
-    display: grid;
-    gap: 10px;
-    margin-bottom: 12px;
-    border: 1px solid
-      var(
-        --search-border,
-        var(--managed-link-border, var(--admin-border, var(--border)))
-      );
-    border-radius: var(
-      --search-radius,
-      var(--managed-link-radius, var(--admin-radius, var(--radius)))
-    );
-    padding: 12px;
-    background: var(
-      --search-surface,
-      var(--managed-link-surface, var(--admin-panel, var(--surface)))
-    );
+    margin-bottom: 16px;
   }
   .search-label {
-    color: var(
-      --search-muted,
-      var(--managed-link-muted, var(--admin-muted, var(--muted)))
-    );
-    font-size: 0.76rem;
-    font-weight: 850;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .search-controls {
     display: grid;
-    grid-template-columns: minmax(130px, 190px) minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(100px, 145px) minmax(0, 1fr) auto auto;
     gap: 8px;
+    align-items: center;
   }
-  select,
-  input,
-  button,
-  a {
-    min-height: 42px;
-    border: 1px solid
-      var(
-        --search-border,
-        var(--managed-link-border, var(--admin-border, var(--border)))
-      );
-    border-radius: calc(
-      var(
-          --search-radius,
-          var(--managed-link-radius, var(--admin-radius, var(--radius)))
-        ) *
-        0.45
-    );
-    font: inherit;
-  }
-  select,
-  input {
+  select {
     width: 100%;
     min-width: 0;
+    height: 40px;
     padding: 0 12px;
-    background: var(
-      --search-input-bg,
-      var(--managed-link-bg, var(--admin-surface, var(--page-bg)))
-    );
-    color: var(
-      --search-text,
-      var(--managed-link-text, var(--admin-text, var(--text)))
-    );
-    outline: none;
-  }
-  select:focus,
-  input:focus {
-    border-color: var(
-      --search-primary,
-      var(--managed-link-primary, var(--admin-primary, var(--primary)))
-    );
-    box-shadow: 0 0 0 3px
-      color-mix(
-        in srgb,
-        var(
-            --search-primary,
-            var(--managed-link-primary, var(--admin-primary, var(--primary)))
-          )
-          14%,
-        transparent
-      );
-  }
-  button,
-  a {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 14px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius, 8px);
+    background: var(--ui-card);
+    color: var(--ui-foreground);
     font-size: 0.8rem;
-    font-weight: 850;
-    line-height: 1;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-  button {
-    background: var(
-      --search-primary,
-      var(--managed-link-primary, var(--admin-primary, var(--primary)))
-    );
-    color: var(
-      --search-primary-contrast,
-      var(
-        --managed-link-primary-contrast,
-        var(--admin-primary-contrast, var(--primary-contrast))
-      )
-    );
-    cursor: pointer;
   }
   a {
-    background: transparent;
-    color: var(
-      --search-muted,
-      var(--managed-link-muted, var(--admin-muted, var(--muted)))
-    );
+    color: var(--ui-muted-foreground);
+    font-size: 0.8rem;
+    text-underline-offset: 4px;
   }
-  @media (max-width: 640px) {
+  @media (max-width: 520px) {
     .search-controls {
-      grid-template-columns: 1fr;
+      grid-template-columns: 110px minmax(0, 1fr);
     }
-    button,
+    .search-controls :global(button),
     a {
-      width: 100%;
+      justify-self: end;
     }
   }
 </style>

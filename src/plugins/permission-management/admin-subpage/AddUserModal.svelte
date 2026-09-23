@@ -1,4 +1,8 @@
 <script lang="ts">
+  import * as Dialog from '$lib/components/ui/dialog';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { Textarea } from '$lib/components/ui/textarea';
   import { enhance } from '$app/forms';
   import { keepFormValues } from '$lib/forms';
   import type { PluginLocaleKey } from '$lib/plugin-contracts';
@@ -18,51 +22,56 @@
     ) => string;
     onClose: () => void;
   } = $props();
-
-  function closeOnBackdrop(event: MouseEvent) {
-    if (event.target === event.currentTarget) onClose();
-  }
 </script>
 
-<div class="modal-backdrop" role="presentation" onclick={closeOnBackdrop}>
-  <div
-    class="assignment-modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="add-user-modal-title"
-    tabindex="-1"
+<Dialog.Root
+  open
+  onOpenChange={(open) => {
+    if (!open) onClose();
+  }}
+>
+  <Dialog.Content
+    portalProps={{ disabled: true }}
+    showCloseButton={false}
+    class="max-h-[85dvh] overflow-y-auto sm:max-w-lg"
   >
-    <div>
-      <h2 id="add-user-modal-title">{t('admin.addUserToGroup')}</h2>
-      <p class="muted">
-        {formatText('admin.addUserToGroupDescription', { name: user.name })}
-      </p>
-    </div>
+    <Dialog.Header>
+      <Dialog.Title>{t('admin.addUserToGroup')}</Dialog.Title>
+      <Dialog.Description
+        >{formatText('admin.addUserToGroupDescription', {
+          name: user.name,
+        })}</Dialog.Description
+      >
+    </Dialog.Header>
     <form method="POST" action="?/pluginAction" use:enhance={keepFormValues}>
       <input type="hidden" name="pluginAction" value="addGroupUser" />
       <input type="hidden" name="userId" value={user.id} />
-      <label>
-        {t('admin.expirationDateTime')}
-        <input name="expiresAt" type="datetime-local" step="60" />
-      </label>
-      <label>
-        {t('admin.assignmentReason')}
-        <textarea
+      <label
+        >{t('admin.expirationDateTime')}<Input
+          name="expiresAt"
+          type="datetime-local"
+          step="60"
+        /></label
+      >
+      <label
+        >{t('admin.assignmentReason')}<Textarea
           name="reason"
-          rows="4"
-          maxlength="1000"
-          placeholder={t('admin.assignmentReasonPlaceholder')}></textarea>
-      </label>
-      <label class="checkbox-row">
-        <input name="reasonPublic" type="checkbox" />
-        <span>{t('admin.assignmentReasonPublicCheckbox')}</span>
-      </label>
-      <div class="modal-actions">
-        <button type="button" class="secondary" onclick={onClose}
-          >{t('admin.cancel')}</button
+          rows={4}
+          maxlength={1000}
+          placeholder={t('admin.assignmentReasonPlaceholder')}
+        /></label
+      >
+      <label class="checkbox-row"
+        ><input name="reasonPublic" type="checkbox" /><span
+          >{t('admin.assignmentReasonPublicCheckbox')}</span
+        ></label
+      >
+      <Dialog.Footer>
+        <Button type="button" variant="outline" onclick={onClose}
+          >{t('admin.cancel')}</Button
         >
-        <button type="submit">{t('admin.add')}</button>
-      </div>
+        <Button type="submit">{t('admin.add')}</Button>
+      </Dialog.Footer>
     </form>
-  </div>
-</div>
+  </Dialog.Content>
+</Dialog.Root>

@@ -16,7 +16,9 @@ import {
   type SiteLocale,
   type SiteSettings,
   type ThemeTokens,
+  type ThemeColors,
 } from '$lib/config';
+import { darkThemeTokens, defaultDarkThemeTokens } from '$lib/theme-vars';
 import { localeFromValue } from '$lib/i18n';
 import { serverMessage } from '$lib/i18n/ui-text';
 import { validateGeoipSettings } from './geoip';
@@ -651,23 +653,38 @@ export function applySettingsForm(
         base.primaryContrast,
       ),
       border: parseColor(stringValue(form, 'border'), base.border),
-      radius: numberValue(form, 'radius', base.radius, 0, 48),
-      fontFamily: stringValue(form, 'fontFamily', base.fontFamily).slice(
-        0,
-        240,
-      ),
+      radius: form.has('radius')
+        ? numberValue(form, 'radius', base.radius, 0, 48)
+        : base.radius,
+      fontFamily: (
+        stringValue(form, 'fontFamily', base.fontFamily) || base.fontFamily
+      ).slice(0, 240),
     };
 
+    const darkBase = darkThemeTokens({
+      customTokens: tokens,
+      darkTokens: settings.theme.darkTokens,
+    });
+    const darkTokens = Object.fromEntries(
+      Object.entries(darkBase).map(([key, fallback]) => [
+        key,
+        parseColor(stringValue(form, `dark.${key}`, fallback), fallback),
+      ]),
+    ) as ThemeColors;
     settings.theme = {
       preset,
       mode: parseColorMode(stringValue(form, 'mode')),
       customTokens: tokens,
+      darkTokens,
     };
     return;
   }
   if (section === 'resetTheme') {
     const preset = parseThemePreset(stringValue(form, 'preset'));
     settings.theme.customTokens = { ...themePresets[preset] };
+    settings.theme.darkTokens = defaultDarkThemeTokens(
+      settings.theme.customTokens,
+    );
     settings.theme.preset = preset;
     return;
   }

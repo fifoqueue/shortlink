@@ -100,7 +100,7 @@
     gap: 5px;
     color: var(--locale-muted);
     font-size: 0.72rem;
-    font-weight: 850;
+    font-weight: 550;
   }
   .compact label {
     display: block;
@@ -122,7 +122,7 @@
     height: 38px;
     min-height: 38px;
     border: 1px solid var(--locale-border);
-    border-radius: 999px;
+    border-radius: calc(var(--ui-radius, 8px) * 0.75);
     padding: 0 36px 0 13px;
     background-color: var(--locale-bg);
     background-image:
@@ -138,7 +138,7 @@
     color: var(--locale-text);
     font: inherit;
     font-size: 0.78rem;
-    font-weight: 850;
+    font-weight: 550;
     line-height: 1.2;
     text-align: left;
     text-align-last: left;

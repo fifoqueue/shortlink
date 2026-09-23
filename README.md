@@ -71,7 +71,7 @@ yarn dev -- --host 0.0.0.0 --port 3000
 | -------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`                         | 예     | PostgreSQL 연결 문자열입니다.                                                                                                                |
 | `AUTH_SESSION_SECRET`                  | 예     | 로그인 세션 쿠키 서명에 사용합니다. 충분히 긴 임의 문자열을 사용하세요.                                                                      |
-| `DATABASE_SSL`                         | 아니오 | `true`이면 PostgreSQL TLS 연결을 사용합니다.                                                                                                 |
+| `DATABASE_SSL`                         | 아니오 | `true`이면 PostgreSQL TLS 인증서를 검증합니다. 사설 CA는 `NODE_EXTRA_CA_CERTS`로 지정합니다.                                                 |
 | `DATABASE_LOGGING`                     | 아니오 | `true`이면 Sequelize SQL 로그를 출력합니다.                                                                                                  |
 | `DATABASE_POOL_MAX`                    | 아니오 | Sequelize PostgreSQL connection pool 최대 연결 수입니다. 기본값은 `10`입니다.                                                                |
 | `DATABASE_POOL_MIN`                    | 아니오 | Sequelize PostgreSQL connection pool 최소 연결 수입니다. 기본값은 `0`입니다.                                                                 |

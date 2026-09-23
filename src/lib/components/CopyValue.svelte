@@ -47,7 +47,7 @@
       1px solid
         var(--page-border, var(--admin-border, var(--border, transparent)))
     );
-    border-radius: var(--copy-radius, 12px);
+    border-radius: var(--copy-radius, 6px);
     padding: var(--copy-padding, 13px 15px);
     background: var(
       --copy-bg,
@@ -71,7 +71,7 @@
       var(--page-muted, var(--admin-muted, var(--muted, GrayText)))
     );
     font-size: 0.76rem;
-    font-weight: 850;
+    font-weight: 550;
   }
   code {
     width: 100%;
@@ -84,7 +84,7 @@
       monospace;
     font-weight: 650;
     overflow-wrap: anywhere;
-    white-space: nowrap;
+    white-space: pre-wrap;
   }
   em {
     color: var(
@@ -93,6 +93,6 @@
     );
     font-size: 0.74rem;
     font-style: normal;
-    font-weight: 850;
+    font-weight: 550;
   }
 </style>

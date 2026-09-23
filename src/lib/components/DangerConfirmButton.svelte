@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
+  import { Button } from '$lib/components/ui/button';
+  import * as AlertDialog from '$lib/components/ui/alert-dialog';
   import { defaultSiteLocale, type SiteLocale } from '$lib/config';
   import { uiText } from '$lib/i18n/ui-text';
   import ToggleField from './ToggleField.svelte';
@@ -63,31 +65,14 @@
   let open = $state(false);
   let consent = $state(false);
   let confirmedSubmit = false;
-  let triggerButton = $state<HTMLButtonElement>();
-  let cancelButton = $state<HTMLButtonElement>();
+  let triggerButton = $state<HTMLButtonElement | null>(null);
 
   const canConfirm = $derived(!requireConsent || consent);
 
-  async function openDialog() {
+  function openDialog() {
     if (disabled) return;
     consent = false;
     open = true;
-    await tick();
-    cancelButton?.focus();
-  }
-
-  function closeDialog() {
-    open = false;
-    triggerButton?.focus();
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (!open) return;
-    if (event.key === 'Escape') closeDialog();
-  }
-
-  function closeFromBackdrop(event: MouseEvent) {
-    if (event.target === event.currentTarget) closeDialog();
   }
 
   function targetForm() {
@@ -120,7 +105,7 @@
   });
 
   function submitConfirmed() {
-    if (!canConfirm) return;
+    if (!canConfirm || disabled) return;
     if (onconfirm) {
       open = false;
       onconfirm();
@@ -146,287 +131,103 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<AlertDialog.Root bind:open>
+  <Button
+    bind:ref={triggerButton}
+    variant="destructive"
+    size={size === 'small' ? 'sm' : 'default'}
+    class="danger-confirm-trigger"
+    type="button"
+    title={buttonTitle}
+    {disabled}
+    onclick={openDialog}>{label}</Button
+  >
+  <AlertDialog.Content
+    portalProps={{
+      to:
+        triggerButton?.closest<HTMLElement>('.site-theme, .admin-theme') ??
+        'body',
+    }}
+    onCloseAutoFocus={(event) => {
+      event.preventDefault();
+      triggerButton?.focus();
+    }}
+  >
+    <AlertDialog.Header>
+      <AlertDialog.Title>{resolvedTitle}</AlertDialog.Title>
+      <AlertDialog.Description class="text-pretty leading-relaxed"
+        >{resolvedMessage}</AlertDialog.Description
+      >
+    </AlertDialog.Header>
+    {#if details.length > 0}
+      <ul class:single={details.length === 1}>
+        {#each details as detail, index (index)}
+          <li
+            class:danger-detail={typeof detail !== 'string' &&
+              !Array.isArray(detail) &&
+              detail.tone === 'danger'}
+          >
+            {#if typeof detail === 'string'}
+              {detail}
+            {:else}
+              {@const parts = Array.isArray(detail) ? detail : detail.parts}
+              {#each parts as part, partIndex (partIndex)}
+                {#if typeof part === 'string'}
+                  {part}
+                {:else if part.strong}
+                  <strong>{part.text}</strong>
+                {:else}
+                  {part.text}
+                {/if}
+              {/each}
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
 
-<button
-  bind:this={triggerButton}
-  class:small={size === 'small'}
-  class="danger-confirm-trigger"
-  type="button"
-  title={buttonTitle}
-  {disabled}
-  onclick={openDialog}
->
-  {label}
-</button>
-
-{#if open}
-  <div class="confirm-backdrop" role="presentation" onclick={closeFromBackdrop}>
-    <div
-      class="confirm-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label={resolvedTitle}
-    >
-      <div>
-        <p class="eyebrow">{text.common.confirmRequired}</p>
-        <h2>{resolvedTitle}</h2>
-        <p class="message">{resolvedMessage}</p>
+    {#if requireConsent}
+      <div class="consent">
+        <ToggleField bind:checked={consent} label={resolvedConsentLabel} />
       </div>
+    {/if}
 
-      {#if details.length > 0}
-        <ul>
-          {#each details as detail, index (index)}
-            <li
-              class:danger-detail={typeof detail !== 'string' &&
-                !Array.isArray(detail) &&
-                detail.tone === 'danger'}
-            >
-              {#if typeof detail === 'string'}
-                {detail}
-              {:else}
-                {@const parts = Array.isArray(detail) ? detail : detail.parts}
-                {#each parts as part, partIndex (partIndex)}
-                  {#if typeof part === 'string'}
-                    {part}
-                  {:else if part.strong}
-                    <strong>{part.text}</strong>
-                  {:else}
-                    {part.text}
-                  {/if}
-                {/each}
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-
-      {#if requireConsent}
-        <div class="consent">
-          <ToggleField bind:checked={consent} label={resolvedConsentLabel} />
-        </div>
-      {/if}
-
-      <div class="dialog-actions">
-        <button
-          bind:this={cancelButton}
-          class="secondary"
-          type="button"
-          onclick={closeDialog}>{resolvedCancelLabel}</button
-        >
-        <button
-          class="danger-action"
-          type="button"
-          disabled={!canConfirm}
-          onclick={submitConfirmed}>{resolvedConfirmLabel}</button
-        >
-      </div>
-    </div>
-  </div>
-{/if}
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel type="button"
+        >{resolvedCancelLabel}</AlertDialog.Cancel
+      >
+      <Button
+        variant="destructive"
+        type="button"
+        disabled={!canConfirm || disabled}
+        onclick={submitConfirmed}>{resolvedConfirmLabel}</Button
+      >
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
 
 <style>
-  .danger-confirm-trigger {
-    --confirm-danger: var(
-      --managed-link-danger,
-      var(--page-danger, var(--admin-danger, #c84432))
-    );
-    --confirm-danger-text: var(
-      --managed-link-danger-text,
-      var(--page-danger-text, var(--admin-danger-text, #9b3829))
-    );
-    --confirm-surface: var(
-      --managed-link-surface,
-      var(--page-surface, var(--admin-surface, #ffffff))
-    );
-    --confirm-border: var(
-      --managed-link-border,
-      var(--page-border, var(--admin-border, #e6e1dc))
-    );
-    display: inline-flex;
-    width: fit-content;
-    min-height: 40px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid
-      color-mix(in srgb, var(--confirm-danger) 32%, var(--confirm-border));
-    border-radius: 10px;
-    padding: 10px 15px;
-    background: color-mix(
-      in srgb,
-      var(--confirm-danger) 12%,
-      var(--confirm-surface)
-    );
-    color: var(--confirm-danger-text);
-    font: inherit;
-    font-weight: 850;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .danger-confirm-trigger.small {
-    min-height: 34px;
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 0.76rem;
-    font-weight: 800;
-  }
-  .danger-confirm-trigger:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-  .confirm-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 120;
-    display: grid;
-    place-items: center;
-    padding: 18px;
-    background: color-mix(in srgb, #000 42%, transparent);
-  }
-  .confirm-dialog {
-    --confirm-dialog-surface: var(
-      --page-surface,
-      var(--admin-panel, var(--admin-surface, #ffffff))
-    );
-    --confirm-dialog-text: var(
-      --page-text,
-      var(--admin-text, var(--text, #171717))
-    );
-    --confirm-dialog-muted: var(
-      --page-muted,
-      var(--admin-muted, var(--muted, #6b7280))
-    );
-    --confirm-dialog-primary: var(
-      --page-primary,
-      var(--admin-primary, var(--primary, #171717))
-    );
-    --confirm-dialog-danger: var(--page-danger, var(--admin-danger, #c84432));
-    --confirm-dialog-danger-text: var(
-      --page-danger-text,
-      var(--admin-danger-text, #9b3829)
-    );
-    --confirm-dialog-border: var(
-      --page-border,
-      var(--admin-border, var(--border, #e6e1dc))
-    );
-    display: grid;
-    width: min(480px, 100%);
-    gap: 18px;
-    border: 1px solid var(--confirm-dialog-border);
-    border-radius: 18px;
-    padding: 22px;
-    background: var(--confirm-dialog-surface);
-    box-shadow: 0 28px 90px color-mix(in srgb, #000 28%, transparent);
-    color: var(--confirm-dialog-text);
-  }
-  .eyebrow,
-  h2,
-  .message,
   ul {
+    list-style: disc;
     margin: 0;
+    padding-left: 20px;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+    color: var(--ui-muted-foreground);
   }
-  .eyebrow {
-    color: var(--confirm-dialog-danger);
-    font-size: 0.72rem;
-    font-weight: 900;
-    letter-spacing: 0.12em;
+  ul.single {
+    list-style: none;
+    padding-left: 0;
   }
-  h2 {
-    margin-top: 6px;
-    font-size: 1.2rem;
-    line-height: 1.35;
+  li + li {
+    margin-top: 8px;
   }
-  .message,
-  li,
-  .consent {
-    color: var(--confirm-dialog-muted);
-    font-size: 0.9rem;
-    line-height: 1.6;
-  }
-  li strong {
-    color: var(--confirm-dialog-danger-text);
-    font-weight: 900;
-  }
-  li.danger-detail,
-  li.danger-detail strong {
-    color: var(--confirm-dialog-danger-text);
-  }
-  ul {
-    display: grid;
-    gap: 8px;
-    padding-left: 19px;
+  .danger-detail {
+    color: var(--ui-destructive);
   }
   .consent {
-    border: 1px solid
-      color-mix(
-        in srgb,
-        var(--confirm-dialog-danger) 22%,
-        var(--confirm-dialog-border)
-      );
-    border-radius: 12px;
-    padding: 12px;
-    background: color-mix(
-      in srgb,
-      var(--confirm-dialog-danger) 7%,
-      var(--confirm-dialog-surface)
-    );
-    font-weight: 760;
-    --toggle-border: var(--confirm-dialog-border);
-    --toggle-surface: var(--confirm-dialog-surface);
-    --toggle-primary: var(--confirm-dialog-danger);
-    --toggle-focus: color-mix(
-      in srgb,
-      var(--confirm-dialog-danger) 18%,
-      transparent
-    );
-    --toggle-label: var(--confirm-dialog-muted);
-  }
-  .dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-  .dialog-actions button {
-    display: inline-flex;
-    min-height: 40px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--confirm-dialog-border);
-    border-radius: 10px;
-    padding: 10px 14px;
-    background: var(--confirm-dialog-surface);
-    color: var(--confirm-dialog-text);
-    font: inherit;
-    font-weight: 850;
-    cursor: pointer;
-  }
-  .dialog-actions .danger-action {
-    border-color: color-mix(
-      in srgb,
-      var(--confirm-dialog-danger) 34%,
-      var(--confirm-dialog-border)
-    );
-    background: color-mix(
-      in srgb,
-      var(--confirm-dialog-danger) 12%,
-      var(--confirm-dialog-surface)
-    );
-    color: var(--confirm-dialog-danger-text);
-  }
-  .dialog-actions button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-  @media (max-width: 520px) {
-    .confirm-dialog {
-      padding: 18px;
-    }
-    .dialog-actions {
-      display: grid;
-    }
-    .dialog-actions button {
-      width: 100%;
-    }
+    border-top: 1px solid var(--ui-border);
+    padding-top: 16px;
   }
 </style>

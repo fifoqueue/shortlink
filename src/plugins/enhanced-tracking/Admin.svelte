@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '$lib/components/ui/textarea';
   import ToggleField from '$lib/components/ToggleField.svelte';
   import { pluginText } from '$lib/i18n/plugin';
   import type {
@@ -39,9 +40,11 @@
     <label>
       {t('admin.trackingHeaders')}
       <small>{t('admin.trackingHeadersHint')}</small>
-      <textarea name={fieldName('enhanced-tracking', 'proxyHeaders')} rows="6"
-        >{configString(config, 'proxyHeaders', defaultProxyHeaders)}</textarea
-      >
+      <Textarea
+        name={fieldName('enhanced-tracking', 'proxyHeaders')}
+        rows={6}
+        value={configString(config, 'proxyHeaders', defaultProxyHeaders)}
+      />
     </label>
   </section>
 
@@ -123,7 +126,7 @@
     gap: 8px;
     color: var(--admin-text);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   small {
     color: var(--admin-muted);
@@ -135,23 +138,6 @@
     font-size: 0.82rem;
     line-height: 1.55;
   }
-  textarea {
-    width: 100%;
-    min-height: var(--form-control-height);
-    border: 1px solid var(--admin-border);
-    border-radius: var(--form-control-radius);
-    padding: 11px 12px;
-    background: var(--admin-surface);
-    color: var(--admin-text);
-    font: inherit;
-    line-height: 1.5;
-    outline: none;
-  }
-  textarea:focus {
-    border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px
-      color-mix(in srgb, var(--admin-primary) 14%, transparent);
-  }
   .visibility-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -161,7 +147,7 @@
     display: grid;
     gap: 8px;
     border: 1px solid var(--admin-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius, 8px);
     padding: 13px;
     background: var(--admin-surface);
   }

@@ -78,12 +78,6 @@ export async function countUsers(transaction?: Transaction) {
   if (!transaction) await ensureDatabase();
   return UserModel.count({ transaction });
 }
-
-export async function listUsers() {
-  await ensureDatabase();
-  return UserModel.findAll({ order: [['createdAt', 'ASC']] });
-}
-
 export async function searchUsers(
   input: {
     query?: string | null;
@@ -543,6 +537,7 @@ export async function updateUser(input: {
     };
     if (passwordHash !== undefined) {
       next.passwordHash = passwordHash;
+      next.sessionVersion = user.sessionVersion + 1;
       next.passwordResetTokenHash = null;
       next.passwordResetExpiresAt = null;
     }
@@ -643,6 +638,7 @@ export async function changeOwnPassword(input: {
     await user.update(
       {
         passwordHash: await hashPassword(input.nextPassword),
+        sessionVersion: user.sessionVersion + 1,
         passwordResetTokenHash: null,
         passwordResetExpiresAt: null,
       },
@@ -688,6 +684,7 @@ export async function deleteOwnPassword(input: {
     await user.update(
       {
         passwordHash: deletedPasswordHash(),
+        sessionVersion: user.sessionVersion + 1,
         passwordResetTokenHash: null,
         passwordResetExpiresAt: null,
       },

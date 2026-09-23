@@ -338,10 +338,10 @@ export function injectWebActionTokens(
   if (!html.toLowerCase().includes('<form')) return html;
 
   const csrfInput = input.csrfToken
-    ? `<input type="hidden" name="${CSRF_TOKEN_FIELD}" value="${escapeAttribute(input.csrfToken)}">`
+    ? `<input data-shortlink-ssr-token type="hidden" name="${CSRF_TOKEN_FIELD}" value="${escapeAttribute(input.csrfToken)}">`
     : '';
   const webActionInput = input.webActionToken
-    ? `<input type="hidden" name="${WEB_ACTION_TOKEN_FIELD}" value="${escapeAttribute(input.webActionToken)}">`
+    ? `<input data-shortlink-ssr-token type="hidden" name="${WEB_ACTION_TOKEN_FIELD}" value="${escapeAttribute(input.webActionToken)}">`
     : '';
 
   return html.replace(formTagPattern, (formTag) => {

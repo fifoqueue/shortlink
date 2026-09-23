@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Input } from '$lib/components/ui/input';
   import {
     defaultSiteLocale,
     siteLocaleKeys,
@@ -41,7 +43,7 @@
     {#key activeLocale}
       <label>
         {t('admin.responseMessage')}
-        <input
+        <Input
           name={fieldName('rate-limit', `responseMessages.${activeLocale}`)}
           value={rateLimit.responseMessages[activeLocale]}
         />
@@ -55,9 +57,11 @@
       <small>
         {t('admin.rulesHelp')}
       </small>
-      <textarea name={fieldName('rate-limit', 'rulesJson')} rows="22"
-        >{rulesJson}</textarea
-      >
+      <Textarea
+        name={fieldName('rate-limit', 'rulesJson')}
+        rows={22}
+        value={rulesJson}
+      />
     </label>
   </section>
 
@@ -88,7 +92,7 @@
     gap: 8px;
     color: var(--admin-text);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
   }
   h2,
   p {
@@ -103,29 +107,5 @@
     font-size: 0.8rem;
     font-weight: 600;
     line-height: 1.55;
-  }
-  input,
-  textarea {
-    width: 100%;
-    min-height: var(--form-control-height);
-    border: 1px solid var(--admin-border);
-    border-radius: var(--form-control-radius);
-    padding: 11px 12px;
-    background: var(--admin-surface);
-    color: var(--admin-text);
-    font: inherit;
-    line-height: 1.5;
-    outline: none;
-  }
-  textarea {
-    font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 0.78rem;
-    resize: vertical;
-  }
-  input:focus,
-  textarea:focus {
-    border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px
-      color-mix(in srgb, var(--admin-primary) 14%, transparent);
   }
 </style>

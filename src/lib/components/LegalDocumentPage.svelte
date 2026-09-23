@@ -4,7 +4,7 @@
   import type { PublicLegalSettings } from '$lib/public-settings';
   import { siteThemeStyle } from '$lib/theme-vars';
   import { uiText } from '$lib/i18n/ui-text';
-  import LocaleSelect from '$lib/components/LocaleSelect.svelte';
+  import SiteHeader from '$lib/components/SiteHeader.svelte';
   import SiteThemeStyles from './SiteThemeStyles.svelte';
 
   let {
@@ -41,22 +41,9 @@
   data-theme-preset={settings.theme.preset}
   style={siteThemeStyle(settings.theme)}
 >
-  <header>
-    <div class="header-inner">
-      <a class="brand" href={resolve('/')}>
-        {#if settings.general.logoUrl}
-          <img src={settings.general.logoUrl} alt="" />
-        {:else}
-          <span>{settings.general.siteName.slice(0, 1).toUpperCase()}</span>
-        {/if}
-        <strong>{settings.general.siteName}</strong>
-      </a>
-      <LocaleSelect {locale} compact />
-    </div>
-  </header>
+  <SiteHeader />
 
   <main>
-    <p class="eyebrow">{settings.general.siteName}</p>
     <h1>{title}</h1>
     <article>{content.trim() || fallbackContent}</article>
   </main>
@@ -75,98 +62,42 @@
 </div>
 
 <style>
-  :global(*) {
-    box-sizing: border-box;
-  }
-  :global(body) {
-    margin: 0;
-  }
   .legal-page {
-    min-height: 100vh;
+    min-height: 100dvh;
     background: var(--page-bg);
-    color: var(--text);
+    color: var(--page-text);
     font-family: var(--font);
   }
-  header,
-  main,
-  footer {
-    width: min(920px, calc(100% - 40px));
-    margin: 0 auto;
-  }
-  header {
-    height: 84px;
-  }
-  .header-inner {
-    display: flex;
-    height: 100%;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .brand {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 10px;
-    color: var(--text);
-    text-decoration: none;
-  }
-  .brand span,
-  .brand img {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    border-radius: calc(var(--radius) * 0.45);
-    background: var(--primary);
-    color: var(--primary-contrast);
-    object-fit: contain;
-  }
-  .brand strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   main {
-    padding: 52px 0 90px;
-  }
-  .eyebrow {
-    margin: 0 0 12px;
-    color: var(--primary);
-    font-size: 0.72rem;
-    font-weight: 900;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
+    width: min(800px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 48px 0 80px;
   }
   h1 {
-    margin: 0;
-    font-size: clamp(2.4rem, 6vw, 4.8rem);
-    font-weight: 550;
-    letter-spacing: -0.05em;
-    line-height: 1;
+    margin: 0 0 32px;
+    font-size: 1.8rem;
+    font-weight: 650;
+    letter-spacing: -0.04em;
+    line-height: 1.3;
   }
   article {
-    margin-top: 34px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: clamp(22px, 4vw, 38px);
-    background: var(--surface);
-    box-shadow: 0 24px 70px color-mix(in srgb, var(--text) 7%, transparent);
-    color: var(--text);
-    font-size: 0.95rem;
-    line-height: 1.8;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+    font-size: 0.95rem;
+    line-height: 1.85;
   }
   footer {
+    width: min(1120px, calc(100% - 48px));
+    margin: auto;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    border-top: 1px solid var(--border);
-    padding: 28px 0 42px;
-    color: var(--muted);
-    font-size: 0.78rem;
+    border-top: 1px solid var(--page-border);
+    padding: 24px 0;
+    color: var(--page-muted);
+    font-size: 0.75rem;
   }
   footer p {
     margin: 0;
@@ -174,32 +105,22 @@
   footer nav {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 12px;
+    gap: 20px;
   }
   footer a {
     color: inherit;
-    font-weight: 800;
     text-decoration: none;
   }
   footer a:hover {
-    color: var(--primary);
+    text-decoration: underline;
   }
-  @media (max-width: 560px) {
-    header,
-    main,
-    footer {
-      width: min(100% - 28px, 920px);
-    }
+  @media (max-width: 600px) {
     main {
-      padding: 36px 0 64px;
+      width: calc(100% - 32px);
+      padding: 32px 0 56px;
     }
     footer {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-    footer nav {
-      justify-content: flex-start;
+      width: calc(100% - 32px);
     }
   }
 </style>

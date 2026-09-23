@@ -136,7 +136,7 @@
     width: 34px;
     height: 34px;
     flex: none;
-    border-radius: 10px;
+    border-radius: var(--ui-radius, 8px);
   }
 
   .brand img {
@@ -189,7 +189,7 @@
     align-items: center;
     justify-content: center;
     border: 1px solid var(--page-border);
-    border-radius: 11px;
+    border-radius: var(--ui-radius, 8px);
     padding: 0 16px;
     background: var(--page-surface);
     color: var(--page-primary);

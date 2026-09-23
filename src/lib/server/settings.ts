@@ -20,6 +20,7 @@ import {
   type ThemePreset,
 } from '$lib/config';
 import type { PluginState } from '$lib/plugin-contracts';
+import { darkThemeTokens } from '$lib/theme-vars';
 import { Op, type Transaction } from 'sequelize';
 import { AppSettingModel, ensureDatabase, getDatabase } from './database';
 import {
@@ -225,11 +226,27 @@ function normalizeLocalizedContent(
   content: LocalizedSiteContent,
 ): LocalizedSiteContent {
   const fallback = defaultLocalizedContentFor(locale);
+  const general = { ...fallback.general, ...content.general };
+  // Refresh shipped marketing copy; keep operator-authored content intact.
+  const previousDefaults =
+    locale === 'ko'
+      ? {
+          headline: '긴 링크를 짧고 기억하기 쉽게.',
+          description:
+            '빠르게 공유하고, 클릭 흐름을 확인할 수 있는 나만의 단축 링크 서비스입니다.',
+        }
+      : {
+          headline: 'Short links that are easy to remember.',
+          description:
+            'Create shareable links and understand click activity in one place.',
+        };
+  for (const key of ['headline', 'description'] as const) {
+    if (general[key] === previousDefaults[key])
+      general[key] = fallback.general[key];
+  }
+  if (general.eyebrow === 'Simple links, clear insights') general.eyebrow = '';
   return {
-    general: {
-      ...fallback.general,
-      ...content.general,
-    },
+    general,
     seo: {
       ...fallback.seo,
       ...content.seo,
@@ -313,6 +330,7 @@ function normalizeSettings(
   normalizeI18nSettings(settings);
   normalizeLinkSettings(settings);
   normalizeSecuritySettings(settings);
+  settings.theme.darkTokens = darkThemeTokens(settings.theme);
   settings.plugins = normalizePluginStates(pluginValues);
   return settings;
 }

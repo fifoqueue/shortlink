@@ -1,4 +1,5 @@
 <script lang="ts">
+  import '$lib/styles/ui.css';
   import type { Snippet } from 'svelte';
   import FormSecurityTokenInjector from '$lib/components/FormSecurityTokenInjector.svelte';
   import type { LayoutData } from './$types';

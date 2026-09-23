@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
@@ -47,6 +50,7 @@
   );
   let selectedMemberIds = $state<string[]>([]);
   let addUserTarget = $state<GroupUser | null>(null);
+  let addUserTrigger: HTMLElement | null = null;
   const selectedMemberCount = $derived(
     selectedAllowedCount(selectedMemberIds, selectableMemberIds),
   );
@@ -67,20 +71,16 @@
     selectedMemberIds = selectAll(selectableMemberIds, checked);
   }
 
-  function openAddUserModal(user: GroupUser) {
+  function openAddUserModal(user: GroupUser, trigger: HTMLElement) {
+    addUserTrigger = trigger;
     addUserTarget = user;
   }
 
   function closeAddUserModal() {
     addUserTarget = null;
-  }
-
-  function closeAddUserModalOnEscape(event: KeyboardEvent) {
-    if (addUserTarget && event.key === 'Escape') closeAddUserModal();
+    void tick().then(() => addUserTrigger?.focus());
   }
 </script>
-
-<svelte:window onkeydown={closeAddUserModalOnEscape} />
 
 <section class="member-management">
   <h2>{t('admin.groupUsers')}</h2>
@@ -92,12 +92,12 @@
       {#if addableUsers?.query}
         <input type="hidden" name="addUserQ" value={addableUsers.query} />
       {/if}
-      <input
+      <Input
         name="memberQ"
         placeholder={t('admin.searchCurrentMembers')}
         value={members?.query ?? ''}
       />
-      <button type="submit">{t('admin.searchMembers')}</button>
+      <Button type="submit">{t('admin.searchMembers')}</Button>
     </form>
     <form class="search-users" method="GET" onsubmit={submitGroupSearch}>
       {#if cidrs?.query}
@@ -106,12 +106,12 @@
       {#if members?.query}
         <input type="hidden" name="memberQ" value={members.query} />
       {/if}
-      <input
+      <Input
         name="addUserQ"
         placeholder={t('admin.searchUsersToAdd')}
         value={addableUsers?.query ?? ''}
       />
-      <button type="submit">{t('admin.searchUsers')}</button>
+      <Button type="submit">{t('admin.searchUsers')}</Button>
     </form>
   </div>
 
@@ -210,7 +210,7 @@
                 value="removeGroupUser"
               />
               <input type="hidden" name="userId" value={member.id} />
-              <button type="submit">{t('admin.remove')}</button>
+              <Button type="submit">{t('admin.remove')}</Button>
             </form>
           </article>
         {/each}
@@ -245,8 +245,12 @@
                     : ''}</span
                 >
               </a>
-              <button type="button" onclick={() => openAddUserModal(candidate)}
-                >{t('admin.add')}</button
+              <Button
+                variant="outline"
+                type="button"
+                onclick={(event) =>
+                  openAddUserModal(candidate, event.currentTarget)}
+                >{t('admin.add')}</Button
               >
             </article>
           {/each}

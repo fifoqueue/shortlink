@@ -97,6 +97,8 @@ export interface ThemeTokens {
   fontFamily: string;
 }
 
+export type ThemeColors = Omit<ThemeTokens, 'radius' | 'fontFamily'>;
+
 export interface LocalizedSiteContent {
   general: {
     siteName: string;
@@ -262,6 +264,7 @@ export interface SiteSettings {
     preset: ThemePreset;
     mode: ColorMode;
     customTokens: ThemeTokens;
+    darkTokens?: Partial<ThemeColors>;
   };
   plugins: Record<string, PluginState>;
 }
@@ -320,10 +323,9 @@ export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
   ko: {
     general: {
       siteName: 'Shortlink',
-      eyebrow: 'Simple links, clear insights',
-      headline: '긴 링크를 짧고 기억하기 쉽게.',
-      description:
-        '빠르게 공유하고, 클릭 흐름을 확인할 수 있는 나만의 단축 링크 서비스입니다.',
+      eyebrow: '',
+      headline: '링크 만들기',
+      description: '공유할 주소를 입력하세요.',
       footerText: 'Shortlink',
     },
     seo: {
@@ -340,10 +342,9 @@ export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
   en: {
     general: {
       siteName: 'Shortlink',
-      eyebrow: 'Simple links, clear insights',
-      headline: 'Short links that are easy to remember.',
-      description:
-        'Create shareable links and understand click activity in one place.',
+      eyebrow: '',
+      headline: 'Create a link',
+      description: 'Enter the address you want to share.',
       footerText: 'Shortlink',
     },
     seo: {
@@ -384,7 +385,7 @@ export const themePresets: Record<ThemePreset, ThemeTokens> = {
     primary: '#1f7a4d',
     primaryContrast: '#ffffff',
     border: '#dce5df',
-    radius: 22,
+    radius: 8,
     fontFamily: defaultFontFamily,
   },
   ocean: {
@@ -395,7 +396,7 @@ export const themePresets: Record<ThemePreset, ThemeTokens> = {
     primary: '#146ca4',
     primaryContrast: '#ffffff',
     border: '#d7e4ee',
-    radius: 18,
+    radius: 8,
     fontFamily: defaultFontFamily,
   },
   violet: {
@@ -406,7 +407,7 @@ export const themePresets: Record<ThemePreset, ThemeTokens> = {
     primary: '#7950b2',
     primaryContrast: '#ffffff',
     border: '#e6ddef',
-    radius: 26,
+    radius: 8,
     fontFamily: defaultFontFamily,
   },
   sunset: {
@@ -417,7 +418,7 @@ export const themePresets: Record<ThemePreset, ThemeTokens> = {
     primary: '#c55735',
     primaryContrast: '#ffffff',
     border: '#f0ddd3',
-    radius: 14,
+    radius: 8,
     fontFamily: defaultFontFamily,
   },
   mono: {
@@ -582,9 +583,10 @@ export const defaultSettings: SiteSettings = {
     },
   },
   theme: {
-    preset: 'emerald',
+    preset: 'mono',
     mode: 'light',
-    customTokens: { ...themePresets.emerald },
+    customTokens: { ...themePresets.mono },
+    darkTokens: {},
   },
   plugins: {},
 };

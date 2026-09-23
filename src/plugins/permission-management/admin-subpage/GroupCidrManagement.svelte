@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import DangerConfirmButton from '$lib/components/DangerConfirmButton.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
@@ -78,12 +80,12 @@
     {#if addableUsers?.query}
       <input type="hidden" name="addUserQ" value={addableUsers.query} />
     {/if}
-    <input
+    <Input
       name="cidrQ"
       placeholder={t('admin.searchCidr')}
       value={cidrs?.query ?? ''}
     />
-    <button type="submit">{t('admin.searchCidr')}</button>
+    <Button type="submit">{t('admin.searchCidr')}</Button>
   </form>
   <form
     class="add-cidr-form"
@@ -94,13 +96,13 @@
     <input type="hidden" name="pluginAction" value="addGroupCidr" />
     <label>
       CIDR
-      <input name="cidr" placeholder="203.0.113.0/24" required />
+      <Input name="cidr" placeholder="203.0.113.0/24" required />
     </label>
     <label class="expires-field">
       {t('admin.expirationDateTime')}
-      <input name="expiresAt" type="datetime-local" step="60" />
+      <Input name="expiresAt" type="datetime-local" step="60" />
     </label>
-    <button type="submit">{t('admin.addCidr')}</button>
+    <Button type="submit">{t('admin.addCidr')}</Button>
   </form>
   {#if cidrs?.cidrs?.length}
     <form
@@ -164,7 +166,7 @@
         >
           <input type="hidden" name="pluginAction" value="removeGroupCidr" />
           <input type="hidden" name="cidr" value={rule.cidr} />
-          <button type="submit">{t('admin.remove')}</button>
+          <Button type="submit">{t('admin.remove')}</Button>
         </form>
       </article>
     {/each}

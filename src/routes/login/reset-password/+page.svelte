@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { enhance } from '$app/forms';
   import AuthCardPage from '$lib/components/AuthCardPage.svelte';
   import type { SiteLocale, SiteSettings } from '$lib/config';
@@ -52,7 +54,7 @@
       <input type="hidden" name="token" value={data.token} />
       <label>
         {text.auth.newPassword}
-        <input
+        <Input
           type="password"
           name="password"
           autocomplete="new-password"
@@ -60,7 +62,7 @@
         />
         <span>{data.passwordPolicy}</span>
       </label>
-      <button type="submit">{text.auth.resetPasswordSubmit}</button>
+      <Button type="submit">{text.auth.resetPasswordSubmit}</Button>
     </form>
   {/if}
 </AuthCardPage>
