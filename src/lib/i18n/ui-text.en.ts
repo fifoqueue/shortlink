@@ -165,6 +165,10 @@ const en: UiTextKo = {
       termsTitle: 'Terms title',
       privacyTitle: 'Privacy title',
       termsContent: 'Terms content',
+      termsUrl: 'External terms URL',
+      privacyUrl: 'External privacy URL',
+      legalUrlHelp:
+        'Enter an HTTP(S) URL to open an external document. Leave blank to show the built-in content below. Content is preserved while using an external URL.',
       privacyContent: 'Privacy content',
       signupPasswordTitle: 'Signup and Password',
       signupPasswordDescription:
@@ -792,6 +796,8 @@ const en: UiTextKo = {
     },
   },
   messages: {
+    legalUrlInvalid:
+      'External legal document URLs must be valid HTTP(S) URLs without a username or password.',
     settingsChanged:
       'Another request changed these settings. Reload and save again.',
     createDisabledTitle: 'Link creation is currently disabled.',

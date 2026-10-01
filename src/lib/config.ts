@@ -114,8 +114,10 @@ export interface LocalizedSiteContent {
   legal: {
     termsTitle: string;
     termsContent: string;
+    termsUrl: string;
     privacyTitle: string;
     privacyContent: string;
+    privacyUrl: string;
   };
 }
 
@@ -168,8 +170,10 @@ export interface SiteSettings {
   legal: {
     termsTitle: string;
     termsContent: string;
+    termsUrl: string;
     privacyTitle: string;
     privacyContent: string;
+    privacyUrl: string;
   };
   i18n: {
     defaultLocale: SiteLocale;
@@ -334,6 +338,8 @@ export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
     },
     legal: {
       termsTitle: '이용 약관',
+      termsUrl: '',
+      privacyUrl: '',
       termsContent: '관리자가 아직 이용 약관을 설정하지 않았습니다.',
       privacyTitle: '개인정보 처리방침',
       privacyContent: '관리자가 아직 개인정보 처리방침을 설정하지 않았습니다.',
@@ -353,6 +359,8 @@ export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
     },
     legal: {
       termsTitle: 'Terms of Service',
+      termsUrl: '',
+      privacyUrl: '',
       termsContent:
         'The administrator has not configured the terms of service yet.',
       privacyTitle: 'Privacy Policy',
@@ -467,6 +475,8 @@ export const defaultSettings: SiteSettings = {
   },
   legal: {
     termsTitle: defaultSiteContent.legal.termsTitle,
+    termsUrl: defaultSiteContent.legal.termsUrl,
+    privacyUrl: defaultSiteContent.legal.privacyUrl,
     termsContent: defaultSiteContent.legal.termsContent,
     privacyTitle: defaultSiteContent.legal.privacyTitle,
     privacyContent: defaultSiteContent.legal.privacyContent,

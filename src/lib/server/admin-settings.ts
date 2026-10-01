@@ -21,6 +21,7 @@ import {
 import { darkThemeTokens, defaultDarkThemeTokens } from '$lib/theme-vars';
 import { localeFromValue } from '$lib/i18n';
 import { serverMessage } from '$lib/i18n/ui-text';
+import { normalizeLegalUrl } from '$lib/legal-url';
 import { validateGeoipSettings } from './geoip';
 import { hashWebActionBypassToken } from './web-action-guard';
 import { parseOutboundProxyUrl } from './outbound-http';
@@ -380,6 +381,13 @@ function formText(
   return (trim ? value.trim() : value).slice(0, maxLength);
 }
 
+function legalUrlFromForm(form: FormData, name: string, fallback: string) {
+  const value = stringValue(form, name, fallback);
+  const url = normalizeLegalUrl(value);
+  if (value && !url) throw new Error(serverMessage('legalUrlInvalid'));
+  return url;
+}
+
 function localizedContentFromForm(
   form: FormData,
   locale: SiteLocale,
@@ -445,6 +453,11 @@ function localizedContentFromForm(
         content.legal.termsTitle,
         120,
       ),
+      termsUrl: legalUrlFromForm(
+        form,
+        `${locale}TermsUrl`,
+        content.legal.termsUrl,
+      ),
       termsContent: formText(
         form,
         `${locale}TermsContent`,
@@ -457,6 +470,11 @@ function localizedContentFromForm(
         `${locale}PrivacyTitle`,
         content.legal.privacyTitle,
         120,
+      ),
+      privacyUrl: legalUrlFromForm(
+        form,
+        `${locale}PrivacyUrl`,
+        content.legal.privacyUrl,
       ),
       privacyContent: formText(
         form,

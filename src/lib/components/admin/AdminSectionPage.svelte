@@ -957,6 +957,24 @@
                 />
               </label>
               <label class="wide">
+                {text.admin.settings.termsUrl}
+                <small>{text.admin.settings.legalUrlHelp}</small>
+                <Input
+                  type="url"
+                  name={`${legalContentLocale}TermsUrl`}
+                  value={legalContent.legal.termsUrl}
+                />
+              </label>
+              <label class="wide">
+                {text.admin.settings.privacyUrl}
+                <small>{text.admin.settings.legalUrlHelp}</small>
+                <Input
+                  type="url"
+                  name={`${legalContentLocale}PrivacyUrl`}
+                  value={legalContent.legal.privacyUrl}
+                />
+              </label>
+              <label class="wide">
                 {text.admin.settings.termsContent}
                 <Textarea
                   name={`${legalContentLocale}TermsContent`}

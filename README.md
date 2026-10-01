@@ -118,6 +118,8 @@ yarn dev -- --host 0.0.0.0 --port 3000
 - 플러그인: CAPTCHA, 속도 제한, OIDC SSO, 사용자 관리, 향상된 추적 등 플러그인 설정
 - 링크 관리: 저장된 링크 검색, 수정, 삭제, 통계 확인
 
+사이트의 **법적 문서**에서 언어별로 이용 약관과 개인정보 처리방침의 외부 URL을 각각 설정할 수 있습니다. 사용자명과 비밀번호가 없는 HTTP(S) URL만 허용됩니다. URL을 입력하면 푸터 링크는 외부 문서를 직접 열며, 기존 `/terms`와 `/privacy` 주소로 접근해도 해당 언어의 외부 URL로 임시 리다이렉트됩니다. URL을 비우면 저장된 내장 내용이 다시 표시됩니다. 외부 URL 사용 중에도 내장 내용은 보존됩니다.
+
 이 레포지토리가 제공하는 코어 플러그인은 `src/plugins/<plugin-id>/`에 두고, 서버별 유저 플러그인은 `src/user-plugins/<plugin-id>/`에 둡니다. 유저 플러그인은 기본적으로 git 추적에서 제외됩니다. 빌드 시점 플러그인 개발 계약은 [docs/plugin-development.md](docs/plugin-development.md)를, Docker 이미지 재빌드 없이 로드할 런타임 플러그인 ABI 설계는 [docs/runtime-plugin-abi.md](docs/runtime-plugin-abi.md)를 참고하세요.
 
 ## 리버스 프록시와 실제 IP

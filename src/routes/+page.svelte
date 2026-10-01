@@ -448,10 +448,16 @@
   <footer>
     <p>© {new Date().getFullYear()} {data.settings.general.footerText}</p>
     <nav class="legal-links" aria-label={text.legal.documentsNav}>
-      <a href={resolve('/terms')}
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+      <a
+        href={data.settings.legal.termsUrl || resolve('/terms')}
+        data-sveltekit-reload={!!data.settings.legal.termsUrl}
         >{data.settings.legal.termsTitle || text.legal.terms}</a
       >
-      <a href={resolve('/privacy')}
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+      <a
+        href={data.settings.legal.privacyUrl || resolve('/privacy')}
+        data-sveltekit-reload={!!data.settings.legal.privacyUrl}
         >{data.settings.legal.privacyTitle || text.legal.privacy}</a
       >
     </nav>

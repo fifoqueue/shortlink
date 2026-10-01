@@ -51,10 +51,16 @@
   <footer>
     <p>© {new Date().getFullYear()} {settings.general.footerText}</p>
     <nav aria-label={text.legal.documentsNav}>
-      <a href={resolve('/terms')}
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+      <a
+        href={settings.legal.termsUrl || resolve('/terms')}
+        data-sveltekit-reload={!!settings.legal.termsUrl}
         >{settings.legal.termsTitle || text.legal.terms}</a
       >
-      <a href={resolve('/privacy')}
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+      <a
+        href={settings.legal.privacyUrl || resolve('/privacy')}
+        data-sveltekit-reload={!!settings.legal.privacyUrl}
         >{settings.legal.privacyTitle || text.legal.privacy}</a
       >
     </nav>

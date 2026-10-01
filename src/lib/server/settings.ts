@@ -20,6 +20,7 @@ import {
   type ThemePreset,
 } from '$lib/config';
 import type { PluginState } from '$lib/plugin-contracts';
+import { normalizeLegalUrl } from '$lib/legal-url';
 import { darkThemeTokens } from '$lib/theme-vars';
 import { Op, type Transaction } from 'sequelize';
 import { AppSettingModel, ensureDatabase, getDatabase } from './database';
@@ -254,6 +255,8 @@ function normalizeLocalizedContent(
     legal: {
       ...fallback.legal,
       ...content.legal,
+      termsUrl: normalizeLegalUrl(content.legal.termsUrl),
+      privacyUrl: normalizeLegalUrl(content.legal.privacyUrl),
     },
   };
 }

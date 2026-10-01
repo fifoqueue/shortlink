@@ -159,6 +159,10 @@ const ko = {
       termsTitle: '이용 약관 제목',
       privacyTitle: '개인정보 처리방침 제목',
       termsContent: '이용 약관 내용',
+      termsUrl: '이용 약관 외부 URL',
+      privacyUrl: '개인정보 처리방침 외부 URL',
+      legalUrlHelp:
+        'HTTP(S) URL을 입력하면 외부 문서로 이동합니다. 비워두면 아래 내장 내용을 표시하며, 외부 URL 사용 중에도 내용은 보존됩니다.',
       privacyContent: '개인정보 처리방침 내용',
       signupPasswordTitle: '가입과 비밀번호',
       signupPasswordDescription:
@@ -777,6 +781,8 @@ const ko = {
     },
   },
   messages: {
+    legalUrlInvalid:
+      '법적 문서 외부 URL은 사용자명과 비밀번호가 없는 올바른 HTTP(S) URL이어야 합니다.',
     settingsChanged:
       '다른 요청이 설정을 변경했습니다. 새로고침 후 다시 저장해주세요.',
     createDisabledTitle: '지금은 링크를 만들 수 없습니다.',
