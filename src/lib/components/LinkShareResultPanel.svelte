@@ -27,7 +27,6 @@
 </script>
 
 <section class="result-panel">
-  <p>{text.linkPermission.acceptedKicker}</p>
   {#if mode === 'accepted'}
     <h1>
       {acceptedAsOwner
@@ -63,14 +62,6 @@
     background: var(--surface);
     color: var(--text);
     box-shadow: 0 22px 64px color-mix(in srgb, var(--text) 7%, transparent);
-  }
-  .result-panel > p:first-child {
-    margin: 0;
-    color: var(--primary);
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
   }
   h1,
   p {

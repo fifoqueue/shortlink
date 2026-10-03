@@ -712,7 +712,6 @@
     color: var(--page-muted);
     font-size: 0.68rem;
     font-weight: 600;
-    text-transform: uppercase;
   }
   .copy-meta strong {
     min-width: 0;
@@ -797,7 +796,6 @@
     font-weight: 600;
     line-height: 1.25;
     text-overflow: ellipsis;
-    text-transform: uppercase;
     white-space: nowrap;
   }
   .event-details dd {

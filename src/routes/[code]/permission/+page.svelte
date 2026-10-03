@@ -382,7 +382,6 @@
       <section class="share-panel">
         <div class="panel-head">
           <div>
-            <p>{text.linkPermission.inviteKicker}</p>
             <h2>{text.linkPermission.inviteTitle}</h2>
           </div>
           {#if data.share}
@@ -510,7 +509,6 @@
       <section class="recipients-panel">
         <div class="panel-head">
           <div>
-            <p>{text.linkPermission.recipientsKicker}</p>
             <h2>{text.linkPermission.recipientsTitle}</h2>
           </div>
         </div>
@@ -802,14 +800,6 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
-  }
-  .panel-head p {
-    margin: 0;
-    color: var(--primary);
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
   }
   h1,
   h2,

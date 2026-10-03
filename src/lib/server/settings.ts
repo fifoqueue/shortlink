@@ -246,12 +246,16 @@ function normalizeLocalizedContent(
       general[key] = fallback.general[key];
   }
   if (general.eyebrow === 'Simple links, clear insights') general.eyebrow = '';
+  const seo = { ...fallback.seo, ...content.seo };
+  const previousSeoDescription =
+    locale === 'ko'
+      ? '빠르고 간단한 단축 링크 서비스'
+      : 'A fast and simple short link service';
+  if (seo.description === previousSeoDescription)
+    seo.description = fallback.seo.description;
   return {
     general,
-    seo: {
-      ...fallback.seo,
-      ...content.seo,
-    },
+    seo,
     legal: {
       ...fallback.legal,
       ...content.legal,

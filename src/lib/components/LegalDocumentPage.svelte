@@ -1,9 +1,7 @@
 <script lang="ts">
-  import { resolve } from '$app/paths';
-  import type { SiteLocale } from '$lib/config';
   import type { PublicLegalSettings } from '$lib/public-settings';
   import { siteThemeStyle } from '$lib/theme-vars';
-  import { uiText } from '$lib/i18n/ui-text';
+  import SiteFooter from '$lib/components/SiteFooter.svelte';
   import SiteHeader from '$lib/components/SiteHeader.svelte';
   import SiteThemeStyles from './SiteThemeStyles.svelte';
 
@@ -18,9 +16,6 @@
     content: string;
     fallbackContent: string;
   } = $props();
-
-  const locale = $derived(settings.general.language as SiteLocale);
-  const text = $derived(uiText(locale));
 </script>
 
 <svelte:head>
@@ -48,23 +43,7 @@
     <article>{content.trim() || fallbackContent}</article>
   </main>
 
-  <footer>
-    <p>© {new Date().getFullYear()} {settings.general.footerText}</p>
-    <nav aria-label={text.legal.documentsNav}>
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a
-        href={settings.legal.termsUrl || resolve('/terms')}
-        data-sveltekit-reload={!!settings.legal.termsUrl}
-        >{settings.legal.termsTitle || text.legal.terms}</a
-      >
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a
-        href={settings.legal.privacyUrl || resolve('/privacy')}
-        data-sveltekit-reload={!!settings.legal.privacyUrl}
-        >{settings.legal.privacyTitle || text.legal.privacy}</a
-      >
-    </nav>
-  </footer>
+  <SiteFooter {settings} />
 </div>
 
 <style>
@@ -92,41 +71,10 @@
     font-size: 0.95rem;
     line-height: 1.85;
   }
-  footer {
-    width: min(1120px, calc(100% - 48px));
-    margin: auto;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    border-top: 1px solid var(--page-border);
-    padding: 24px 0;
-    color: var(--page-muted);
-    font-size: 0.75rem;
-  }
-  footer p {
-    margin: 0;
-  }
-  footer nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-  }
-  footer a {
-    color: inherit;
-    text-decoration: none;
-  }
-  footer a:hover {
-    text-decoration: underline;
-  }
   @media (max-width: 600px) {
     main {
       width: calc(100% - 32px);
       padding: 32px 0 56px;
-    }
-    footer {
-      width: calc(100% - 32px);
     }
   }
 </style>

@@ -626,7 +626,6 @@
     >
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">01</p>
           <h2>{text.admin.settings.accessPolicyTitle}</h2>
           <p>{text.admin.settings.accessPolicyDescription}</p>
         </div>
@@ -777,7 +776,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">02</p>
           <h2>{text.admin.settings.brandContentTitle}</h2>
           <p>{text.admin.settings.brandContentDescription}</p>
         </div>
@@ -861,7 +859,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">03</p>
           <h2>{text.admin.settings.searchSharingTitle}</h2>
           <p>{text.admin.settings.searchSharingDescription}</p>
         </div>
@@ -928,7 +925,6 @@
       </section>
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">04</p>
           <h2>{text.admin.settings.legalDocumentsTitle}</h2>
           <p>{text.admin.settings.legalDocumentsDescription}</p>
         </div>
@@ -1019,7 +1015,6 @@
     >
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">01</p>
           <h2>{text.admin.settings.linkPermissionTitle}</h2>
           <p>{text.admin.settings.linkPermissionDescription}</p>
         </div>
@@ -1057,7 +1052,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">02</p>
           <h2>{text.admin.settings.codeRulesTitle}</h2>
           <p>{text.admin.settings.codeRulesDescription}</p>
         </div>
@@ -1091,7 +1085,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">03</p>
           <h2>{text.admin.settings.linkOptionsTitle}</h2>
           <p>{text.admin.settings.linkOptionsDescription}</p>
         </div>
@@ -1112,7 +1105,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">04</p>
           <h2>{text.admin.settings.editableFieldsTitle}</h2>
           <p>{text.admin.settings.editableFieldsDescription}</p>
         </div>
@@ -1134,7 +1126,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">05</p>
           <h2>{text.admin.settings.redirectSecurityTitle}</h2>
           <p>{text.admin.settings.redirectSecurityDescription}</p>
         </div>
@@ -1180,7 +1171,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">06</p>
           <h2>{text.admin.settings.apiTitle}</h2>
           <p>{text.admin.settings.apiDescription}</p>
         </div>
@@ -1244,7 +1234,6 @@
     >
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">01</p>
           <h2>{text.admin.settings.signupPasswordTitle}</h2>
           <p>{text.admin.settings.signupPasswordDescription}</p>
         </div>
@@ -1316,7 +1305,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">02</p>
           <h2>{text.admin.settings.emailVerificationTitle}</h2>
           <p>{text.admin.settings.emailVerificationDescription}</p>
         </div>
@@ -1506,7 +1494,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">03</p>
           <h2>{text.admin.settings.webActionGuardTitle}</h2>
           <p>{text.admin.settings.webActionGuardDescription}</p>
         </div>
@@ -1583,7 +1570,6 @@
 
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">04</p>
           <h2>{text.admin.settings.requestSecurityTitle}</h2>
           <p>{text.admin.settings.requestSecurityDescription}</p>
         </div>
@@ -1761,7 +1747,6 @@
     >
       <section class="setting-card">
         <div class="card-copy">
-          <p class="step">01</p>
           <h2>{text.admin.settings.themePresetTitle}</h2>
           <p>{text.admin.settings.themePresetDescription}</p>
         </div>
@@ -1875,7 +1860,7 @@
               <span>
                 {meta.required
                   ? text.admin.plugins.requiredCore
-                  : meta.category.toUpperCase()} · v{meta.version}
+                  : meta.category} · v{meta.version}
               </span>
               <h2>{meta.name}</h2>
             </div>
@@ -1896,7 +1881,6 @@
     <section class="data-panel">
       <div class="data-heading">
         <div>
-          <p class="kicker">{text.admin.data.kicker}</p>
           <h2>
             {formatText(text.admin.data.count, {
               count: data.pagination.totalItems,
@@ -1973,14 +1957,6 @@
   :global(textarea),
   :global(select) {
     font: inherit;
-  }
-  .kicker,
-  .step {
-    margin: 22px 0 8px;
-    color: var(--admin-primary);
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
   }
   h2,
   p {
@@ -2170,9 +2146,6 @@
     padding: 28px 0;
     background: transparent;
   }
-  .card-copy .step {
-    margin-top: 0;
-  }
   .card-copy h2,
   .plugin-card h2,
   .data-heading h2 {
@@ -2278,10 +2251,8 @@
     background: var(--page-surface);
   }
   .theme-preview span {
-    color: var(--page-primary);
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+    color: var(--page-muted);
+    font-size: 0.75rem;
   }
   .theme-preview strong {
     display: block;
@@ -2317,10 +2288,8 @@
     min-width: 0;
   }
   .plugin-heading span {
-    color: var(--admin-primary);
-    font-size: 0.66rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+    color: var(--admin-muted);
+    font-size: 0.75rem;
   }
   .plugin-heading h2 {
     margin: 5px 0 0;
@@ -2368,9 +2337,6 @@
     gap: 30px;
     padding: 28px;
     border-bottom: 1px solid var(--admin-border);
-  }
-  .data-heading .kicker {
-    margin-top: 0;
   }
   .data-heading h2 {
     margin-bottom: 0;

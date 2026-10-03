@@ -334,7 +334,7 @@ export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
     },
     seo: {
       title: 'Shortlink',
-      description: '빠르고 간단한 단축 링크 서비스',
+      description: '단축 링크',
     },
     legal: {
       termsTitle: '이용 약관',
@@ -355,7 +355,7 @@ export const defaultLocalizedContent: Record<string, LocalizedSiteContent> = {
     },
     seo: {
       title: 'Shortlink',
-      description: 'A fast and simple short link service',
+      description: 'Short links',
     },
     legal: {
       termsTitle: 'Terms of Service',

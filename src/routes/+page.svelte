@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
+  import SiteFooter from '$lib/components/SiteFooter.svelte';
   import SiteHeader from '$lib/components/SiteHeader.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
@@ -445,29 +446,16 @@
     {/if}
   </main>
 
-  <footer>
-    <p>© {new Date().getFullYear()} {data.settings.general.footerText}</p>
-    <nav class="legal-links" aria-label={text.legal.documentsNav}>
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a
-        href={data.settings.legal.termsUrl || resolve('/terms')}
-        data-sveltekit-reload={!!data.settings.legal.termsUrl}
-        >{data.settings.legal.termsTitle || text.legal.terms}</a
-      >
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a
-        href={data.settings.legal.privacyUrl || resolve('/privacy')}
-        data-sveltekit-reload={!!data.settings.legal.privacyUrl}
-        >{data.settings.legal.privacyTitle || text.legal.privacy}</a
-      >
-    </nav>
-    <PluginSlotOutlet
-      slots={data.publicSlots}
-      slot="footer"
-      {locale}
-      fallbackLocale={data.settings.i18n.defaultLocale}
-    />
-  </footer>
+  <SiteFooter settings={data.settings}>
+    {#snippet extra()}
+      <PluginSlotOutlet
+        slots={data.publicSlots}
+        slot="footer"
+        {locale}
+        fallbackLocale={data.settings.i18n.defaultLocale}
+      />
+    {/snippet}
+  </SiteFooter>
 </div>
 
 <style>
@@ -635,33 +623,6 @@
     color: var(--page-text);
     text-underline-offset: 4px;
   }
-  footer {
-    width: min(1120px, calc(100% - 48px));
-    margin: auto;
-    padding: 24px 0;
-    border-top: 1px solid var(--page-border);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--page-muted);
-    font-size: 0.75rem;
-  }
-  footer p {
-    margin: 0;
-  }
-  .legal-links {
-    display: flex;
-    gap: 20px;
-  }
-  .legal-links a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .legal-links a:hover {
-    text-decoration: underline;
-  }
   @media (max-width: 800px) {
     .primary-fields,
     .primary-fields:has(.domain-field) {
@@ -698,9 +659,6 @@
       align-items: start;
       flex-direction: column;
       gap: 8px;
-    }
-    footer {
-      width: calc(100% - 32px);
     }
   }
 </style>

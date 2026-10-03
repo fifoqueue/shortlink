@@ -49,7 +49,6 @@
     <div class="locale-row">
       <LocaleSelect locale={data.locale} compact />
     </div>
-    <p class="kicker">{data.siteName} ADMIN</p>
     <h1>{text.admin.adminRequiredTitle}</h1>
     <p class="muted">{text.admin.adminRequiredDescription}</p>
     <div class="account">
@@ -117,20 +116,13 @@
     height: 100%;
     object-fit: contain;
   }
-  .kicker {
-    margin: 26px 0 8px;
-    color: var(--admin-primary);
-    font-size: 0.7rem;
-    font-weight: 900;
-    letter-spacing: 0.14em;
-  }
   .locale-row {
     display: flex;
     justify-content: flex-end;
     margin-top: -42px;
   }
   h1 {
-    margin: 0;
+    margin: 26px 0 0;
     font-size: 2rem;
     letter-spacing: -0.04em;
   }
